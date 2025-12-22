@@ -509,8 +509,11 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
 export const getAllGeneral = async (req: Request, res: Response) => {
   let getGeneral;
   let err;
-  let { customerId } = req.query,
-    option: any = {};
+
+  const { customerId, pageNo, limit } = req.query as any;
+  let option: any = {};
+
+  // Validate customerId
   if (customerId) {
     if (!mongoose.isValidObjectId(customerId)) {
       return ReE(
@@ -519,9 +522,13 @@ export const getAllGeneral = async (req: Request, res: Response) => {
         httpStatus.BAD_REQUEST
       );
     }
+
     let getCustomer;
-    [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
+    [err, getCustomer] = await toAwait(
+      Customer.findOne({ _id: customerId })
+    );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
     if (!getCustomer) {
       return ReE(
         res,
@@ -529,22 +536,104 @@ export const getAllGeneral = async (req: Request, res: Response) => {
         httpStatus.NOT_FOUND
       );
     }
+
     option.customer = customerId;
   }
-  [err, getGeneral] = await toAwait(
-    General.find(option).populate("customer").populate("marketer")
-  );
+
+  // 🔹 CHECK PAGINATION PARAMETERS
+  const isPagination =
+    pageNo !== undefined && limit !== undefined;
+
+  // 🔹 NO PAGINATION → RETURN ALL DATA
+  if (!isPagination) {
+    [err, getGeneral] = await toAwait(
+      General.find(option)
+        .populate("customer")
+        .populate("marketer")
+        .sort({ createdAt: -1 })
+    );
+
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    getGeneral = getGeneral as IGeneral[];
+
+    if (!getGeneral || getGeneral.length === 0) {
+      return ReE(
+        res,
+        { message: "general not found in db" },
+        httpStatus.NOT_FOUND
+      );
+    }
+
+    return ReS(res, { data: getGeneral }, httpStatus.OK);
+  }
+
+  // 🔹 PAGINATION LOGIC
+  const page = Number(pageNo);
+  const pageLimit = Number(limit);
+
+  if (page < 1 || pageLimit < 1) {
+    return ReE(
+      res,
+      { message: "pageNo and limit must be positive numbers" },
+      httpStatus.BAD_REQUEST
+    );
+  }
+
+  // Total count
+  let total;
+  [err, total] = await toAwait(General.countDocuments(option));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+  const lastPage = Math.ceil(total as number / pageLimit) || 1;
+
+  if (page > lastPage) {
+    return ReE(
+      res,
+      { message: `last page no is ${lastPage}` },
+      httpStatus.BAD_REQUEST
+    );
+  }
+
+  const skip = (page - 1) * pageLimit;
+
+  // Fetch paginated data
+  [err, getGeneral] = await toAwait(
+    General.find(option)
+      .populate("customer")
+      .populate("marketer")
+      .skip(skip)
+      .limit(pageLimit)
+      .sort({ createdAt: -1 })
+  );
+
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
   getGeneral = getGeneral as IGeneral[];
-  if (getGeneral.length === 0) {
+
+  if (!getGeneral || getGeneral.length === 0) {
     return ReE(
       res,
       { message: "general not found in db" },
       httpStatus.NOT_FOUND
     );
   }
-  return ReS(res, { data: getGeneral }, httpStatus.OK);
+
+  return ReS(
+    res,
+    {
+      data: getGeneral,
+      pagination: {
+        total,
+        pageNo: page,
+        limit: pageLimit,
+        lastPage
+      }
+    },
+    httpStatus.OK
+  );
 };
+
 
 export const getAllBilling = async (req: Request, res: Response) => {
   let getBilling;

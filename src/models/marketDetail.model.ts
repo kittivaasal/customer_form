@@ -8,6 +8,10 @@ const MarketDetailSchema: Schema = new Schema(
         phone: { type: String, required: true },
         address: { type: String, required: true },
         status: { type: String, default: 'active' },
+        oldData:{type:Boolean,default:false},   
+        levelId:{type:Number},
+        autoId:{type:Number},
+        leader: {type:String},
     },
     {
         timestamps: true

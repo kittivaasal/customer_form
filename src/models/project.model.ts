@@ -44,6 +44,10 @@ const projectSchema = new mongoose.Schema({
   totalReturnAmount: {
     type: Number,
     default: 0,
+  },
+  oldData:{
+    type:Boolean,
+    default:false
   }
 }, { timestamps: true });
 

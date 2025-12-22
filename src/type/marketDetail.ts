@@ -6,4 +6,8 @@ export interface IMarketDetail {
   phone: string;
   address: string;
   status: string;
+  oldData?:boolean    
+  levelId:Number;
+  autoId:Number;
+  leader: String;
 }

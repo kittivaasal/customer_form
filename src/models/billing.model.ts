@@ -89,6 +89,65 @@ const BillingSchema: Schema = new Schema<IBilling>(
     editDeleteReason: {
       type: String,
     },
+    oldData:{
+      type:Boolean,
+      default:false
+    },
+    
+    project: {
+      type: String,
+    },
+    SPartycode: {
+      type: String,
+    },
+    customerCode: {
+      type: String,
+    },
+    phone: {
+      type: String,
+    },
+    marketerName: {
+      type: String,
+    },
+    matketerID: {
+      type: String,
+    },
+    leader: {
+      type: String,
+    },
+    leaderID: {
+      type: String,
+    },
+    paidDate: {
+      type: String,
+    },
+    SEEMIPaidAmt: {
+      type: String,
+    },
+    bookingId: {
+      type: String,
+    },
+    plotNo: {
+      type: String,
+    },
+    SEEMINo: {
+      type: String,
+    },
+    payMode: {
+      type: String,
+    },
+    createdBy: {
+      type: String,
+    },
+    totalAmount: {
+      type: String,
+    },
+    totalPaid: {
+      type: String,
+    },
+    totalBalance: {
+      type: String,
+    },
   },
   { timestamps: true }
 );
