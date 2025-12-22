@@ -21,4 +21,23 @@ export interface IBilling extends Document {
     status: "enquiry" | "blocked" | "active";
     remarks?: string;
     editDeleteReason?: string;
+    oldData?: boolean
+    project?: string;	
+    SPartycode?: string;
+    customerCode?: string;
+    phone?: string;
+    marketerName?: string;
+    matketerID?: string;
+    leader?: string;
+    leaderID?: string;
+    paidDate?: string;
+    SEEMIPaidAmt?: string;
+    bookingId?: string;
+    plotNo?: string;
+    SEEMINo?: string;
+    payMode?: string;
+    createdBy?: string;
+    totalAmount?: string;
+    totalPaid?: string;
+    totalBalance?: string;
 }

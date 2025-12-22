@@ -13,5 +13,6 @@ export interface IProject {
   totalReturnAmount?: number;
   createdAt?: Date;
   updatedAt?: Date;
+  oldData?: boolean
 }
 
