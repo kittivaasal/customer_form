@@ -172,7 +172,7 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     if (phoneErr) return ReE(res, phoneErr, httpStatus.INTERNAL_SERVER_ERROR);
     if (existingPhone) {
       return ReE(res, { message: `Phone already exists!` }, httpStatus.BAD_REQUEST);
-    }
+    } 
   }
 
   if (user.isAdmin === false) {
