@@ -148,6 +148,22 @@ const BillingSchema: Schema = new Schema<IBilling>(
     totalBalance: {
       type: String,
     },
+
+    TType: {
+      type: String,
+    },
+    product: {
+      type: String,
+    },
+    EMIDate: {
+      type: String,
+    },
+    SEEMIAmt: {
+      type: String,
+    },
+    SEBalanceAmt: {
+      type: String,
+    }, 
   },
   { timestamps: true }
 );
