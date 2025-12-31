@@ -7,6 +7,37 @@ export const IsValidUUIDV4 = (val: string): boolean => {
   return isValidUUIDV4(val);
 };
 
+export function toAutoIncrCode(name: string): string {
+const words = name.replace(/-/g, " ").split(" ").filter(Boolean);
+
+  let letters = "";
+  let suffix = "";
+
+  for (const w of words) {
+    // Match alphanumeric ending like 1A, 2B, 2DD
+    const alphaNumMatch = w.match(/(\d+[A-Za-z]+)$/);
+    const numberMatch = w.match(/(\d+)$/);
+
+    if (alphaNumMatch) {
+      suffix = alphaNumMatch[1].toUpperCase();
+      letters += w[0];
+    } else if (numberMatch) {
+      suffix = numberMatch[1];
+      letters += w[0];
+    } else {
+      letters += w[0];
+    }
+  }
+
+  // ✅ REMOVE numbers from letters part (IMPORTANT FIX)
+  letters = letters.replace(/\d+/g, "");
+
+  // If no number found → default -1
+  if (!suffix) suffix = "1";
+
+  return `${letters.toUpperCase()}-${suffix}`;
+}
+
 export function isBase64String(data: string): boolean {
   const base64Regex = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
   return base64Regex.test(data);

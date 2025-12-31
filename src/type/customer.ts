@@ -1,3 +1,5 @@
+import mongoose from "mongoose";
+
 export interface ICustomer {
   id?: string; // UUID
   duration: string;
@@ -12,6 +14,7 @@ export interface ICustomer {
   address: string;
   name: string;
   marketatName: string;
+  projectId?:  mongoose.Types.ObjectId;
 }
 
 

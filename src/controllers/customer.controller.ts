@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { isNull, isPhone, isValidUUID, IsValidUUIDV4, ReE, ReS, toAwait } from "../services/util.service";
+import { isNull, isPhone, isValidUUID, IsValidUUIDV4, ReE, ReS, toAutoIncrCode, toAwait } from "../services/util.service";
 import httpStatus from "http-status";
 import { Customer } from "../models/customer.model";
 import { ICustomer } from "../type/customer";
@@ -9,10 +9,12 @@ import { IUser } from "../type/user";
 import CustomRequest from "../type/customRequest";
 import { IEditRequest } from "../type/editRequest";
 import { sendPushNotificationToSuperAdmin } from "./common";
+import { Project } from "../models/project.model";
+import { Counter } from "../models/counter.model";
 
 export const createCustomer = async (req: Request, res: Response) => {
   let body = req.body, err;
-  let { duration, emiAmount, paymentTerms, marketerName, email, pincode, state, city, phone, address, name, marketatName } = body;
+  let { duration, emiAmount, paymentTerms, marketerName, email, pincode, state, city, phone, address, name, marketatName, projectId } = body;
   // let fields = ["duration", "emiAmount", "paymentTerms", "marketerName", "email", "pincode", "state", "city", "phone", "address", "customerId", "name", 'marketatName'];
   // let inVaildFields = fields.filter(x => isNull(body[x]));
   // if (inVaildFields.length > 0) {
@@ -38,6 +40,54 @@ export const createCustomer = async (req: Request, res: Response) => {
       return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
     }
   }
+  let projectData:any={};
+  if (projectId) {
+    if (!mongoose.isValidObjectId(projectId)) {
+      return ReE(res, { message: `Invalid project id!.` }, httpStatus.BAD_REQUEST);
+    }
+    let findProject;
+    [err, findProject] = await toAwait(Project.findOne({ _id: projectId }))
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!findProject) {
+      return ReE(res, { message: `Project not found for given project id!.` }, httpStatus.NOT_FOUND);
+    }
+    body.projectId = projectId;
+    projectData=findProject;
+  }else{
+    let getProject;
+    [err, getProject] = await toAwait(Project.findOne().sort({ createdAt: 1 }))
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getProject = getProject as any;
+    if (getProject) {
+      body.projectId = getProject._id;
+      projectData=getProject;
+    }
+  }
+  if(projectData?.projectName){
+    let id= toAutoIncrCode(projectData?.projectName)
+    console.log("project name found",id);
+    let getCustomerCounter,count=0;
+    [err,getCustomerCounter] = await toAwait(Counter.findOne({name:"customerid"}));
+    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if(!getCustomerCounter){
+      let newCounter = new Counter({
+        name: "customerid",
+        seq: 0
+      });
+      await newCounter.save();
+      getCustomerCounter=newCounter;
+    }else{
+      getCustomerCounter = getCustomerCounter as any;
+      count=getCustomerCounter.seq+1;
+    }
+    let updateCustomerCounter;
+    [err,updateCustomerCounter] = await toAwait(
+      Counter.updateOne({name:"customerid"},{$set:{seq:count}})
+    )
+    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    body.id= id+"-"+count.toString().padStart(4,'0');
+  }
+
   let customer;
   [err, customer] = await toAwait(Customer.create(body));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -80,13 +130,26 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     "phone",
     "address",
     "name",
-    "marketatName"
+    "marketatName",
+    "projectId"
   ];
 
   const updateFields: Record<string, any> = {};
   for (const key of allowedFields) {
     if (!isNull(body[key])) {
       updateFields[key] = body[key];
+    }
+  }
+
+  if(updateFields.projectId){
+    if (!mongoose.isValidObjectId(updateFields.projectId)) {
+      return ReE(res, { message: `Invalid project id!.` }, httpStatus.BAD_REQUEST);
+    }
+    let findProject;
+    [err, findProject] = await toAwait(Project.findOne({ _id: updateFields.projectId }))
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!findProject) {
+      return ReE(res, { message: `Project not found for given project id!.` }, httpStatus.NOT_FOUND);
     }
   }
 
@@ -193,7 +256,7 @@ export const getByIdCustomer = async (req: Request, res: Response) => {
   }
 
   let getCustomer;
-  [err, getCustomer] = await toAwait(Customer.findOne({ _id: id }));
+  [err, getCustomer] = await toAwait(Customer.findOne({ _id: id }).populate('projectId'));
 
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!getCustomer) {
@@ -205,7 +268,7 @@ export const getByIdCustomer = async (req: Request, res: Response) => {
 
 export const getAllCustomer = async (req: Request, res: Response) => {
   let err, getCustomer;
-  [err, getCustomer] = await toAwait(Customer.find());
+  [err, getCustomer] = await toAwait(Customer.find().populate('projectId'));
 
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   getCustomer = getCustomer as ICustomer[]

@@ -26,6 +26,7 @@ import { Emi } from "./models/emi.model";
 import { General } from "./models/general.model";
 import cron from "node-cron";
 import { initializeFirebase } from './util/firebaseConfig';
+import { Counter } from "./models/counter.model";
 
 const app = express();
 app.use(express.json());
@@ -42,7 +43,7 @@ mongoose.connect(db).then(() => {
   console.log("Error connecting to MongoDB", error)
 })
 
-initializeFirebase();
+// initializeFirebase();
 
 app.use("/api/customer", customerRoutes);
 app.use("/api/project", projectRoutes);
@@ -62,6 +63,32 @@ app.use("/api/plot/booking", plotBookingFormRoutes);
 app.use("/api/life/saving", lifeSacingRoutes);
 app.use("/api/edit/request", editRequestRoutes);
 app.use("/api/logs", logRoutes)
+
+//add counter
+app.post("/api/counter/auto/increment/create", async (req, res) => {
+  let body = req.body;
+  let { name } = body;
+  if (!name) {
+    return res.status(400).json({ message: "name is required" });
+  }
+  try {
+    name = name.toLowerCase().trim();
+    const counter = await Counter.findOne(
+      { name: name },
+    );
+    if (counter) {
+      return res.status(400).json({ message: "Counter with this name already exists" });
+    }
+    let newCounter = new Counter({
+      name: name,
+      seq: 0
+    });
+    await newCounter.save();
+    return res.status(201).json({ message: "Counter created successfully", counter: newCounter });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal server error", error });
+  }
+});
 
 cron.schedule("02 00 * * *", async () => {
   console.log("Running cron job");
