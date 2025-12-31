@@ -50,6 +50,7 @@ const PlotBookingFormSchema: Schema = new Schema(
 
         photo: { type: String, trim: true },
         referenceId: { type: String, trim: true },
+        scheme: { type: String, trim: true },
     },
     {
         timestamps: true,

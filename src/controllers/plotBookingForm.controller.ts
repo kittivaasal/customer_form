@@ -10,6 +10,7 @@ export const createPlotBookingForm = async (req: Request, res: Response) => {
     let err;
     let photo;
     let referenceId = req.body.referenceId; // Extract before lowercase conversion
+    let scheme = req.body.scheme;
     if(req.body.photo){
         photo = req.body.photo
         delete req.body.photo
@@ -41,7 +42,7 @@ export const createPlotBookingForm = async (req: Request, res: Response) => {
         body.photo = photo;
     }
     let plotBookingForm;
-    [err, plotBookingForm] = await toAwait(plotBookingFormModel.create({...body, referenceId }));
+    [err, plotBookingForm] = await toAwait(plotBookingFormModel.create({...body, referenceId, scheme }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!plotBookingForm) {
         return ReE(res, { message: `Failed to create plotBookingForm!` }, httpStatus.INTERNAL_SERVER_ERROR);
@@ -77,7 +78,7 @@ export const getAllPlotBookingForms = async (req: Request, res: Response) => {
     let err;
 
     let plotBookingForm;
-    [err, plotBookingForm] = await toAwait(plotBookingFormModel.find());
+    [err, plotBookingForm] = await toAwait(plotBookingFormModel.find().sort({ createdAt: -1 }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     plotBookingForm = plotBookingForm as IPlotBookingForm[]
     if (plotBookingForm.length == 0) {
