@@ -78,7 +78,7 @@ export const getAllPlotBookingForms = async (req: Request, res: Response) => {
     let err;
 
     let plotBookingForm;
-    [err, plotBookingForm] = await toAwait(plotBookingFormModel.find());
+    [err, plotBookingForm] = await toAwait(plotBookingFormModel.find().sort({ createdAt: -1 }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     plotBookingForm = plotBookingForm as IPlotBookingForm[]
     if (plotBookingForm.length == 0) {
