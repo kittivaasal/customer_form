@@ -65,7 +65,6 @@ export const createCustomer = async (req: Request, res: Response) => {
   }
   if(projectData?.projectName){
     let id= toAutoIncrCode(projectData?.projectName)
-    console.log("project name found",id);
     let getCustomerCounter,count=0;
     [err,getCustomerCounter] = await toAwait(Counter.findOne({name:"customerid"}));
     if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
