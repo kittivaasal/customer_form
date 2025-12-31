@@ -638,8 +638,10 @@ export const getAllGeneral = async (req: Request, res: Response) => {
 export const getAllBilling = async (req: Request, res: Response) => {
   let getBilling;
   let err;
-  let { customerId, generalId } = req.query,
+  let { customerId, generalId, page, limit, search } = req.query,
     option: any = {};
+  
+  // Existing customerId validation
   if (customerId) {
     if (!mongoose.isValidObjectId(customerId)) {
       return ReE(
@@ -660,6 +662,8 @@ export const getAllBilling = async (req: Request, res: Response) => {
     }
     option.customer = customerId;
   }
+  
+  // Existing generalId validation
   if (generalId) {
     if (!mongoose.isValidObjectId(generalId)) {
       return ReE(
@@ -680,23 +684,115 @@ export const getAllBilling = async (req: Request, res: Response) => {
     }
     option.general = generalId;
   }
-  [err, getBilling] = await toAwait(
-    Billing.find(option)
-      .populate("customer")
-      .populate("general")
-      .populate("introducer")
-      .populate("emi")
-  );
+
+  // Pagination validation
+  if (limit && !page) {
+    return ReE(
+      res,
+      { message: "limit send in query means page is required or do not send the limit." },
+      httpStatus.BAD_REQUEST
+    );
+  }
+
+  if (page && !limit) {
+    return ReE(
+      res,
+      { message: "page send in query means limit is required or do not send the page." },
+      httpStatus.BAD_REQUEST
+    );
+  }
+
+  // Search logic - multi-field search
+  if (search) {
+    const searchRegex = new RegExp(search as string, 'i'); // case-insensitive
+    
+    option.$or = [
+      { mobileNo: searchRegex },
+      { customerName: searchRegex },
+      { billingId: searchRegex },
+      { remarks: searchRegex },
+      // Exact match for enums (case-insensitive)
+      { transactionType: new RegExp(`^${search}$`, 'i') },
+      { modeOfPayment: new RegExp(`^${search}$`, 'i') },
+      { saleType: new RegExp(`^${search}$`, 'i') },
+      { status: new RegExp(`^${search}$`, 'i') }
+    ];
+  }
+
+  // Get total count for pagination
+  let totalCount;
+  [err, totalCount] = await toAwait(Billing.countDocuments(option));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  getBilling = getBilling as IBilling[];
-  if (getBilling.length === 0) {
+  
+  totalCount = totalCount as number;
+  
+  if (totalCount === 0) {
     return ReE(
       res,
       { message: "billing not found in db" },
       httpStatus.NOT_FOUND
     );
   }
-  return ReS(res, { data: getBilling }, httpStatus.OK);
+
+  // Check if pagination is requested
+  const isPaginated = !!(page && limit);
+  let setPage: number = 1;
+  let setLimit: number = totalCount;
+  let setOffset: number = 0;
+
+  if (isPaginated) {
+    setPage = parseInt(page as string);
+    setLimit = parseInt(limit as string);
+    setOffset = (setPage - 1) * setLimit;
+
+    // Validate page number
+    const totalPages = Math.ceil(totalCount / setLimit);
+    if (setPage > totalPages) {
+      return ReE(
+        res,
+        { message: `Page no ${page} not available. The last page no is ${totalPages}.` },
+        httpStatus.NOT_FOUND
+      );
+    }
+  }
+
+  // Build query with pagination if requested
+  [err, getBilling] = await toAwait(
+    Billing.find(option)
+      .populate("customer")
+      .populate("general")
+      .populate("introducer")
+      .populate("emi")
+      .limit(setLimit)
+      .skip(setOffset)
+      .sort({ createdAt: -1 })
+  );
+  
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  getBilling = getBilling as IBilling[];
+
+  // Return response with or without pagination metadata
+  if (isPaginated) {
+    const totalPages = Math.ceil(totalCount / setLimit);
+    return ReS(
+      res,
+      {
+        data: getBilling,
+        pagination: {
+          totalRecords: totalCount,
+          totalPages: totalPages,
+          currentPage: setPage,
+          pageSize: setLimit,
+          hasNextPage: setPage < totalPages,
+          hasPreviousPage: setPage > 1
+        }
+      },
+      httpStatus.OK
+    );
+  } else {
+    // Backward compatible response
+    return ReS(res, { data: getBilling }, httpStatus.OK);
+  }
 };
 
 export const getAllPlot = async (req: Request, res: Response) => {

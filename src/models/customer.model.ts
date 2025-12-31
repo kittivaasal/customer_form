@@ -13,6 +13,7 @@ const customerSchema = new mongoose.Schema({
   address: String,
   name: String,
   marketatName: String,
+  referenceId: String,
 }, { timestamps: true });
 
 export const Customer = mongoose.model("Customer", customerSchema);
