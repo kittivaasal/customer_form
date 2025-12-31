@@ -9,11 +9,15 @@ import { Customer } from "../models/customer.model";
 export const createPlotBookingForm = async (req: Request, res: Response) => {
     let err;
     let photo;
+    let referenceId = req.body.referenceId; // Extract before lowercase conversion
     if(req.body.photo){
         photo = req.body.photo
         delete req.body.photo
     }
     let body = toLowerCaseObj(req.body);
+    if(referenceId) {
+        body.referenceId = referenceId; // Add back with correct casing
+    }
 
     
     let fields = [ "mobileNo", "email", "nameOfCustomer" ];
@@ -21,7 +25,7 @@ export const createPlotBookingForm = async (req: Request, res: Response) => {
     if (inVaildFields.length > 0) {
         return ReE(res, { message: `Please enter required fields ${inVaildFields}!.` }, httpStatus.BAD_REQUEST);
     }
-    let { mobileNo, email, pincode, address,nameOfCustomer, referenceId} = body
+    let { mobileNo, email, pincode, address, nameOfCustomer } = body
     if (!isPhone(mobileNo)) {
         return ReE(res, { message: `Invalid mobile number!.` }, httpStatus.BAD_REQUEST)
     }
