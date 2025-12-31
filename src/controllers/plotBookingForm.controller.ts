@@ -41,7 +41,7 @@ export const createPlotBookingForm = async (req: Request, res: Response) => {
         body.photo = photo;
     }
     let plotBookingForm;
-    [err, plotBookingForm] = await toAwait(plotBookingFormModel.create(body));
+    [err, plotBookingForm] = await toAwait(plotBookingFormModel.create({...body, referenceId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!plotBookingForm) {
         return ReE(res, { message: `Failed to create plotBookingForm!` }, httpStatus.INTERNAL_SERVER_ERROR);

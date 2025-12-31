@@ -1,6 +1,7 @@
 // models/plotBookingForm.model.ts
 import mongoose, { Schema } from "mongoose";
 import { IPlotBookingForm } from "../type/plotBookingForm";
+import { ref } from "process";
 
 const PlotBookingFormSchema: Schema = new Schema(
     {
@@ -47,7 +48,8 @@ const PlotBookingFormSchema: Schema = new Schema(
         modeOfPayment: { type: String, trim: true },
         paymentRefNo: { type: String, trim: true },
 
-        photo: { type: String, trim: true }
+        photo: { type: String, trim: true },
+        referenceId: { type: String, trim: true },
     },
     {
         timestamps: true,
