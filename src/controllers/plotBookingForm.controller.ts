@@ -21,7 +21,7 @@ export const createPlotBookingForm = async (req: Request, res: Response) => {
     if (inVaildFields.length > 0) {
         return ReE(res, { message: `Please enter required fields ${inVaildFields}!.` }, httpStatus.BAD_REQUEST);
     }
-    let { mobileNo, email, pincode, address,nameOfCustomer} = body
+    let { mobileNo, email, pincode, address,nameOfCustomer, referenceId} = body
     if (!isPhone(mobileNo)) {
         return ReE(res, { message: `Invalid mobile number!.` }, httpStatus.BAD_REQUEST)
     }
@@ -55,7 +55,8 @@ export const createPlotBookingForm = async (req: Request, res: Response) => {
             email,
             name : nameOfCustomer,
             pincode, 
-            address
+            address,
+            referenceId
         }));
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
         if (!customer) {
