@@ -11,6 +11,8 @@ const LifeSavingSchema: Schema = new Schema(
     schema1: { type: Boolean, default: false },
     schema2: { type: Boolean, default: false },
 
+    schemeNo: { type: String, trim: true },
+
     nameOfCustomer: { type: String, trim: true, required: true },
     gender: { type: String, trim: true },
     nationality: { type: String, trim: true },
@@ -37,6 +39,11 @@ const LifeSavingSchema: Schema = new Schema(
     cedMobile: { type: String, trim: true },
 
     ddName: { type: String, trim: true },
+
+    
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
+    noOfTime: { type: String, trim: true },
+    ddMobile: { type: String, trim: true },
   },
   {
     timestamps: true,

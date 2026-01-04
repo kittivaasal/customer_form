@@ -6,6 +6,8 @@ export interface ILifeSaving {
   schema1?: boolean;
   schema2?: boolean;
 
+  schemeNo?: string;
+
   nameOfCustomer?: string;
   gender?: "male" | "female" | "other" | string;
   nationality?: string;
@@ -32,7 +34,12 @@ export interface ILifeSaving {
   cedMobile?: string;
 
   ddName?: string;
+  ddMobile?: string;
 
   createdAt?: Date;
   updatedAt?: Date;
+
+  projectId?: string;
+  noOfTime?: number;
+
 }
