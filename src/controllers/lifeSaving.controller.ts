@@ -179,6 +179,9 @@ export const getAllLifeSaving = async (req: Request, res: Response) => {
 
 export const getByIdLifeSaving = async (req:Request, res:Response) => {
     let data,err,id=req.params.id;
+    if(!mongoose.isValidObjectId(id)){
+        return ReE(res, { message: `Invalid id!..` }, httpStatus.BAD_REQUEST);
+    }
     [err,data]= await toAwait(lifeSavingModel.findById(id).populate('projectId'))
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if(!data){
