@@ -30,6 +30,7 @@ const LifeSavingSchema: Schema = new Schema(
     motherName: { type: String, trim: true },
 
     nomineeName: { type: String, trim: true },
+    nomineeRelation: { type: String, trim: true },
     nomineeAge: { type: Number },
 
     introducerName: { type: String, trim: true },
@@ -39,11 +40,17 @@ const LifeSavingSchema: Schema = new Schema(
     cedMobile: { type: String, trim: true },
 
     ddName: { type: String, trim: true },
-
+    ddMobile: { type: String, trim: true },
+    
+    paymentMode: {
+      type: String,
+      enum: ['cash', 'card', 'upi'],
+      required: true
+    },
     
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
     noOfTime: { type: String, trim: true },
-    ddMobile: { type: String, trim: true },
+    
   },
   {
     timestamps: true,
