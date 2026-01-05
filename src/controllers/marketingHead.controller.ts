@@ -1,14 +1,15 @@
 import { Request, Response } from "express";
-import { isNull, isPhone, isValidUUID, IsValidUUIDV4, ReE, ReS, toAwait } from "../services/util.service";
 import httpStatus from "http-status";
-import { MarketingHead } from "../models/marketingHead.model";
-import { IMarketingHead } from "../type/marketingHead";
 import mongoose from "mongoose";
-import { Percentage } from "../models/percentage.model";
 import EditRequest from "../models/editRequest.model";
-import { IUser } from "../type/user";
+import { MarketingHead } from "../models/marketingHead.model";
+import { Percentage } from "../models/percentage.model";
+import { isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
 import { IEditRequest } from "../type/editRequest";
+import { IMarketingHead } from "../type/marketingHead";
+import { IPercentage } from "../type/percentage";
+import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
 
 export const createMarketingHead = async (req: Request, res: Response) => {
@@ -239,7 +240,29 @@ export const getByIdMarketingHead = async (req: Request, res: Response) => {
 
 export const getAllMarketingHead = async (req: Request, res: Response) => {
     let err, getMarketing_head;
-    [err, getMarketing_head] = await toAwait(MarketingHead.find().populate("percentageId"));
+    const { percentageName } = req.query;
+
+    // Build the query filter
+    let filter: any = {};
+    
+    // If percentageName is provided, first find the percentage ID(s) matching that name
+    if (percentageName && typeof percentageName === 'string') {
+        let percentage;
+        [err, percentage] = await toAwait(Percentage.findOne({ name: percentageName }));
+        percentage = percentage as IPercentage & { _id: string } | null;
+        
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        
+        // If percentage name is provided but not found, return empty result
+        if (!percentage) {
+            return ReE(res, { message: `No percentage found with name: ${percentageName}` }, httpStatus.NOT_FOUND);
+        }
+        
+        // Add the percentageId to the filter
+        filter.percentageId = percentage._id;
+    }
+
+    [err, getMarketing_head] = await toAwait(MarketingHead.find(filter).populate("percentageId"));
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getMarketing_head = getMarketing_head as IMarketingHead[]
