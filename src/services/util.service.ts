@@ -7,6 +7,17 @@ export const IsValidUUIDV4 = (val: string): boolean => {
   return isValidUUIDV4(val);
 };
 
+
+export const isEmail = (email_id: string) => {
+  const reg = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+  if (reg.test(email_id)) {
+    return true
+  }
+  else {
+    return false
+  }
+}
+
 export function toAutoIncrCode(name: string): string {
 const words = name.replace(/-/g, " ").split(" ").filter(Boolean);
 
