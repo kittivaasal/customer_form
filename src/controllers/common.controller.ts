@@ -1213,7 +1213,6 @@ export const createBilling = async (req: Request, res: Response) => {
     "customerId",
     "status",
     "modeOfPayment",
-    "saleType",
     "amount",
     "paymentDate",
     "emi",
