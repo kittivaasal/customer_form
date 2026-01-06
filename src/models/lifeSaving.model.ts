@@ -41,16 +41,16 @@ const LifeSavingSchema: Schema = new Schema(
 
     ddName: { type: String, trim: true },
     ddMobile: { type: String, trim: true },
-    
+
     paymentMode: {
       type: String,
-      enum: ['cash', 'card', 'upi'],
-      required: true
+      enum: ["cash", "card", "upi"],
+      required: true,
     },
-    
-    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
+
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
     noOfTime: { type: String, trim: true },
-    
+    referenceId: { type: String, trim: true },
   },
   {
     timestamps: true,
