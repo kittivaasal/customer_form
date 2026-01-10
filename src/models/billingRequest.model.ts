@@ -55,7 +55,20 @@ const BillingRequestSchema: Schema = new Schema<IBillingRequest>(
         },
         reason: {
             type: String
-        }
+        },
+
+        approvedTime: {
+            type: Date
+        },
+        approvedDate: {
+            type: Date
+        },
+        excelFromDate: {
+            type: Date
+        },
+        excelToDate: {
+            type: Date
+        },
     },
     { timestamps: true }
 );

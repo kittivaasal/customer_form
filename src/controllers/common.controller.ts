@@ -32,6 +32,7 @@ import { IUser } from "../type/user";
 import editRequestModel from "../models/editRequest.model";
 import { BillingRequest } from "../models/billingRequest.model";
 import { IBillingRequest } from "../type/billingRequest";
+import moment from "moment";
 
 export const uploadImages = async (req: Request, res: Response) => {
   try {
@@ -1252,7 +1253,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     "amount",
     "paymentDate",
     "billFor",
-    "generalId",
   ];
   let inVaildFields = fields.filter((x) => isNull(body[x]));
   if (inVaildFields.length > 0) {
@@ -1273,7 +1273,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     cardHolderName,
     remarks,
     paymentDate,
-    generalId,
     balanceAmount,
     billFor
   } = body;
@@ -1369,7 +1368,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
   let checkGeneral;
   [err, checkGeneral] = await toAwait(
-    General.findOne({ _id: generalId })
+    General.findOne({ customer: customerId })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!checkGeneral) {
@@ -1390,7 +1389,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
     let getAllBill;
     [err, getAllBill] = await toAwait(
-      Billing.find({ general: generalId, customer: customerId })
+      Billing.find({ general: checkGeneral._id, customer: customerId })
     );
     if (err) {
       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -1410,7 +1409,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     let getEmi;
     [err, getEmi] = await toAwait(
       Emi.findOne({
-        general: generalId,
+        general: checkGeneral._id,
         date: { $gte: currentMonthStart, $lte: currentMonthEnd },
         customer: customerId,
       })
@@ -1451,7 +1450,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
     let getAllEmiPast;
     [err, getAllEmiPast] = await toAwait(
-      Emi.find({ general: generalId, customer: customerId, paidDate: { $exists: false } }).sort({ emiNo: 1 })
+      Emi.find({ general: checkGeneral._id, customer: customerId, paidDate: { $exists: false } }).sort({ emiNo: 1 })
     );
 
     if (err) {
@@ -1554,7 +1553,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
     let getAllBill;
     [err, getAllBill] = await toAwait(
-      Billing.find({ general: generalId, customer: customerId })
+      Billing.find({ general: checkGeneral._id, customer: customerId })
     );
     if (err) {
       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2130,8 +2129,8 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
   let user = req.user as IUser;
   let err;
   let { dateFrom, dateTo, date } = req.query, option: any = {};
-
-  if(isNull(date as string) && isNull(dateFrom as string) && isNull(dateTo as string)){
+  console.log("date", date, dateFrom, dateTo, isNull(date as string) && isNull(dateFrom as string));
+  if (isNull(date as string) && isNull(dateFrom as string)) {
     return ReE(res, { message: "Please send date or dateFrom and dateTo in query" }, httpStatus.BAD_REQUEST);
   }
 
@@ -2169,17 +2168,52 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
 
   if (isNull(date)) {
     if (!user.isAdmin) {
-      //create request
-      let createRequest;
-      [err, createRequest] = await toAwait(
-        BillingRequest.create({ 
+      let checkRequest;
+      [err, checkRequest] = await toAwait(
+        BillingRequest.findOne({
           userId: user._id,
-          status: "pending",
-          message: `This user ${user._id} want to get billing report from ${dateFrom} to ${dateTo}`,
+          excelFromDate: new Date(dateFrom as string),
+          excelToDate: new Date(dateTo as string),
           requestFor: "excel"
         })
       )
-      return ReE(res, { message: "Unauthorized your not do this" }, httpStatus.UNAUTHORIZED);
+
+      if (err) {
+        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      }
+
+      if (!checkRequest) {
+        return ReE(res, { message: "Please create request for download excel for this dates" }, httpStatus.NOT_FOUND);
+      }
+
+      checkRequest = checkRequest as IBillingRequest;
+      if (checkRequest) {
+        if (checkRequest.status === "pending") {
+          return ReE(res, { message: "Your request for this date is pending" }, httpStatus.UNAUTHORIZED);
+        }
+      }
+
+      const approvedTime = checkRequest.approvedTime;
+
+      if (!approvedTime) {
+        return ReE(
+          res,
+          { message: "Approval time not found" },
+          httpStatus.BAD_REQUEST
+        );
+      }
+
+      // Convert stored time to moment
+      const expiryTime = moment(new Date(approvedTime));
+
+      // Current time
+      const now = moment();
+
+      // Check if expired
+      if (now.isAfter(expiryTime)) {
+        return ReE(res,{ message: "Excel download request expired, please create new request" },httpStatus.FORBIDDEN);
+      }
+
     }
   }
 
@@ -2194,15 +2228,11 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
 
 
   if (err) {
-    console.log(err)
     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   }
+
   getBilling = getBilling as IBilling[];
 
-  console.log("getBilling");
-  // Return response with or without pagination metadata
-
-  // Backward compatible response
   return ReS(res, { data: getBilling }, httpStatus.OK);
 
 };
