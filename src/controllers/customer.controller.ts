@@ -1,16 +1,16 @@
 import { Request, Response } from "express";
-import { isNull, isPhone, isValidUUID, IsValidUUIDV4, ReE, ReS, toAutoIncrCode, toAwait } from "../services/util.service";
 import httpStatus from "http-status";
-import { Customer } from "../models/customer.model";
-import { ICustomer } from "../type/customer";
 import mongoose from "mongoose";
+import { Counter } from "../models/counter.model";
+import { Customer } from "../models/customer.model";
 import EditRequest from "../models/editRequest.model";
-import { IUser } from "../type/user";
+import { Project } from "../models/project.model";
+import { isNull, isPhone, ReE, ReS, toAutoIncrCode, toAwait } from "../services/util.service";
+import { ICustomer } from "../type/customer";
 import CustomRequest from "../type/customRequest";
 import { IEditRequest } from "../type/editRequest";
+import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
-import { Project } from "../models/project.model";
-import { Counter } from "../models/counter.model";
 
 export const createCustomer = async (req: Request, res: Response) => {
   let body = req.body, err;
@@ -92,6 +92,9 @@ export const createCustomer = async (req: Request, res: Response) => {
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!customer) {
     return ReE(res, { message: `Failed to create customer!.` }, httpStatus.INTERNAL_SERVER_ERROR)
+  }
+  if (req.query.includeCustomer === 'true') {
+    return ReS(res, { message: `customer added successfull`, data: customer }, httpStatus.CREATED);
   }
   ReS(res, { message: `customer added successfull` }, httpStatus.CREATED);
 };
