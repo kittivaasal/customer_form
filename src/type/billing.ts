@@ -6,6 +6,7 @@ export interface IBilling extends Document {
     customer: mongoose.Types.ObjectId;
     general: mongoose.Types.ObjectId;
     transactionType: "EMI Receipt" | "Other";
+    referenceId: string;
     customerName: string;
     billingId: string; // e.g., 6735:2-Sep
     balanceAmount: number;

@@ -89,6 +89,10 @@ const BillingSchema: Schema = new Schema<IBilling>(
     editDeleteReason: {
       type: String,
     },
+    referenceId: {
+      type: String,
+      trim: true
+    },
     oldData:{
       type:Boolean,
       default:false

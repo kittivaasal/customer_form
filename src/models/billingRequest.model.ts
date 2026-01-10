@@ -52,6 +52,9 @@ const BillingRequestSchema: Schema = new Schema<IBillingRequest>(
             cardNo: {
                 type: String
             },
+            referenceId:{
+                type: String
+            }
         },
         reason: {
             type: String

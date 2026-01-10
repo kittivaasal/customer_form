@@ -1274,7 +1274,8 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     remarks,
     paymentDate,
     balanceAmount,
-    billFor
+    billFor,
+    referenceId
   } = body;
 
   amount = Number(amount);
@@ -1576,6 +1577,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       introducer: checkGeneral.marketer,
       status,
       modeOfPayment,
+      referenceId,
       mobileNo: checkCustomer.phone,
       cardNo,
       customer: customerId,
@@ -2129,7 +2131,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
   let user = req.user as IUser;
   let err;
   let { dateFrom, dateTo, date } = req.query, option: any = {};
-  console.log("date", date, dateFrom, dateTo, isNull(date as string) && isNull(dateFrom as string));
+
   if (isNull(date as string) && isNull(dateFrom as string)) {
     return ReE(res, { message: "Please send date or dateFrom and dateTo in query" }, httpStatus.BAD_REQUEST);
   }
@@ -2162,61 +2164,88 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
       return ReE(res, { message: "Invalid date format for date valid format is (YYYY-MM-DD)!" }, httpStatus.BAD_REQUEST);
     }
     option.paymentDate = new Date(date);
+
+    if (new Date(date).toDateString() !== new Date().toDateString()) {
+      return ReE(res, { message: "Date must be today!" }, httpStatus.BAD_REQUEST);
+    }
+
   }
 
   date = date as string;
 
   if (isNull(date)) {
-    if (!user.isAdmin) {
-      let checkRequest;
-      [err, checkRequest] = await toAwait(
-        BillingRequest.findOne({
-          userId: user._id,
-          excelFromDate: new Date(dateFrom as string),
-          excelToDate: new Date(dateTo as string),
-          requestFor: "excel"
-        })
-      )
+    // if (!user.isAdmin) {
+    //   let checkRequest;
+    //   [err, checkRequest] = await toAwait(
+    //     BillingRequest.findOne({
+    //       userId: user._id,
+    //       excelFromDate: new Date(dateFrom as string),
+    //       excelToDate: new Date(dateTo as string),
+    //       requestFor: "excel"
+    //     })
+    //   )
 
-      if (err) {
-        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      }
+    //   if (err) {
+    //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //   }
 
-      if (!checkRequest) {
-        return ReE(res, { message: "Please create request for download excel for this dates" }, httpStatus.NOT_FOUND);
-      }
+    //   if (!checkRequest) {
+    //     let createRequest;
+    //     [err, createRequest] = await toAwait(
+    //       BillingRequest.create({
+    //         userId: user._id,
+    //         status: "pending",
+    //         message: `This user ${user._id} want to get billing report from ${dateFrom} to ${dateTo}`,
+    //         requestFor: "excel",
+    //         excelFromDate: new Date(dateFrom as string),
+    //         excelToDate: new Date(dateTo as string)
+    //       })
+    //     )
 
-      checkRequest = checkRequest as IBillingRequest;
-      if (checkRequest) {
-        if (checkRequest.status === "pending") {
-          return ReE(res, { message: "Your request for this date is pending" }, httpStatus.UNAUTHORIZED);
-        }
-      }
+    //     if(err){
+    //       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //     }
 
-      const approvedTime = checkRequest.approvedTime;
+    //     if(!createRequest){
+    //       return ReE(res, { message: "Failed to create request" }, httpStatus.INTERNAL_SERVER_ERROR);
+    //     }
 
-      if (!approvedTime) {
-        return ReE(
-          res,
-          { message: "Approval time not found" },
-          httpStatus.BAD_REQUEST
-        );
-      }
 
-      // Convert stored time to moment
-      const expiryTime = moment(new Date(approvedTime));
+    //     return ReS(res, { message: "Request created successfully please wait for approval" }, httpStatus.OK);
 
-      // Current time
-      const now = moment();
+    //   }
 
-      // Check if expired
-      if (now.isAfter(expiryTime)) {
-        return ReE(res,{ message: "Excel download request expired, please create new request" },httpStatus.FORBIDDEN);
-      }
+    //   checkRequest = checkRequest as IBillingRequest;
+    //   if (checkRequest) {
+    //     if (checkRequest.status === "pending") {
+    //       return ReE(res, { message: "Your request for this date is pending" }, httpStatus.UNAUTHORIZED);
+    //     }
+    //   }
 
-    }
+    //   const approvedTime = checkRequest.approvedTime;
+
+    //   if (!approvedTime) {
+    //     return ReE(
+    //       res,
+    //       { message: "Approval time not found" },
+    //       httpStatus.BAD_REQUEST
+    //     );
+    //   }
+
+    //   // Convert stored time to moment
+    //   const expiryTime = moment(new Date(approvedTime));
+
+    //   // Current time
+    //   const now = moment();
+
+    //   // Check if expired
+    //   if (now.isAfter(expiryTime)) {
+    //     return ReE(res,{ message: "Excel download request expired, please create new request" },httpStatus.FORBIDDEN);
+    //   }
+
+    // }
   }
-
+  
   let getBilling;
   [err, getBilling] = await toAwait(
     Billing.find(option)
