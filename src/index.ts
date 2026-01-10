@@ -20,7 +20,8 @@ import cors from "cors";
 import path from "path";
 import plotBookingFormRoutes from "./routes/plotBookingForm.routes";
 import lifeSacingRoutes from "./routes/lifeSaving.routes";
-import editRequestRoutes from "./routes/edietRequest.routes"
+import billingRequestRoutes from "./routes/billingRequest.routes"
+import editRequestRoutes from "./routes/editRequest.routes"
 import { IEmi } from "./type/emi";
 import { Emi } from "./models/emi.model";
 import { General } from "./models/general.model";
@@ -61,6 +62,7 @@ app.use("/api/user", user);
 app.use("/api/common", common);
 app.use("/api/plot/booking", plotBookingFormRoutes);
 app.use("/api/life/saving", lifeSacingRoutes);
+app.use("/api/billing/request", billingRequestRoutes);
 app.use("/api/edit/request", editRequestRoutes);
 app.use("/api/logs", logRoutes)
 

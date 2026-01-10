@@ -105,14 +105,28 @@ export function isEmpty(obj: Object) {
   return Object.entries(obj).length === 0 && obj.constructor === Object;//688263a82de1943da23aff47
 }
 
-export const  isValidDate = (dateString: string) => {
-  const regex = /^\d{4}-\d{2}-\d{2}$/; 
-  if (regex.test(dateString)) {
-    return true
-  }else{
-    return false
-  }
-}
+export const isValidDate = (dateString: string): boolean => {
+  // 1. Format check
+  const regex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!regex.test(dateString)) return false;
+
+  const [yearStr, monthStr, dayStr] = dateString.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+
+  // 2. Month validation
+  if (month < 1 || month > 12) return false;
+
+  // 3. Days per month
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  // 4. Day validation
+  if (day < 1 || day > daysInMonth) return false;
+
+  return true;
+};
+
 
 export const isPhone = (phone: string) => {
   const reg = /^[1-9]\d{9}$/

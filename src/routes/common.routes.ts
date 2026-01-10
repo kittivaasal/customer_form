@@ -5,6 +5,7 @@ import { Request } from "express";
 import express from "express";
 import fs from "fs";
 import { checkEmi, createBilling, createCommonData, getAllBilling, getAllDataBasedOnGeneral, getAllDetailsByCustomerId, getAllEmi, getAllFlat, getAllGeneral, getAllMarketer, getAllPlot, getByIdBilling, getByIdEmi, getByIdFlat, getByIdGeneral, getByIdMarketer, getByIdPlot, getDataBasedOnGeneralById, storeFcmToken, UpdateCommonData, uploadImages } from "../controllers/common.controller";
+import verifyToken from "../middleware/verfiyToken";
 
 let router = express.Router();
 const storage = multer.memoryStorage();
@@ -12,7 +13,7 @@ const upload = multer({ storage });
 
 router.post("/upload", upload.array("files"), uploadImages);
 router.post("/create/all", createCommonData)
-router.post("/create/billing", createBilling)
+router.post("/create/billing",verifyToken, createBilling)
 router.put("/update/all", UpdateCommonData)
 router.get("/general/get/all", getAllGeneral)
 router.get("/general/get/:id", getByIdGeneral)
