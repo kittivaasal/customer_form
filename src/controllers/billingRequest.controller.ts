@@ -107,6 +107,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                     cardNo: getBillingRequest.billingDetails.cardNo,
                     cardHolderName: getBillingRequest.billingDetails.cardHolderName,
                     remarks: getBillingRequest.billingDetails.remarks,
+                    referenceId: getBillingRequest.billingDetails.referenceId,
                     balanceAmount: balanceAmount,
                     customerName: cutomer.name,
                     emi: element._id,
@@ -509,7 +510,7 @@ export const createBillingRequestForExcel = async (req: CustomRequest, res: Resp
         BillingRequest.create({
             userId: user._id,
             status: "pending",
-            message: `This user ${user._id} want to get billing report from ${dateFrom} to ${dateTo}`,
+            message: `This user ${user.name} want to get billing report from ${dateFrom} to ${dateTo}`,
             requestFor: "excel",
             excelFromDate: new Date(dateFrom as string),
             excelToDate: new Date(dateTo as string)
@@ -566,4 +567,86 @@ export const checkBillingRequestForExcel = async (req: CustomRequest, res: Respo
     return ReS(res, { message: "Your request for this date is found", expired: false }, httpStatus.OK);
 
 }
+
+export const getAllTheirBillingRequest = async (req: CustomRequest, res: Response) => {
+    let err, user = req.user as IUser;
+
+    if (!user) {
+        return ReE(res, { message: "Unauthorized your not do this" }, httpStatus.UNAUTHORIZED);
+    }
+
+    if (user.isAdmin) {
+        return ReE(res, { message: "Do need request for download excel for admin" }, httpStatus.BAD_REQUEST);
+    }
+
+    let { status, page, limit } = req.query;
+
+    let option: any = {};
+
+    if (status) {
+        let statusValue = ["pending", "approved", "rejected"];
+        status = String(status).toLowerCase().trim();
+        if (!statusValue.includes(status.toString().toLowerCase())) {
+            return ReE(res, { message: `Invalid status detail, valid type is (${statusValue}) in query` }, httpStatus.BAD_REQUEST);
+        }
+        option.status = status;
+    }
+
+    option.userId = user._id;
+
+    let pageNo = Number(page);
+    let limitNo = Number(limit);
+
+    pageNo = pageNo < 1 ? 1 : pageNo;
+    // limitNo = limitNo > 100 ? 100 : limitNo; // safety cap
+    const skip = (pageNo - 1) * limitNo;
+
+    let totalCount, getBillingRequest;
+    [err, totalCount] = await toAwait(
+        BillingRequest.countDocuments(option)
+    );
+
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    totalCount = totalCount as number;
+
+    [err, getBillingRequest] = await toAwait(
+        BillingRequest.find(option)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNo)
+            .populate({
+                path: "emi",
+                populate: [
+                    { path: "general" },
+                    { path: "customer" }
+                ]
+            }).populate("userId").populate("approvedBy")
+    );
+
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    if (!getBillingRequest) {
+        return ReE(res, { message: "billing request not found!" }, httpStatus.NOT_FOUND);
+    }
+
+    getBillingRequest = getBillingRequest as IBillingRequest[];
+
+    return ReS(
+        res,
+        {
+            message: "billing request found",
+            data: getBillingRequest,
+            pagination: {
+                page,
+                limit: limitNo,
+                totalRecords: totalCount,
+                totalPages: Math.ceil(totalCount / limitNo)
+            }
+        },
+        httpStatus.OK
+    );
+
+}
+
 

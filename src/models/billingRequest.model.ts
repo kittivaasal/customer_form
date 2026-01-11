@@ -59,7 +59,6 @@ const BillingRequestSchema: Schema = new Schema<IBillingRequest>(
         reason: {
             type: String
         },
-
         approvedTime: {
             type: Date
         },

@@ -1524,7 +1524,8 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
             paymentDate,
             cardHolderName,
             remarks,
-            cardNo
+            cardNo,
+            referenceId
           },
         })
       );
