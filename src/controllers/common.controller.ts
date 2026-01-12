@@ -1621,64 +1621,67 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         )
       )
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
-    }
+      // return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
+    } else {
 
-    let billing;
-    [err, billing] = await toAwait(Billing.create(createBill));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      let billing;
+      [err, billing] = await toAwait(Billing.create(createBill));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-    billing = billing as IBilling;
+      billing = billing as IBilling;
 
-    getMarketerHead = getMarketerHead as IMarketingHead | any;
+      getMarketerHead = getMarketerHead as IMarketingHead | any;
 
-    let marketerDe: any = {
-      customer: customerId,
-      emiNo: element?.emiNo,
-      paidDate: billing.paymentDate,
-      paidAmt: billing.amountPaid,
-      marketer: billing.introducer,
-      emiId: element._id,
-      generalId: checkGeneral._id,
-      marketerHeadId: checkGeneral.marketer,
-      percentageId: getMarketerHead.percentageId,
-    };
+      let marketerDe: any = {
+        customer: customerId,
+        emiNo: element?.emiNo,
+        paidDate: billing.paymentDate,
+        paidAmt: billing.amountPaid,
+        marketer: billing.introducer,
+        emiId: element._id,
+        generalId: checkGeneral._id,
+        marketerHeadId: checkGeneral.marketer,
+        percentageId: getMarketerHead.percentageId,
+      };
 
-    let checkAlreadyExistMarketer = await Marketer.findOne({
-      marketer: marketerDe.marketer,
-      emiId: marketerDe.emiId,
-      general: marketerDe.general,
-    });
+      let checkAlreadyExistMarketer = await Marketer.findOne({
+        marketer: marketerDe.marketer,
+        emiId: marketerDe.emiId,
+        general: marketerDe.general,
+      });
 
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!checkAlreadyExistMarketer) {
-      if (getMarketerHead?.percentageId?.rate) {
-        let percent = Number(
-          getMarketerHead?.percentageId?.rate?.replace("%", "")
-        );
-        let correctPercent = billing.amountPaid * (percent / 100);
-        marketerDe.commPercentage = percent;
-        marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!checkAlreadyExistMarketer) {
+        if (getMarketerHead?.percentageId?.rate) {
+          let percent = Number(
+            getMarketerHead?.percentageId?.rate?.replace("%", "")
+          );
+          let correctPercent = billing.amountPaid * (percent / 100);
+          marketerDe.commPercentage = percent;
+          marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
+        }
+
+        let marketer;
+        [err, marketer] = await toAwait(Marketer.create(marketerDe));
+        if (err) {
+          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        }
       }
 
-      let marketer;
-      [err, marketer] = await toAwait(Marketer.create(marketerDe));
+      let updateEmi;
+      [err, updateEmi] = await toAwait(
+        Emi.findOneAndUpdate(
+          { _id: element._id },
+          { paidDate: billing.paymentDate, paidAmt: billing.amountPaid },
+          { new: true }
+        )
+      );
       if (err) {
         return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       }
+
     }
 
-    let updateEmi;
-    [err, updateEmi] = await toAwait(
-      Emi.findOneAndUpdate(
-        { _id: element._id },
-        { paidDate: billing.paymentDate, paidAmt: billing.amountPaid },
-        { new: true }
-      )
-    );
-    if (err) {
-      return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    }
 
   }
 
@@ -2246,7 +2249,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
 
     // }
   }
-  
+
   let getBilling;
   [err, getBilling] = await toAwait(
     Billing.find(option)

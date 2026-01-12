@@ -144,63 +144,65 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                         )
                     )
                     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-                    return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
-                }
+                    // return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
+                } else {
 
-                let billing;
-                [err, billing] = await toAwait(Billing.create(createBill));
-                if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+                    let billing;
+                    [err, billing] = await toAwait(Billing.create(createBill));
+                    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-                billing = billing as IBilling;
+                    billing = billing as IBilling;
 
-                getMarketerHead = getMarketerHead as IMarketingHead | any;
+                    getMarketerHead = getMarketerHead as IMarketingHead | any;
 
-                let marketerDe: any = {
-                    customer: cutomer._id,
-                    emiNo: element?.emiNo,
-                    paidDate: billing.paymentDate,
-                    paidAmt: billing.amountPaid,
-                    marketer: billing.introducer,
-                    emiId: element._id,
-                    generalId: checkGeneral._id,
-                    marketerHeadId: checkGeneral.marketer,
-                    percentageId: getMarketerHead.percentageId,
-                };
+                    let marketerDe: any = {
+                        customer: cutomer._id,
+                        emiNo: element?.emiNo,
+                        paidDate: billing.paymentDate,
+                        paidAmt: billing.amountPaid,
+                        marketer: billing.introducer,
+                        emiId: element._id,
+                        generalId: checkGeneral._id,
+                        marketerHeadId: checkGeneral.marketer,
+                        percentageId: getMarketerHead.percentageId,
+                    };
 
-                let checkAlreadyExistMarketer = await Marketer.findOne({
-                    marketer: marketerDe.marketer,
-                    emiId: marketerDe.emiId,
-                    general: marketerDe.general,
-                });
+                    let checkAlreadyExistMarketer = await Marketer.findOne({
+                        marketer: marketerDe.marketer,
+                        emiId: marketerDe.emiId,
+                        general: marketerDe.general,
+                    });
 
-                if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-                if (!checkAlreadyExistMarketer) {
-                    if (getMarketerHead?.percentageId?.rate) {
-                        let percent = Number(
-                            getMarketerHead?.percentageId?.rate?.replace("%", "")
-                        );
-                        let correctPercent = billing.amountPaid * (percent / 100);
-                        marketerDe.commPercentage = percent;
-                        marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
+                    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+                    if (!checkAlreadyExistMarketer) {
+                        if (getMarketerHead?.percentageId?.rate) {
+                            let percent = Number(
+                                getMarketerHead?.percentageId?.rate?.replace("%", "")
+                            );
+                            let correctPercent = billing.amountPaid * (percent / 100);
+                            marketerDe.commPercentage = percent;
+                            marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
+                        }
+
+                        let marketer;
+                        [err, marketer] = await toAwait(Marketer.create(marketerDe));
+                        if (err) {
+                            return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+                        }
                     }
 
-                    let marketer;
-                    [err, marketer] = await toAwait(Marketer.create(marketerDe));
+                    let updateEmi;
+                    [err, updateEmi] = await toAwait(
+                        Emi.findOneAndUpdate(
+                            { _id: element._id },
+                            { paidDate: billing.paymentDate, paidAmt: billing.amountPaid },
+                            { new: true }
+                        )
+                    );
                     if (err) {
                         return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
                     }
-                }
 
-                let updateEmi;
-                [err, updateEmi] = await toAwait(
-                    Emi.findOneAndUpdate(
-                        { _id: element._id },
-                        { paidDate: billing.paymentDate, paidAmt: billing.amountPaid },
-                        { new: true }
-                    )
-                );
-                if (err) {
-                    return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
                 }
 
             }
@@ -482,7 +484,7 @@ export const createBillingRequestForExcel = async (req: CustomRequest, res: Resp
     // approvedRequest.forEach((request: IBillingRequest) => {
 
     //     const approvedTime = request.approvedTime;
-    
+
     //     if (!approvedTime) {
     //         return ReE(
     //             res,
@@ -490,13 +492,13 @@ export const createBillingRequestForExcel = async (req: CustomRequest, res: Resp
     //             httpStatus.BAD_REQUEST
     //         );
     //     }
-    
+
     //     // Convert stored time to moment
     //     const expiryTime = moment(new Date(approvedTime));
-    
+
     //     // Current time
     //     const now = moment();
-    
+
     //     // Check if expired
     //     if (!now.isAfter(expiryTime)) {
     //         return ReE(res, { message: "Excel download request already approved for this date has not expired" }, httpStatus.FORBIDDEN);
@@ -556,7 +558,7 @@ export const checkBillingRequestForExcel = async (req: CustomRequest, res: Respo
         return ReE(res, { message: "Your request for this date is not found" }, httpStatus.BAD_REQUEST);
     }
 
-    if(checkRequest.status === "pending") {
+    if (checkRequest.status === "pending") {
         return ReE(res, { message: "Your request for this date is pending" }, httpStatus.BAD_REQUEST);
     }
 
