@@ -647,25 +647,28 @@ export const getAllBilling = async (req: Request, res: Response) => {
 
   // Existing customerId validation
   if (customerId) {
-    if (!mongoose.isValidObjectId(customerId)) {
-      return ReE(
-        res,
-        { message: "customer id is invalid" },
-        httpStatus.BAD_REQUEST
-      );
+    if (mongoose.isValidObjectId(customerId)) {
+      let getCustomer;
+      [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getCustomer) {
+        return ReE(
+          res,
+          { message: "customer not found given id" },
+          httpStatus.NOT_FOUND
+        );
+      }
+      getCustomer = getCustomer as ICustomer
+      option.$or = [
+        { customer: customerId },
+        { customerCode: getCustomer.id }
+      ]
+    }else{
+      option.customerCode = customerId
     }
-    let getCustomer;
-    [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!getCustomer) {
-      return ReE(
-        res,
-        { message: "customer not found given id" },
-        httpStatus.NOT_FOUND
-      );
-    }
-    option.customer = customerId;
   }
+
+  console.log(option)
 
   // Existing generalId validation
   if (generalId) {
@@ -914,28 +917,36 @@ export const getAllFlat = async (req: Request, res: Response) => {
 export const getAllEmi = async (req: Request, res: Response) => {
   let getEmi;
   let err;
-  let { customerId, generalId, paid } = req.query,
-    option: any = {};
+  let { customerId, generalId, paid } = req.query, option: any = {};
+  
+  const page = req.query.page ? parseInt(req.query.page as string) : null;
+  const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
+  const search = (req.query.search as string) || "";
+  const searchConditions: any[] = [];
+
   if (customerId) {
-    if (!mongoose.isValidObjectId(customerId)) {
-      return ReE(
-        res,
-        { message: "customer id is invalid" },
-        httpStatus.BAD_REQUEST
-      );
+    if (mongoose.isValidObjectId(customerId)) {
+      let getCustomer;
+      [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getCustomer) {
+        return ReE(
+          res,
+          { message: "customer not found given id" },
+          httpStatus.NOT_FOUND
+        );
+      }
+      getCustomer = getCustomer as ICustomer
+      option.$or =[
+        { supplierCode: getCustomer.id },
+        { customer: getCustomer._id }
+      ]
+      
+    }else{
+      option.supplierCode = customerId
     }
-    let getCustomer;
-    [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!getCustomer) {
-      return ReE(
-        res,
-        { message: "customer not found given id" },
-        httpStatus.NOT_FOUND
-      );
-    }
-    option.customer = customerId;
   }
+
   if (generalId) {
     if (!mongoose.isValidObjectId(generalId)) {
       return ReE(
@@ -956,6 +967,7 @@ export const getAllEmi = async (req: Request, res: Response) => {
     }
     option.general = generalId;
   }
+
   if (paid) {
     let valid = ["true", "false"];
     paid = paid.toString().toLocaleLowerCase();
@@ -974,15 +986,51 @@ export const getAllEmi = async (req: Request, res: Response) => {
       option.paidDate = null;
     }
   }
-  [err, getEmi] = await toAwait(
-    Emi.find(option).populate("customer").populate("general")
-  );
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  getEmi = getEmi as IEmi[];
-  if (getEmi.length === 0) {
-    return ReE(res, { message: "emi not found in db" }, httpStatus.NOT_FOUND);
+  
+  let query = Emi.find(option).populate("customer").populate("general").sort({ createdAt: -1 });
+  
+  let total;
+  let totalPages = 1;
+
+  if (page && limit) {
+    const skip = (page - 1) * limit;
+    query = query.skip(skip).limit(limit);
+  
+    let count;
+    [err, count] = await toAwait(Emi.countDocuments(option));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    total = count as number;
+    totalPages = Math.ceil(total / limit);
+
+    if (page > totalPages) {
+      return ReE(
+        res,
+        { message: `Page no ${page} not available. The last page no is ${totalPages}.` },
+        httpStatus.NOT_FOUND
+      );
+    }
   }
-  return ReS(res, { data: getEmi }, httpStatus.OK);
+
+  [err, getEmi] = await toAwait(query);
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+  getEmi = getEmi as IEmi[];
+
+  return ReS(res, { 
+    data: getEmi,
+    ...(page && limit && {
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        }
+      })
+  }, httpStatus.OK);
+
 };
 
 export const getAllMarketer = async (req: Request, res: Response) => {

@@ -269,17 +269,81 @@ export const getByIdCustomer = async (req: Request, res: Response) => {
 }
 
 export const getAllCustomer = async (req: Request, res: Response) => {
-  let err, getCustomer;
-  [err, getCustomer] = await toAwait(Customer.find().populate('projectId'));
+  let err, customers;
 
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  getCustomer = getCustomer as ICustomer[]
-  if (getCustomer.length === 0) {
-    return ReE(res, { message: `customer not found!.` }, httpStatus.NOT_FOUND)
+  const page = req.query.page ? parseInt(req.query.page as string) : null;
+  const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
+  const search = (req.query.search as string) || "";
+  const searchConditions: any[] = [];
+
+  if (search) {
+    searchConditions.push(
+      { name: { $regex: search, $options: "i" } },
+      { mobile: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+      { id: { $regex: search, $options: "i" }  }
+    );
+
+    if (mongoose.Types.ObjectId.isValid(search)) {
+      searchConditions.push({ _id: new mongoose.Types.ObjectId(search) });
+    }
   }
 
-  ReS(res, { message: "customer found", data: getCustomer }, httpStatus.OK)
-}
+  const searchQuery = searchConditions.length > 0 ? { $or: searchConditions } : {};
+
+  let query = Customer.find(searchQuery).populate("projectId").sort({ createdAt: -1 });
+
+  if (page && limit) {
+    const skip = (page - 1) * limit;
+    query = query.skip(skip).limit(limit);
+  }
+
+  let total;
+  let totalPages = 1;
+
+  if (page && limit) {
+    let count;
+    [err, count] = await toAwait(Customer.countDocuments(searchQuery));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    total = count as number;
+    totalPages = Math.ceil(total / limit);
+
+    if (page > totalPages) {
+      return ReE(
+        res,
+        { message: `Page no ${page} not available. The last page no is ${totalPages}.` },
+        httpStatus.NOT_FOUND
+      );
+    }
+  }
+
+  
+  [err, customers] = await toAwait(query);
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+  customers = customers as ICustomer[];
+
+  return ReS(
+    res,
+    {
+      message: "Customer found",
+      data: customers,
+      ...(page && limit && {
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1
+        }
+      })
+    },
+    httpStatus.OK
+  );
+};
+
 
 export const deleteCustomer = async (req: Request, res: Response) => {
   let err, { _id } = req.body;

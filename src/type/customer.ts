@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 export interface ICustomer {
+  _id: mongoose.Types.ObjectId;
   id?: string; // UUID
   duration: string;
   emiAmount: number;
