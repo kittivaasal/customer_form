@@ -1541,11 +1541,11 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           httpStatus.BAD_REQUEST
         );
       }
-      // return ReE(
-      //   res,
-      //   { message: "This customer has already paided all emi" },
-      //   httpStatus.BAD_REQUEST
-      // );
+      return ReE(
+        res,
+        { message: "This customer has already paided all emi" },
+        httpStatus.BAD_REQUEST
+      );
     }
 
     let unPaidTotal = getAllEmiPast.reduce((acc, curr) => acc + curr.emiAmt, 0);
