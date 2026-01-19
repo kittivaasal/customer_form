@@ -15,6 +15,10 @@ export interface ICustomer {
   name: string;
   marketatName: string;
   projectId?:  mongoose.Types.ObjectId;
+
+  oldData?: boolean
+  marketerPercent?: string
+  marketerId?: string
 }
 
 

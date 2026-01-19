@@ -1310,6 +1310,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
   }
 
   checkCustomer = checkCustomer as ICustomer;
+
   if (!isValidDate(paymentDate)) {
     return ReE(
       res,
@@ -1369,13 +1370,18 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
   let checkGeneral;
   [err, checkGeneral] = await toAwait(
-    General.findOne({ customer: customerId })
+    General.findOne({
+      $or: [
+        { customer: customerId },
+        { supplierCode: checkCustomer.id, oldData: true },
+      ]
+    })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!checkGeneral) {
     return ReE(
       res,
-      { message: "general not found for given id" },
+      { message: "general not found for given customer id" },
       httpStatus.BAD_REQUEST
     );
   }
@@ -1384,14 +1390,24 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
   let readyForBill: IEmi[] = []
 
-
-
   if (billFor === "current") {
-
     let getAllBill;
-    [err, getAllBill] = await toAwait(
-      Billing.find({ general: checkGeneral._id, customer: customerId })
-    );
+    if (checkCustomer.oldData) {
+      [err, getAllBill] = await toAwait(
+        Billing.find({
+          $or: [
+            { customer: customerId },
+            { customerCode: checkCustomer.id, oldData: true },
+          ]
+        })
+      );
+    } else {
+      [err, getAllBill] = await toAwait(
+        Billing.find({
+          general: checkGeneral._id, customer: customerId
+        })
+      );
+    }
     if (err) {
       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -1408,13 +1424,25 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     let currentMonthStart = new Date(new Date().getFullYear(), currentMonth, 1);
     let currentMonthEnd = new Date(new Date().getFullYear(), currentMonth + 1, 0);
     let getEmi;
-    [err, getEmi] = await toAwait(
-      Emi.findOne({
-        general: checkGeneral._id,
-        date: { $gte: currentMonthStart, $lte: currentMonthEnd },
-        customer: customerId,
-      })
-    )
+    if (checkCustomer.oldData) {
+      [err, getEmi] = await toAwait(
+        Emi.findOne({
+          date: { $gte: currentMonthStart, $lte: currentMonthEnd },
+          $or: [
+            { customer: customerId },
+            { supplierCode: checkCustomer.id, oldData: true },
+          ]
+        })
+      )
+    } else {
+      [err, getEmi] = await toAwait(
+        Emi.findOne({
+          general: checkGeneral._id,
+          date: { $gte: currentMonthStart, $lte: currentMonthEnd },
+          customer: customerId,
+        })
+      )
+    }
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!getEmi) {
@@ -1449,20 +1477,81 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
   } else {
 
-    let getAllEmiPast;
-    [err, getAllEmiPast] = await toAwait(
-      Emi.find({ general: checkGeneral._id, customer: customerId, paidDate: { $exists: false } }).sort({ emiNo: 1 })
+    let checkBillingRequestForCustomer;
+    console.log(customerId);
+    [err, checkBillingRequestForCustomer] = await toAwait(
+      BillingRequest.findOne({ requestFor: "create", customerId: customerId, status: "pending" })
     );
+    console.log(checkBillingRequestForCustomer);
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (checkBillingRequestForCustomer) {
+      return ReE(
+        res,
+        { message: "billing request already pending for this customer" },
+        httpStatus.BAD_REQUEST
+      );
+    }
+
+    let getAllEmiPast;
+    if (checkCustomer.oldData) {
+      [err, getAllEmiPast] = await toAwait(
+        Emi.find({
+          $or: [
+            { customer: customerId },
+            { supplierCode: checkCustomer.id, oldData: true },
+          ], paidDate: { $exists: false }
+        }).sort({ emiNo: 1 })
+      );
+    } else {
+      [err, getAllEmiPast] = await toAwait(
+        Emi.find({ general: checkGeneral._id, customer: customerId, paidDate: { $exists: false } }).sort({ emiNo: 1 })
+      );
+    }
 
     if (err) {
       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     }
     getAllEmiPast = getAllEmiPast as IEmi[];
+    console.log(checkGeneral)
+    if (getAllEmiPast.length === 0) {
+      let getEmi;
+      if (checkCustomer.oldData) {
+        [err, getEmi] = await toAwait(
+          Emi.findOne({
+            $or: [
+              { customer: customerId },
+              { supplierCode: checkCustomer.id, oldData: true },
+            ]
+          })
+        )
+      } else {
+        [err, getEmi] = await toAwait(
+          Emi.findOne({
+            general: checkGeneral._id,
+            customer: customerId,
+          })
+        )
+      }
+
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getEmi) {
+        return ReE(
+          res,
+          { message: "emi's not found for given customer and general id" },
+          httpStatus.BAD_REQUEST
+        );
+      }
+      // return ReE(
+      //   res,
+      //   { message: "This customer has already paided all emi" },
+      //   httpStatus.BAD_REQUEST
+      // );
+    }
 
     let unPaidTotal = getAllEmiPast.reduce((acc, curr) => acc + curr.emiAmt, 0);
     unPaidTotal = unPaidTotal as number;
 
-    console.log(unPaidTotal, getAllEmiPast[0].emiAmt, amount, "mass");
+    console.log(getAllEmiPast);
 
     let validAmount = validateEmiPayment(amount, getAllEmiPast[0].emiAmt, unPaidTotal);
 
@@ -1487,7 +1576,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
       let checkBillingRequest: any;
       [err, checkBillingRequest] = await toAwait(
-        BillingRequest.findOne({ userId: user._id, requestFor: "create" })
+        BillingRequest.findOne({ userId: user._id, requestFor: "create", customerId: customerId, status: "pending" })
       );
 
       if (err) {
@@ -1499,7 +1588,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
         let allreadyExist = readyForBill.filter((emi) => checkBillingRequest.emi.includes(emi._id));
 
-        if (allreadyExist.length !== 0 && checkBillingRequest.status !== "approved") {
+        if (allreadyExist.length !== 0) {
           return ReE(
             res,
             { message: "You already have pending billing request for existing EMIs" },
@@ -1517,6 +1606,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           message: `Billing creation Request from  ${user.name} for ${readyForBill.length} EMIs`,
           // createBill: readyForBill,
           requestFor: "create",
+          customerId: customerId,
           emi: readyForBill.map((emi) => emi._id),
           billingDetails: {
             saleType: saleType,
@@ -1555,7 +1645,12 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
     let getAllBill;
     [err, getAllBill] = await toAwait(
-      Billing.find({ general: checkGeneral._id, customer: customerId })
+      Billing.find({
+        $or: [
+          { customer: customerId },
+          { customerCode: checkCustomer.id, oldData: true },
+        ]
+      })
     );
     if (err) {
       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -1568,7 +1663,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       let total = getAllBill.reduce((acc, curr) => acc + curr.amountPaid, 0);
       balanceAmount = totalAmount - (total + amount);
     }
-
     let createBill = {
       emiNo: element.emiNo,
       amountPaid: amount,
@@ -1582,35 +1676,46 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       mobileNo: checkCustomer.phone,
       cardNo,
       customer: customerId,
-      general: element.general,
+      general: checkGeneral._id,
       cardHolderName,
       remarks,
       customerName: checkCustomer.name,
       balanceAmount: balanceAmount,
       emi: element._id,
+      oldData: checkCustomer.oldData,
+      customerCode: checkCustomer.id
     };
 
     let getMarketerHead;
-    [err, getMarketerHead] = await toAwait(
-      MarketingHead.findOne({ _id: checkGeneral.marketer }).populate("percentageId")
-    );
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!getMarketerHead) {
-      return ReE(
-        res,
-        { message: "emi inside marketer head not found" },
-        httpStatus.BAD_REQUEST
+    if(!checkCustomer.oldData){
+      [err, getMarketerHead] = await toAwait(
+        MarketingHead.findOne({ _id: checkGeneral.marketer }).populate("percentageId")
       );
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getMarketerHead ) {
+        return ReE(
+          res,
+          { message: "emi inside marketer head not found" },
+          httpStatus.BAD_REQUEST
+        );
+      }
     }
 
-    let checkAlreadyExist = await Billing.findOne({
-      emi: element._id,
-      general: element.general,
-      customer: customerId,
-    });
+    let checkAlreadyExist;
+    if(!checkCustomer.oldData){
+      [err, checkAlreadyExist] = await toAwait(Billing.findOne({
+        emiNo: element.emiNo,customer: customerId
+      }));
+    }else{
+      [err, checkAlreadyExist] = await toAwait(Billing.findOne({
+        emiNo: element.emiNo,
+        customerCode: checkCustomer.id,
+        oldData: true
+      }));
+    }
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-
+    console.log(checkAlreadyExist,"mass");
     if (checkAlreadyExist) {
       checkAlreadyExist = checkAlreadyExist as IBilling | any
       let updateEmiPaid;
@@ -1630,41 +1735,46 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
       billing = billing as IBilling;
 
+      console.log(billing, "billing");
+
       getMarketerHead = getMarketerHead as IMarketingHead | any;
 
-      let marketerDe: any = {
-        customer: customerId,
-        emiNo: element?.emiNo,
-        paidDate: billing.paymentDate,
-        paidAmt: billing.amountPaid,
-        marketer: billing.introducer,
-        emiId: element._id,
-        generalId: checkGeneral._id,
-        marketerHeadId: checkGeneral.marketer,
-        percentageId: getMarketerHead.percentageId,
-      };
-
-      let checkAlreadyExistMarketer = await Marketer.findOne({
-        marketer: marketerDe.marketer,
-        emiId: marketerDe.emiId,
-        general: marketerDe.general,
-      });
-
-      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      if (!checkAlreadyExistMarketer) {
-        if (getMarketerHead?.percentageId?.rate) {
-          let percent = Number(
-            getMarketerHead?.percentageId?.rate?.replace("%", "")
-          );
-          let correctPercent = billing.amountPaid * (percent / 100);
-          marketerDe.commPercentage = percent;
-          marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
-        }
-
-        let marketer;
-        [err, marketer] = await toAwait(Marketer.create(marketerDe));
-        if (err) {
-          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      
+      let checkAlreadyExistMarketer
+      if(!checkCustomer.oldData){ 
+        let marketerDe: any = {
+          customer: customerId,
+          emiNo: element?.emiNo,
+          paidDate: billing.paymentDate,
+          paidAmt: billing.amountPaid,
+          marketer: billing.introducer,
+          emiId: element._id,
+          generalId: checkGeneral._id,
+          marketerHeadId: checkGeneral.marketer,
+          percentageId: getMarketerHead.percentageId,
+        };
+        [err, checkAlreadyExistMarketer] = await toAwait(Marketer.findOne({
+          marketer: marketerDe.marketer,
+          emiId: marketerDe.emiId,
+          general: marketerDe.general,
+        }));
+  
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!checkAlreadyExistMarketer) {
+          if (getMarketerHead?.percentageId?.rate) {
+            let percent = Number(
+              getMarketerHead?.percentageId?.rate?.replace("%", "")
+            );
+            let correctPercent = billing.amountPaid * (percent / 100);
+            marketerDe.commPercentage = percent;
+            marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
+          }
+  
+          let marketer;
+          [err, marketer] = await toAwait(Marketer.create(marketerDe));
+          if (err) {
+            return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+          }
         }
       }
 
@@ -1681,7 +1791,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       }
 
     }
-
 
   }
 

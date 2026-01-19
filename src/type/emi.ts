@@ -12,4 +12,12 @@ export interface IEmi {
     jpd?: string;
     createdAt?: Date;
     updatedAt?: Date;
+
+    oldData?: boolean
+    payRef?: string;
+    supplierCode?: string;
+    customerName?: string;
+    sSalesNo?: string;
+    createdDate?: string;
+    modifyDate?: string;
 }

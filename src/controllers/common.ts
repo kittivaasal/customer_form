@@ -4,6 +4,60 @@ import { User } from "../models/user.model";
 import { IUser } from "../type/user";
 import { sendNotificationsToMultipleDevices } from "../util/firebaseNotificationService";
 
+import * as XLSX from "xlsx";
+
+export const DATE_FIELDS = [
+  "date",
+  "createdAt",
+  "updatedAt",
+  "sBookedDate","createdOn",	"modifiedOn"
+
+];
+
+
+export function readExcel(filePath: string) {
+  const workbook = XLSX.readFile(filePath, {
+    cellDates: true
+  });
+
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+  return XLSX.utils.sheet_to_json<any>(sheet, {
+    raw: true
+  });
+}
+
+export function normalizeDate(value: any): Date | null {
+  if (!value) return null;
+
+  if (value instanceof Date) return value;
+
+  if (typeof value === "string") {
+    const [dd, mm, yyyy] = value.split("-");
+    return new Date(Date.UTC(+yyyy, +mm - 1, +dd));
+  }
+
+  if (typeof value === "number") {
+    return new Date((value - 25569) * 86400 * 1000);
+  }
+
+  return null;
+}
+
+export function transformRow(row: any) {
+  const transformed: any = { ...row };
+
+  for (const field of DATE_FIELDS) {
+    if (field in transformed) {
+      transformed[field] = normalizeDate(transformed[field]);
+    }
+  }
+
+  return transformed;
+}
+
+
+
 export const checkFormatOfMultiMenuInBody = async (body: any) => {
 
   if (!Array.isArray(body)) {

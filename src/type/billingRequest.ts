@@ -7,6 +7,7 @@ export interface IBillingRequest {
     message: string,
     status: "pending" | "approved" | "rejected",
     approvedBy?:  mongoose.Types.ObjectId,
+    customerId?:  mongoose.Types.ObjectId,
     approvedDate?: Date
     approvedTime?: Date
     excelFromDate?: Date    

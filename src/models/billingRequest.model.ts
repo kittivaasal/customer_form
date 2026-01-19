@@ -12,6 +12,10 @@ const BillingRequestSchema: Schema = new Schema<IBillingRequest>(
             ref: "User",
             required: true
         },
+        customerId: {
+            type: Schema.Types.ObjectId,
+            ref: "Customer", 
+        },
         message: {
             type: String
         },

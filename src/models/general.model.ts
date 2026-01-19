@@ -33,7 +33,7 @@ const GeneralSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["Enquired", "Blocked", "Vacant"],
+      // enum: ["Enquired", "Blocked", "Vacant","Enquiry"],
       // required: true,
     },
     loan: {
@@ -45,7 +45,34 @@ const GeneralSchema = new Schema(
     editDeleteReason: {
       type: String,
     },
+
+    oldData: {
+      type: Boolean,
+      default: false
+    },
+    sSalesNo: {
+      type: String,
+    },
+    supplierCode: {
+      type: String,
+    },
+    customerName: {
+      type: String,
+    },
+    sMarketerId: {
+      type: String,
+    },
+    sBookedDate: {
+      type: String,
+    },
+    createdOn: {
+      type: String,
+    },
+    modifiedOn: {
+      type: String,
+    },
   },
+
   { timestamps: true }
 );
 

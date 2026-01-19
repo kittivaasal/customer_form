@@ -16,6 +16,14 @@ const EmiSchema = new Schema({
     paidDate: { type: Date },
     paidAmt: { type: Number },
     jpd: { type: String },
+
+    oldData: {type:Boolean,default:false},
+    payRef: { type: String },
+    supplierCode: { type: String },
+    customerName: { type: String },
+    sSalesNo: { type: String },
+    createdDate: { type: Date },
+    modifyDate: { type: Date },
 },{ timestamps: true });
 
 export const Emi = model("Emi", EmiSchema);

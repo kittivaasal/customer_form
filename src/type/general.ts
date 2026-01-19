@@ -16,4 +16,14 @@ export interface IGeneral {
     editDeleteReason?: string;
     createdAt?: Date;
     updatedAt?: Date;
+
+    oldData?: boolean;
+    sSalesNo?: string;	
+    supplierCode?: string;	
+    customerName?: string;	
+    sMarketerId?: string;	
+    marketerPercent?: string;
+    sBookedDate?: string;	
+    createdOn?: string;	
+    modifiedOn?: string;
 }

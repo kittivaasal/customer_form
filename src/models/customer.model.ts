@@ -15,7 +15,11 @@ const customerSchema = new mongoose.Schema({
   name: String,
   marketatName: String,
   referenceId: String,
-  projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' }
+  projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
+
+  oldData: {type:Boolean, default:false},
+  marketerPercent: String,
+  marketerId: String,
 }, { timestamps: true });
 
 export const Customer = mongoose.model("Customer", customerSchema);

@@ -28,6 +28,9 @@ import { General } from "./models/general.model";
 import cron from "node-cron";
 import { initializeFirebase } from './util/firebaseConfig';
 import { Counter } from "./models/counter.model";
+import { readExcel, transformRow } from "./controllers/common";
+import { Customer } from "./models/customer.model";
+import { Billing } from "./models/billing.model";
 
 const app = express();
 app.use(express.json());
@@ -126,5 +129,48 @@ cron.schedule("02 00 * * *", async () => {
     console.error("Error in cron job:", err);
   }
 });
+
+
+
+const rows = readExcel("./src/upload/alliance-billing.xlsx");
+
+// app.get("/upload",async(req,res)=>{
+//   // return res.send("mass")
+//   const documents = rows.map(transformRow);
+//   console.log(documents[0])
+//   let inset = await Billing.insertMany(documents,
+//     { ordered: false }
+//   )
+//   console.log(inset)
+//   res.send(inset)
+
+// })
+
+// app.get("/upload", async (req, res) => {
+//   try {
+//     const BATCH_SIZE = 500;
+//     let totalInserted = 0;
+
+//     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+//       const batch = rows.slice(i, i + BATCH_SIZE).map(transformRow);
+
+//       await Billing.insertMany(batch );
+
+//       totalInserted += batch.length;
+//       console.log(`Inserted: ${totalInserted}`);
+//     }
+
+//     res.send({
+//       success: true,
+//       message: `Inserted ${totalInserted} records`
+//     });
+//   } catch (err:any) {
+//     console.error(err);
+//     res.status(500).send({ success: false, error: err  });
+//   }
+// });
+
+
+// console.log(documents)
 
 app.listen(port, () => console.log("Server running on port " + port));

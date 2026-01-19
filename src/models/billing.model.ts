@@ -39,7 +39,7 @@ const BillingSchema: Schema = new Schema<IBilling>(
     },
     modeOfPayment: {
       type: String,
-      enum: ["Cash", "Card", "Online"],
+      // enum: ["Cash", "Card", "Online"],
     //   required: true,
     },
     cardNo: {
@@ -56,7 +56,7 @@ const BillingSchema: Schema = new Schema<IBilling>(
     },
     paymentDate: {
       type: Date,
-      required: true,
+      // required: true,
     },
     emiNo: {
       type: Number,
