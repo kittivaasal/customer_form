@@ -132,7 +132,7 @@ cron.schedule("02 00 * * *", async () => {
 
 
 
-const rows = readExcel("./src/upload/alliance-billing.xlsx");
+// const rows = readExcel("./src/upload/alliance-billing.xlsx");
 
 // app.get("/upload",async(req,res)=>{
 //   // return res.send("mass")
