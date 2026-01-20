@@ -63,8 +63,8 @@ app.use("/api/menu", menu);
 app.use("/api/role/menu", roleMenu);
 app.use("/api/user", user);
 app.use("/api/common", common);
-app.use("/api/plot/booking", plotBookingFormRoutes);
-app.use("/api/life/saving", lifeSacingRoutes);
+app.use("/api/housing/customer/form", plotBookingFormRoutes);
+app.use("/api/alliance/customer/form", lifeSacingRoutes);
 app.use("/api/billing/request", billingRequestRoutes);
 app.use("/api/edit/request", editRequestRoutes);
 app.use("/api/logs", logRoutes)
