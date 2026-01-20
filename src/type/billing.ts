@@ -21,6 +21,7 @@ export interface IBilling extends Document {
     introducer: mongoose.Types.ObjectId;
     status: "enquiry" | "blocked" | "active";
     remarks?: string;
+    billFor?: string;
     editDeleteReason?: string;
 
     oldData?: boolean

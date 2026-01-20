@@ -23,5 +23,7 @@ export interface IBillingRequest {
         cardHolderName?: string
         remarks?: string
         cardNo?: string
+        referenceId?: String
+        billFor?: string
     },
 }

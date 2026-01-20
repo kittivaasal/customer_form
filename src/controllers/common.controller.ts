@@ -517,31 +517,26 @@ export const getAllGeneral = async (req: Request, res: Response) => {
   const { customerId, pageNo, limit } = req.query as any;
   let option: any = {};
 
-  // Validate customerId
   if (customerId) {
-    if (!mongoose.isValidObjectId(customerId)) {
-      return ReE(
-        res,
-        { message: "customer id is invalid" },
-        httpStatus.BAD_REQUEST
-      );
+    if (mongoose.isValidObjectId(customerId)) {
+      let getCustomer;
+      [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getCustomer) {
+        return ReE(
+          res,
+          { message: "customer not found given id" },
+          httpStatus.NOT_FOUND
+        );
+      }
+      getCustomer = getCustomer as ICustomer
+      option.$or = [
+        { customer: customerId },
+        { supplierCode: getCustomer.id }
+      ]
+    }else{
+      option.supplierCode = customerId
     }
-
-    let getCustomer;
-    [err, getCustomer] = await toAwait(
-      Customer.findOne({ _id: customerId })
-    );
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-
-    if (!getCustomer) {
-      return ReE(
-        res,
-        { message: "customer not found given id" },
-        httpStatus.NOT_FOUND
-      );
-    }
-
-    option.customer = customerId;
   }
 
   // 🔹 CHECK PAGINATION PARAMETERS
@@ -667,8 +662,6 @@ export const getAllBilling = async (req: Request, res: Response) => {
       option.customerCode = customerId
     }
   }
-
-  console.log(option)
 
   // Existing generalId validation
   if (generalId) {
@@ -848,7 +841,7 @@ export const getAllPlot = async (req: Request, res: Response) => {
     option.general = generalId;
   }
   [err, getPlot] = await toAwait(
-    Plot.find(option).populate("customer").populate("general")
+    Plot.find(option).populate("customer").populate("general").sort({ createdAt: -1 })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   getPlot = getPlot as IPlot[];
@@ -904,7 +897,7 @@ export const getAllFlat = async (req: Request, res: Response) => {
     option.general = generalId;
   }
   [err, getFlat] = await toAwait(
-    Flat.find(option).populate("customer").populate("general")
+    Flat.find(option).populate("customer").populate("general").sort({ createdAt: -1 })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   getFlat = getFlat as IFlat[];
@@ -1084,7 +1077,7 @@ export const getAllMarketer = async (req: Request, res: Response) => {
       .populate("generalId")
       .populate("emiId")
       .populate("marketerHeadId")
-      .populate("percentageId")
+      .populate("percentageId").sort({ createdAt: -1 })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   getMarketer = getMarketer as IMarketer[];
@@ -1663,7 +1656,8 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
             cardHolderName,
             remarks,
             cardNo,
-            referenceId
+            referenceId,
+            billFor
           },
         })
       );
@@ -1731,7 +1725,8 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       balanceAmount: balanceAmount,
       emi: element._id,
       oldData: checkCustomer.oldData,
-      customerCode: checkCustomer.id
+      customerCode: checkCustomer.id,
+      billFor
     };
 
     let getMarketerHead;
@@ -1854,28 +1849,37 @@ export const getAllDetailsByCustomerId = async (
   res: Response
 ) => {
   let err;
-  let { customerId, generalId } = req.query,
-    option: any = {};
+  let { customerId, generalId } = req.query, option: any = {};
+
   if (customerId) {
-    if (!mongoose.isValidObjectId(customerId)) {
-      return ReE(
-        res,
-        { message: "customer id is invalid" },
-        httpStatus.BAD_REQUEST
-      );
+    if (mongoose.isValidObjectId(customerId)) {
+      let getCustomer;
+      [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getCustomer) {
+        return ReE(
+          res,
+          { message: "customer not found given id" },
+          httpStatus.NOT_FOUND
+        );
+      }
+      getCustomer = getCustomer as ICustomer
+      option.$or = [
+        { _id: customerId },
+        { id: getCustomer.id },
+        { customerCode: getCustomer.id },
+        { supplierCode: getCustomer.id },
+        { customer: customerId }
+      ]
+    }else{
+      option.$or = [
+        { id: customerId },
+        { customerCode: customerId },
+        { supplierCode: customerId },
+      ]
     }
-    let getCustomer;
-    [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!getCustomer) {
-      return ReE(
-        res,
-        { message: "customer not found given id" },
-        httpStatus.NOT_FOUND
-      );
-    }
-    option.customer = customerId;
   }
+
   if (generalId) {
     if (!mongoose.isValidObjectId(generalId)) {
       return ReE(
@@ -1898,11 +1902,9 @@ export const getAllDetailsByCustomerId = async (
   }
   let data: any = {};
 
-  //get all general
-  let filterGeneral = { customer: customerId };
   let getGeneral;
   [err, getGeneral] = await toAwait(
-    General.find(filterGeneral).populate("customer").populate("marketer")
+    General.find(option).populate("customer").populate("marketer").sort({ createdAt: -1 })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   data.general = getGeneral;
@@ -1959,30 +1961,32 @@ export const getAllDetailsByCustomerId = async (
 
 export const getAllTypeBasedGenId = async (req: Request, res: Response) => {
   let err;
-  let { customerId } = req.query,
-    option: any = {};
+  let { customerId } = req.query, option: any = {};
+
   if (customerId) {
-    if (!mongoose.isValidObjectId(customerId)) {
-      return ReE(
-        res,
-        { message: "customer id is invalid" },
-        httpStatus.BAD_REQUEST
-      );
+    if (mongoose.isValidObjectId(customerId)) {
+      let getCustomer;
+      [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getCustomer) {
+        return ReE(
+          res,
+          { message: "customer not found given id" },
+          httpStatus.NOT_FOUND
+        );
+      }
+      getCustomer = getCustomer as ICustomer
+      option.$or = [
+        { supplierCode: getCustomer.id },
+        { customer: customerId }
+      ]
+    }else{
+      option.supplierCode = customerId
     }
-    let getCustomer;
-    [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!getCustomer) {
-      return ReE(
-        res,
-        { message: "customer not found given id" },
-        httpStatus.NOT_FOUND
-      );
-    }
-    option.customer = customerId;
   }
+  
   let getGeneral;
-  [err, getGeneral] = await toAwait(General.find({ customer: customerId }));
+  [err, getGeneral] = await toAwait(General.find(option).populate("customer").populate("marketer").sort({ createdAt: -1 }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   //obj = [{general:objGeneral, flat:objFlat, plot:objPlot, marketer:objMarketer, emi:objEmi, billing:objBilling}]
 
@@ -2005,7 +2009,7 @@ export const getAllDataBasedOnGeneral = async (req: Request, res: Response) => {
   [err, generalList] = await toAwait(
     General.find({ customer: customerId })
       .populate("customer")
-      .populate("marketer")
+      .populate("marketer").sort({ createdAt: -1 })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
@@ -2020,13 +2024,13 @@ export const getAllDataBasedOnGeneral = async (req: Request, res: Response) => {
       [err, objPlot] = await toAwait(
         Plot.find({ general: general._id })
           .populate("customer")
-          .populate("general")
+          .populate("general").sort({ createdAt: -1 })
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       [err, objFlat] = await toAwait(
         Flat.find({ general: general._id })
           .populate("customer")
-          .populate("general")
+          .populate("general").sort({ createdAt: -1 })
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
@@ -2036,14 +2040,14 @@ export const getAllDataBasedOnGeneral = async (req: Request, res: Response) => {
           .populate("generalId")
           .populate("emiId")
           .populate("marketerHeadId")
-          .populate("percentageId")
+          .populate("percentageId").sort({ createdAt: -1 })
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
       [err, objEmi] = await toAwait(
         Emi.find({ general: general._id })
           .populate("customer")
-          .populate("general")
+          .populate("general").sort({ createdAt: -1 })
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
@@ -2052,7 +2056,7 @@ export const getAllDataBasedOnGeneral = async (req: Request, res: Response) => {
           .populate("customer")
           .populate("general")
           .populate("introducer")
-          .populate("emi")
+          .populate("emi").sort({ createdAt: -1 })
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       result.push({

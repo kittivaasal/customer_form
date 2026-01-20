@@ -28,7 +28,7 @@ router.get("/emi/get/all", getAllEmi)
 router.get("/emi/get/:id", getByIdEmi)
 router.get("/marketer/get/all", getAllMarketer)
 router.get("/marketer/get/:id", getByIdMarketer)
-router.get("/get/all/detail", getAllDetailsByCustomerId)
+router.get("/get/all/detail", getAllDetailsByCustomerId)//
 router.get("/get/all/estimate", getAllDataBasedOnGeneral)
 router.get("/get/all/estimate/:id", getDataBasedOnGeneralById)
 router.post("/check/emi", checkEmi)

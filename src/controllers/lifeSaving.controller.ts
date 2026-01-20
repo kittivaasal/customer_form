@@ -17,7 +17,7 @@ export const createLifeSaving = async (req: Request, res: Response) => {
     let fields = [ "data" ];
     let inVaildFields = fields.filter(x => isNull(payload[x]));
     if (inVaildFields.length > 0) {
-        return ReE(res, { message: `Please enter required fields ${inVaildFields}!.` }, httpStatus.BAD_REQUEST);
+        return ReE(res, { message: `Please enter required fields ${inVaildFields} array!.` }, httpStatus.BAD_REQUEST);
     }
 
     let { data } = body;

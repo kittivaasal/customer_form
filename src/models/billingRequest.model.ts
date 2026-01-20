@@ -58,6 +58,9 @@ const BillingRequestSchema: Schema = new Schema<IBillingRequest>(
             },
             referenceId:{
                 type: String
+            },
+            billFor:{
+                type: String
             }
         },
         reason: {

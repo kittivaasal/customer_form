@@ -139,6 +139,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                         customerName: checkCustomer?.name,
                         emi: element?._id,
                         oldData,
+                        billFor: getBillingRequest.billingDetails.billFor,
                         customerCode: checkCustomer.id
                     };
 
