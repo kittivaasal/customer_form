@@ -344,15 +344,15 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
       );
     }
 
-    if (!general.editDeleteReason) {
-      return ReE(
-        res,
-        {
-          message: `If update general then general.editDeleteReason is required`,
-        },
-        httpStatus.BAD_REQUEST
-      );
-    }
+    // if (!general.editDeleteReason) {
+    //   return ReE(
+    //     res,
+    //     {
+    //       message: `If update general then general.editDeleteReason is required`,
+    //     },
+    //     httpStatus.BAD_REQUEST
+    //   );
+    // }
 
     if (general.status) {
       general.status = general.status.toLowerCase();
