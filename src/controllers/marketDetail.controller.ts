@@ -214,7 +214,13 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
     const page = req.query.page ? parseInt(req.query.page as string) : null;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
 
-    let queryTo = MarketDetail.find(option).populate("headBy")
+    let queryTo = MarketDetail.find(option)
+        .populate({
+            path: "headBy",
+            populate: [
+                { path: "percentageId" }
+            ]
+        }) 
         .sort({ createdAt: -1 });
 
     if (page && limit) {
@@ -246,9 +252,9 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getMarketDetail = getMarketDetail as IMarketDetail[]
-    if (getMarketDetail.length === 0) {
-        return ReE(res, { message: `marketDetail not found!.` }, httpStatus.NOT_FOUND)
-    }
+    // if (getMarketDetail.length === 0) {
+    //     return ReE(res, { message: `marketDetail not found!.` }, httpStatus.NOT_FOUND)
+    // }
 
     ReS(res, { message: "marketDetail found", data: getMarketDetail }, httpStatus.OK)
 }
