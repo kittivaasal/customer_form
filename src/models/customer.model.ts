@@ -19,7 +19,7 @@ const customerSchema = new mongoose.Schema({
   referenceId: String,
   projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
 
-  cedId: {type: mongoose.Schema.Types.ObjectId,ref: "MarketingHead"},
+  cedId: {type: mongoose.Schema.Types.ObjectId,ref: "MarketDetail"},
   ddId: {type: mongoose.Schema.Types.ObjectId,ref: "MarketingHead"},
   introducerId: {type: mongoose.Schema.Types.ObjectId,ref: "MarketingHead"},
   marketerDetailId: {type: mongoose.Schema.Types.ObjectId,ref: "MarketDetail"},

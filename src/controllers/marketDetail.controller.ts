@@ -193,8 +193,56 @@ export const getByIdMarketDetail = async (req: Request, res: Response) => {
 }
 
 export const getAllMarketDetail = async (req: Request, res: Response) => {
-    let err, getMarketDetail;
-    [err, getMarketDetail] = await toAwait(MarketDetail.find().populate("headBy"));
+    let err, getMarketDetail, query = req.query;
+
+    let { head } = query
+    let option: any = {};
+
+    if (head) {
+        if (!mongoose.isValidObjectId(head)) {
+            return ReE(res, { message: `Invalid head id!` }, httpStatus.BAD_REQUEST);
+        }
+        let getHead;
+        [err, getHead] = await toAwait(MarketingHead.findOne({ _id: head }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!getHead) {
+            return ReE(res, { message: `head not found for given id!.` }, httpStatus.NOT_FOUND)
+        }
+        option.headBy = head
+    }
+
+    const page = req.query.page ? parseInt(req.query.page as string) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
+
+    let queryTo = MarketDetail.find(option).populate("headBy")
+        .sort({ createdAt: -1 });
+
+    if (page && limit) {
+        const skip = (page - 1) * limit;
+        queryTo = queryTo.skip(skip).limit(limit);
+    }
+
+    let total;
+    let totalPages = 1;
+
+    if (page && limit) {
+        let count;
+        [err, count] = await toAwait(MarketDetail.countDocuments(option));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+        total = count as number;
+        totalPages = Math.ceil(total / limit);
+
+        if (page > totalPages) {
+            return ReE(
+                res,
+                { message: `Page no ${page} not available. The last page no is ${totalPages}.` },
+                httpStatus.NOT_FOUND
+            );
+        }
+    }
+
+    [err, getMarketDetail] = await toAwait(queryTo);
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getMarketDetail = getMarketDetail as IMarketDetail[]

@@ -13,6 +13,7 @@ import CustomRequest from "../type/customRequest";
 import { IEditRequest } from "../type/editRequest";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
+import { IProject } from "../type/project";
 
 export const createCustomer = async (req: Request, res: Response) => {
   let body = req.body, err;
@@ -23,26 +24,16 @@ export const createCustomer = async (req: Request, res: Response) => {
     return ReE(res, { message: `Please enter ddId or cedId!.` }, httpStatus.BAD_REQUEST);
   }
 
-  if(!isNull(ddId) && !isNull(cedId)){
-    delete body.cedId;
-  }
-
-  if(isNull(introducerId)){
-    delete body.introducerId;
-  }
-
   if(!isNull(cedId)){
-    console.log(cedId);
     if(!mongoose.isValidObjectId(cedId)){
       return ReE(res, { message: `Invalid cedId!.` }, httpStatus.BAD_REQUEST);
     }
     let findCed;
-    [err, findCed] = await toAwait(MarketingHead.findOne({ _id: cedId }));
+    [err, findCed] = await toAwait(MarketDetail.findOne({ _id: cedId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!findCed) {
       return ReE(res, { message: `Ced is not found for given id!.` }, httpStatus.BAD_REQUEST);
     }
-    delete body.ddId;
   }
 
   if(!isNull(ddId)){
@@ -55,7 +46,6 @@ export const createCustomer = async (req: Request, res: Response) => {
     if (!findDd) {
       return ReE(res, { message: `Dd is not found for given id!.` }, httpStatus.BAD_REQUEST);
     }
-    delete body.cedId;
   }
 
   if(!isNull(introducerId)){
@@ -67,18 +57,6 @@ export const createCustomer = async (req: Request, res: Response) => {
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!findIntroducer) {
       return ReE(res, { message: `Introducer is not found for given id!.` }, httpStatus.BAD_REQUEST);
-    }
-  }
-
-  if(!isNull(marketerDetailId)){
-    if(!mongoose.isValidObjectId(marketerDetailId)){
-      return ReE(res, { message: `Invalid marketerDetailId!.` }, httpStatus.BAD_REQUEST);
-    }
-    let findMarketer;
-    [err, findMarketer] = await toAwait(MarketDetail.findOne({ _id: marketerDetailId }));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!findMarketer) {
-      return ReE(res, { message: `Marketer detail is not found for given id!.` }, httpStatus.BAD_REQUEST);
     }
   }
 
@@ -110,20 +88,18 @@ export const createCustomer = async (req: Request, res: Response) => {
     return ReE(res, { message: `Please enter project id!.` }, httpStatus.BAD_REQUEST);
   }
 
-  let projectData:any={};
-  if (projectId) {
-    if (!mongoose.isValidObjectId(projectId)) {
-      return ReE(res, { message: `Invalid project id!.` }, httpStatus.BAD_REQUEST);
-    }
-    let findProject;
-    [err, findProject] = await toAwait(Project.findOne({ _id: projectId }))
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!findProject) {
-      return ReE(res, { message: `Project not found for given project id!.` }, httpStatus.NOT_FOUND);
-    }
-    body.projectId = projectId;
-    projectData=findProject;
+  if (!mongoose.isValidObjectId(projectId)) {
+    return ReE(res, { message: `Invalid project id!.` }, httpStatus.BAD_REQUEST);
   }
+  let projectData;
+  [err, projectData] = await toAwait(Project.findOne({ _id: projectId }))
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (!projectData) {
+    return ReE(res, { message: `Project not found for given project id!.` }, httpStatus.NOT_FOUND);
+  }
+  body.projectId = projectId;
+
+  projectData = projectData as IProject
 
   if(projectData?.projectName){
     let id= toAutoIncrCode(projectData?.projectName)
