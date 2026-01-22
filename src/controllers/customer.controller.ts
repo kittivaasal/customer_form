@@ -4,6 +4,8 @@ import mongoose from "mongoose";
 import { Counter } from "../models/counter.model";
 import { Customer } from "../models/customer.model";
 import EditRequest from "../models/editRequest.model";
+import { MarketDetail } from "../models/marketDetail.model";
+import { MarketingHead } from "../models/marketingHead.model";
 import { Project } from "../models/project.model";
 import { isEmail, isNull, isPhone, ReE, ReS, toAutoIncrCode, toAwait } from "../services/util.service";
 import { ICustomer } from "../type/customer";
@@ -11,8 +13,6 @@ import CustomRequest from "../type/customRequest";
 import { IEditRequest } from "../type/editRequest";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
-import { MarketingHead } from "../models/marketingHead.model";
-import { MarketDetail } from "../models/marketDetail.model";
 import { IProject } from "../type/project";
 
 export const createCustomer = async (req: Request, res: Response) => {
@@ -359,6 +359,14 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
       Customer.updateOne({ _id }, { $set: updateFields })
     );
     if (updateErr) return ReE(res, updateErr, httpStatus.INTERNAL_SERVER_ERROR)
+
+    if (req.query.includeCustomer === 'true') {
+      let updatedCustomer;
+      [err, updatedCustomer] = await toAwait(Customer.findOne({ _id }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      return ReS(res, { message: "Customer updated successfully.", data: updatedCustomer }, httpStatus.OK);
+    }
+
     return ReS(res, { message: "Customer updated successfully." }, httpStatus.OK);
 
   }
@@ -373,7 +381,7 @@ export const getByIdCustomer = async (req: Request, res: Response) => {
   }
 
   let getCustomer;
-  [err, getCustomer] = await toAwait(Customer.findOne({ _id: id }).populate('projectId'));
+  [err, getCustomer] = await toAwait(Customer.findOne({ _id: id }).populate('projectId').populate("cedId").populate("ddId").populate("introducerId").populate("marketerDetailId").sort({ createdAt: -1 }));
 
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!getCustomer) {
