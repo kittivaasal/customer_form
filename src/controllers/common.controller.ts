@@ -764,6 +764,10 @@ export const getAllBilling = async (req: Request, res: Response) => {
       { saleType: new RegExp(`^${search}$`, 'i') },
       { status: new RegExp(`^${search}$`, 'i') }
     ];
+
+    if(mongoose.Types.ObjectId.isValid(search as string)){
+      option.$or.push({ _id: new mongoose.Types.ObjectId(search as string) });
+    }
   }
 
   // Get total count for pagination
@@ -774,10 +778,10 @@ export const getAllBilling = async (req: Request, res: Response) => {
   totalCount = totalCount as number;
 
   if (totalCount === 0) {
-    return ReE(
+    return ReS(
       res,
-      { message: "billing not found in db" },
-      httpStatus.NOT_FOUND
+      { message: "billing not found in db", data: [] },
+      httpStatus.OK
     );
   }
 
@@ -810,6 +814,7 @@ export const getAllBilling = async (req: Request, res: Response) => {
       .populate("general")
       .populate("introducer")
       .populate("emi")
+      .populate("createdBy")
       .limit(setLimit)
       .skip(setOffset)
       .sort({ createdAt: -1 })
@@ -2026,6 +2031,7 @@ export const getAllDetailsByCustomerId = async (
       .populate("customer")
       .populate("general")
       .populate("introducer")
+      .populate("createdBy")
       .populate("emi").sort({ createdAt: -1 })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2131,6 +2137,7 @@ export const getAllDataBasedOnGeneral = async (req: Request, res: Response) => {
           .populate("customer")
           .populate("general")
           .populate("introducer")
+          .populate("createdBy")
           .populate("emi").sort({ createdAt: -1 })
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2218,6 +2225,7 @@ export const getDataBasedOnGeneralById = async (
         .populate("customer")
         .populate("general")
         .populate("introducer")
+        .populate("createdBy")
         .populate("emi").sort({ createdAt: -1 })
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2492,7 +2500,9 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
       .populate("customer")
       .populate("general")
       .populate("introducer")
-      .populate("emi").sort({ createdAt: -1 })
+      .populate("createdBy")
+      .populate("emi")
+      .sort({ createdAt: -1 })
   );
 
 
