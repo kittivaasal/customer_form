@@ -246,9 +246,9 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getMarketDetail = getMarketDetail as IMarketDetail[]
-    if (getMarketDetail.length === 0) {
-        return ReE(res, { message: `marketDetail not found!.` }, httpStatus.NOT_FOUND)
-    }
+    // if (getMarketDetail.length === 0) {
+    //     return ReE(res, { message: `marketDetail not found!.` }, httpStatus.NOT_FOUND)
+    // }
 
     ReS(res, { message: "marketDetail found", data: getMarketDetail }, httpStatus.OK)
 }
