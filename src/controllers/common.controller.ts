@@ -33,6 +33,10 @@ import editRequestModel from "../models/editRequest.model";
 import { BillingRequest } from "../models/billingRequest.model";
 import { IBillingRequest } from "../type/billingRequest";
 import moment from "moment";
+import { MarketDetail } from "../models/marketDetail.model";
+import { IMarketDetail } from "../type/marketDetail";
+import { Project } from "../models/project.model";
+import { IProject } from "../type/project";
 
 export const uploadImages = async (req: Request, res: Response) => {
   try {
@@ -82,8 +86,7 @@ export const uploadImages = async (req: Request, res: Response) => {
 };
 
 export const createCommonData = async (req: Request, res: Response) => {
-  let body = req.body,
-    err;
+  let body = req.body, err: any;
   const { customerId, general, plot, billing, flat } = body;
 
   if (!customerId) {
@@ -108,6 +111,8 @@ export const createCommonData = async (req: Request, res: Response) => {
       httpStatus.BAD_REQUEST
     );
   }
+
+  checkCustomer = checkCustomer as ICustomer;
 
   let fields = ["general", "plot", "flat"];
   let inVaildFields = fields.filter((x) => !isNull(body[x]));
@@ -176,22 +181,6 @@ export const createCommonData = async (req: Request, res: Response) => {
       );
     }
 
-    if (!general.marketer) {
-      return ReE(
-        res,
-        { message: "marketer is required in general" },
-        httpStatus.BAD_REQUEST
-      );
-    }
-
-    if (!mongoose.isValidObjectId(general.marketer)) {
-      return ReE(
-        res,
-        { message: "Invalid marketer id in general" },
-        httpStatus.BAD_REQUEST
-      );
-    }
-
     if (!general.percentage) {
       return ReE(
         res,
@@ -199,9 +188,11 @@ export const createCommonData = async (req: Request, res: Response) => {
         httpStatus.BAD_REQUEST
       );
     }
+
     if (typeof general.percentage !== "number") {
       general.percentage = Number(general.percentage);
     }
+
     if (isNaN(general.percentage)) {
       return ReE(
         res,
@@ -218,32 +209,87 @@ export const createCommonData = async (req: Request, res: Response) => {
       );
     }
 
-    let checkIntroducer, err: any;
-    [err, checkIntroducer] = await toAwait(
-      MarketingHead.findOne({ _id: general.marketer })
-    );
-    if (err) {
+    general.project = checkCustomer.projectId;
+
+    let checkProject;
+    [err, checkProject] = await toAwait(Project.findOne({ _id: general.project }));
+
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    if (!checkProject) {
       return ReE(
         res,
-        { message: `${err.message} - in marketer in general` },
-        httpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-    if (!checkIntroducer) {
-      return ReE(
-        res,
-        { message: "marketer id not found in create general" },
+        { message: "project id not found in create general" },
         httpStatus.BAD_REQUEST
       );
     }
-  }
 
-  let checkAlreadyExist = await General.findOne(general);
+    checkProject = checkProject as IProject;
+
+    if(checkProject.emiAmount != general.emiAmount){
+      return ReE(
+        res,
+        { message: `emi amount not match with project emi amount in general project emi amount is ${checkProject.emiAmount}` },
+        httpStatus.BAD_REQUEST
+      )
+    }
+
+    if(checkCustomer.cedId){
+      let checkMarketDetail;
+      [err, checkMarketDetail] = await toAwait(MarketDetail.findOne({ _id: checkCustomer.cedId }));
+
+      if (err) {
+        return ReE(
+          res,
+          err,
+          httpStatus.INTERNAL_SERVER_ERROR
+        );
+      }
+      if(!checkMarketDetail){
+        return ReE(
+          res,
+          { message: "MarketDetail not found inside map with this customer" },
+          httpStatus.BAD_REQUEST
+        );
+      }
+      general.marketerByModel = "MarketDetail";
+      general.marketer = checkCustomer.cedId;
+    }else{
+      let checkMarketingHead;
+      [err, checkMarketingHead] = await toAwait(MarketingHead.findOne({ _id: checkCustomer.ddId }));
+
+      if (err) {
+        return ReE(
+          res,
+          err,
+          httpStatus.INTERNAL_SERVER_ERROR
+        );
+      }
+
+      if(!checkMarketingHead){
+        return ReE(
+          res,
+          { message: "MarketingHead not found inside map with this customer" },
+          httpStatus.BAD_REQUEST
+        );
+      }
+
+      general.marketerByModel = "MarketingHead";
+      general.marketer = checkCustomer.ddId;
+    }
+
+  }
+  
+  let checkAlreadyExist = await General.findOne({
+    customer: customerId,
+    project: general.project
+  });
+
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (checkAlreadyExist)
     return ReE(
       res,
-      { message: `general already exist based on given all details` },
+      { message: `general already exist based on given cutomer id` },
       httpStatus.BAD_REQUEST
     );
   let createGeneral;
@@ -258,6 +304,7 @@ export const createCommonData = async (req: Request, res: Response) => {
       httpStatus.INTERNAL_SERVER_ERROR
     );
   }
+
   results.general = createGeneral;
   createGeneral = createGeneral as IGeneral;
   if (createGeneral.noOfInstallments) {
@@ -534,7 +581,7 @@ export const getAllGeneral = async (req: Request, res: Response) => {
         { customer: customerId },
         { supplierCode: getCustomer.id }
       ]
-    }else{
+    } else {
       option.supplierCode = customerId
     }
   }
@@ -658,7 +705,7 @@ export const getAllBilling = async (req: Request, res: Response) => {
         { customer: customerId },
         { customerCode: getCustomer.id }
       ]
-    }else{
+    } else {
       option.customerCode = customerId
     }
   }
@@ -911,7 +958,7 @@ export const getAllEmi = async (req: Request, res: Response) => {
   let getEmi;
   let err;
   let { customerId, generalId, paid } = req.query, option: any = {};
-  
+
   const page = req.query.page ? parseInt(req.query.page as string) : null;
   const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
   const search = (req.query.search as string) || "";
@@ -930,12 +977,12 @@ export const getAllEmi = async (req: Request, res: Response) => {
         );
       }
       getCustomer = getCustomer as ICustomer
-      option.$or =[
+      option.$or = [
         { supplierCode: getCustomer.id },
         { customer: getCustomer._id }
       ]
-      
-    }else{
+
+    } else {
       option.supplierCode = customerId
     }
   }
@@ -979,16 +1026,16 @@ export const getAllEmi = async (req: Request, res: Response) => {
       option.paidDate = null;
     }
   }
-  
+
   let query = Emi.find(option).populate("customer").populate("general").sort({ createdAt: -1 });
-  
+
   let total;
   let totalPages = 1;
 
   if (page && limit) {
     const skip = (page - 1) * limit;
     query = query.skip(skip).limit(limit);
-  
+
     let count;
     [err, count] = await toAwait(Emi.countDocuments(option));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -1010,18 +1057,18 @@ export const getAllEmi = async (req: Request, res: Response) => {
 
   getEmi = getEmi as IEmi[];
 
-  return ReS(res, { 
+  return ReS(res, {
     data: getEmi,
     ...(page && limit && {
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPreviousPage: page > 1
-        }
-      })
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
+    })
   }, httpStatus.OK);
 
 };
@@ -1519,7 +1566,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
   } else {
 
     let checkBillingRequestForCustomer;
-    console.log(customerId);
     [err, checkBillingRequestForCustomer] = await toAwait(
       BillingRequest.findOne({ requestFor: "create", customerId: customerId, status: "pending" })
     );
@@ -1712,6 +1758,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       transactionType: "EMI Receipt",
       saleType,
       introducer: checkGeneral.marketer,
+      introducerByModel: checkGeneral?.marketerByModel,
       status,
       modeOfPayment,
       referenceId,
@@ -1729,27 +1776,43 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       billFor
     };
 
-    let getMarketerHead;
-    if(!checkCustomer.oldData){
-      [err, getMarketerHead] = await toAwait(
-        MarketingHead.findOne({ _id: checkGeneral.marketer }).populate("percentageId")
+    let getMarketer;
+    if (!checkCustomer.oldData) {
+      [err, getMarketer] = await toAwait(
+        MarketDetail.findOne({ _id: checkGeneral.marketer }).populate({
+          path: "headBy",
+          populate: [
+            { path: "percentageId" }
+          ]
+        })
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      if (!getMarketerHead ) {
-        return ReE(
-          res,
-          { message: "emi inside marketer head not found" },
-          httpStatus.BAD_REQUEST
+      if (!getMarketer) {
+        let checkMarketerHead;
+        [err, checkMarketerHead] = await toAwait(
+          MarketingHead.findOne({ _id: checkGeneral.marketer }).populate("percentageId")
         );
+
+        if (err) {
+          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        if (!checkMarketerHead && !getMarketer) {
+          return ReE(res, { message: "In general inside marketer not in marketer head or marketer table not found" }, httpStatus.BAD_REQUEST);
+        }
+        if (checkMarketerHead) {
+          getMarketer = checkMarketerHead
+        }
       }
+
     }
 
     let checkAlreadyExist;
-    if(!checkCustomer.oldData){
+    if (!checkCustomer.oldData) {
       [err, checkAlreadyExist] = await toAwait(Billing.findOne({
-        emiNo: element.emiNo,customer: customerId
+        emiNo: element.emiNo, customer: customerId
       }));
-    }else{
+    } else {
       [err, checkAlreadyExist] = await toAwait(Billing.findOne({
         emiNo: element.emiNo,
         customerCode: checkCustomer.id,
@@ -1758,7 +1821,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     }
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    console.log(checkAlreadyExist,"mass");
+
     if (checkAlreadyExist) {
       checkAlreadyExist = checkAlreadyExist as IBilling | any
       let updateEmiPaid;
@@ -1778,13 +1841,10 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
       billing = billing as IBilling;
 
-      console.log(billing, "billing");
+      getMarketer = getMarketer as any;
 
-      getMarketerHead = getMarketerHead as IMarketingHead | any;
-
-      
       let checkAlreadyExistMarketer
-      if(!checkCustomer.oldData){ 
+      if (!checkCustomer.oldData) {
         let marketerDe: any = {
           customer: customerId,
           emiNo: element?.emiNo,
@@ -1793,26 +1853,34 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           marketer: billing.introducer,
           emiId: element._id,
           generalId: checkGeneral._id,
-          marketerHeadId: checkGeneral.marketer,
-          percentageId: getMarketerHead.percentageId,
+          marketerHeadId: getMarketer?.headBy?._id || getMarketer?._id,
+          percentageId: getMarketer?.headBy?.percentageId?._id || getMarketer?.percentageId?._id,
         };
         [err, checkAlreadyExistMarketer] = await toAwait(Marketer.findOne({
           marketer: marketerDe.marketer,
           emiId: marketerDe.emiId,
           general: marketerDe.general,
         }));
-  
+
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
         if (!checkAlreadyExistMarketer) {
-          if (getMarketerHead?.percentageId?.rate) {
+          if (getMarketer?.headBy?.percentageId?.rate) {
             let percent = Number(
-              getMarketerHead?.percentageId?.rate?.replace("%", "")
+              getMarketer?.headBy?.percentageId?.rate?.replace("%", "")
             );
             let correctPercent = billing.amountPaid * (percent / 100);
             marketerDe.commPercentage = percent;
             marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
           }
-  
+          if (getMarketer?.percentageId?.rate) {
+            let percent = Number(
+              getMarketer?.percentageId?.rate?.replace("%", "")
+            );
+            let correctPercent = billing.amountPaid * (percent / 100);
+            marketerDe.commPercentage = percent;
+            marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
+          }
+
           let marketer;
           [err, marketer] = await toAwait(Marketer.create(marketerDe));
           if (err) {
@@ -1871,7 +1939,7 @@ export const getAllDetailsByCustomerId = async (
         { supplierCode: getCustomer.id },
         { customer: customerId }
       ]
-    }else{
+    } else {
       option.$or = [
         { id: customerId },
         { customerCode: customerId },
@@ -1980,11 +2048,11 @@ export const getAllTypeBasedGenId = async (req: Request, res: Response) => {
         { supplierCode: getCustomer.id },
         { customer: customerId }
       ]
-    }else{
+    } else {
       option.supplierCode = customerId
     }
   }
-  
+
   let getGeneral;
   [err, getGeneral] = await toAwait(General.find(option).populate("customer").populate("marketer").sort({ createdAt: -1 }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);

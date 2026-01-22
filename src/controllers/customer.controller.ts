@@ -94,6 +94,8 @@ export const createCustomer = async (req: Request, res: Response) => {
   let projectData;
   [err, projectData] = await toAwait(Project.findOne({ _id: projectId }))
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  console.log(projectData, projectId);
+  
   if (!projectData) {
     return ReE(res, { message: `Project not found for given project id!.` }, httpStatus.NOT_FOUND);
   }

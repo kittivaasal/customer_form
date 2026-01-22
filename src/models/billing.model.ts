@@ -77,7 +77,12 @@ const BillingSchema: Schema = new Schema<IBilling>(
     },
     introducer: {
       type: Schema.Types.ObjectId,
-      ref: "MarketingHead",
+      refPath: 'introducerByModel'
+    },
+    introducerByModel: {
+      type: String,
+      required: true,
+      enum: ["MarketDetail", "MarketingHead"]
     },
     status: {
       type: String,

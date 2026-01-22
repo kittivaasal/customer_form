@@ -3,11 +3,11 @@ import { IEmi } from "../type/emi";
 
 const EmiSchema = new Schema({
     customer: {
-        type: mongoose.Schema.Types.String,
+        type: mongoose.Schema.Types.ObjectId,
         ref: "Customer",
     },
     general: {
-        type: mongoose.Schema.Types.String,
+        type: mongoose.Schema.Types.ObjectId,
         ref: "General",
     },
     emiNo: { type: Number },

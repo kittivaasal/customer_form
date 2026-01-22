@@ -3,12 +3,21 @@ import mongoose, { model, Schema } from "mongoose";
 const GeneralSchema = new Schema(
   {
     customer: {
-      type: mongoose.Schema.Types.String,
+      type:Schema.Types.ObjectId,
       ref: "Customer",
     },
     marketer: {
-      type: mongoose.Schema.Types.String,
-      ref: "MarketingHead",
+      type: Schema.Types.ObjectId,
+      refPath: 'marketerByModel'
+    },
+    marketerByModel: {
+      type: String,
+      required: true,
+      enum: ["MarketDetail", "MarketingHead"]
+    },
+    project: {
+      type:Schema.Types.ObjectId,
+      ref: "Project",
     },
     saleDeedDoc: {
       type: String,

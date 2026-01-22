@@ -23,6 +23,7 @@ export interface IBilling extends Document {
     remarks?: string;
     billFor?: string;
     editDeleteReason?: string;
+    introducerByModel: "MarketDetail" | "MarketingHead" ;
 
     oldData?: boolean
     project?: string;	

@@ -16,6 +16,7 @@ import { IMarketingHead } from "../type/marketingHead";
 import moment from "moment";
 import { Customer } from "../models/customer.model";
 import { General } from "../models/general.model";
+import { MarketDetail } from "../models/marketDetail.model";
 
 
 export const approvedBillingRequest = async (req: CustomRequest, res: Response) => {
@@ -125,6 +126,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                         paymentDate: new Date(getBillingRequest?.billingDetails?.paymentDate || new Date()),
                         transactionType: "EMI Receipt",
                         introducer: checkGeneral?.marketer,
+                        introducerByModel: checkGeneral?.marketerByModel,
                         mobileNo: checkCustomer?.phone,
                         customer: checkCustomer._id,
                         general: element.general,
@@ -143,18 +145,34 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                         customerCode: checkCustomer.id
                     };
 
-                    let getMarketerHead;
-                    if (!oldData) {
-                        [err, getMarketerHead] = await toAwait(
-                            MarketingHead.findOne({ _id: checkGeneral.marketer }).populate("percentageId")
+                    let getMarketer;
+                    if (!checkCustomer.oldData) {
+                        [err, getMarketer] = await toAwait(
+                            MarketDetail.findOne({ _id: checkGeneral.marketer }).populate({
+                                path: "headBy",
+                                populate: [
+                                    { path: "percentageId" }
+                                ]
+                            })
                         );
                         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-                        if (!getMarketerHead) {
-                            return ReE(
-                                res,
-                                { message: "emi inside marketer head not found" },
-                                httpStatus.BAD_REQUEST
+                        if (!getMarketer) {
+                            let checkMarketerHead;
+                            [err, checkMarketerHead] = await toAwait(
+                                MarketingHead.findOne({ _id: checkGeneral.marketer }).populate("percentageId")
                             );
+
+                            if (err) {
+                                return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+                            }
+
+                            if (!checkMarketerHead && !getMarketer) {
+                                return ReE(res, { message: "In general inside marketer not in marketer head or marketer table not found" }, httpStatus.BAD_REQUEST);
+                            }
+                            if (checkMarketerHead) {
+                                getMarketer = checkMarketerHead
+                            }
+
                         }
                     }
 
@@ -190,7 +208,8 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
                         billing = billing as IBilling;
-                        getMarketerHead = getMarketerHead as IMarketingHead | any;
+                        getMarketer = getMarketer as any;
+
 
                         let checkAlreadyExistMarketer
                         if (!checkCustomer.oldData) {
@@ -202,8 +221,8 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                                 marketer: billing.introducer,
                                 emiId: element._id,
                                 generalId: checkGeneral._id,
-                                marketerHeadId: checkGeneral.marketer,
-                                percentageId: getMarketerHead.percentageId,
+                                marketerHeadId: checkGeneral. getMarketer?.headBy?._id || getMarketer?._id,
+                                percentageId: getMarketer?.headBy?.percentageId?._id || getMarketer?.percentageId?._id,
                             };
                             [err, checkAlreadyExistMarketer] = await toAwait(Marketer.findOne({
                                 marketer: marketerDe.marketer,
@@ -213,9 +232,17 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
                             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
                             if (!checkAlreadyExistMarketer) {
-                                if (getMarketerHead?.percentageId?.rate) {
+                                if (getMarketer?.headBy?.percentageId?.rate?.rate) {
                                     let percent = Number(
-                                        getMarketerHead?.percentageId?.rate?.replace("%", "")
+                                        getMarketer?.headBy?.percentageId?.replace("%", "")
+                                    );
+                                    let correctPercent = billing.amountPaid * (percent / 100);
+                                    marketerDe.commPercentage = percent;
+                                    marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
+                                }
+                                if (getMarketer?.percentageId?.rate) {
+                                    let percent = Number(
+                                        getMarketer?.percentageId?.rate?.replace("%", "")
                                     );
                                     let correctPercent = billing.amountPaid * (percent / 100);
                                     marketerDe.commPercentage = percent;
