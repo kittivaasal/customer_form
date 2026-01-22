@@ -1176,10 +1176,16 @@ export const getByIdBilling = async (req: Request, res: Response) => {
   }
   [err, getBilling] = await toAwait(
     Billing.findById(id)
-      .populate("customer")
       .populate("general")
       .populate("introducer")
       .populate("emi")
+      .populate({
+        path: "customer",
+        populate: [
+          { path: "cedId" },
+          { path: "ddId" }
+        ]
+      })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!getBilling) {
@@ -2019,7 +2025,7 @@ export const getAllDetailsByCustomerId = async (
       .populate("customer")
       .populate("general")
       .populate("introducer")
-      .populate("emi")
+      .populate("emi").sort({ createdAt: -1 })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   data.billing = getAllBilling;
@@ -2211,7 +2217,7 @@ export const getDataBasedOnGeneralById = async (
         .populate("customer")
         .populate("general")
         .populate("introducer")
-        .populate("emi")
+        .populate("emi").sort({ createdAt: -1 })
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   }
@@ -2485,7 +2491,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
       .populate("customer")
       .populate("general")
       .populate("introducer")
-      .populate("emi")
+      .populate("emi").sort({ createdAt: -1 })
   );
 
 
