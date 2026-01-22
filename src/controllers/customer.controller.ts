@@ -7,25 +7,29 @@ import EditRequest from "../models/editRequest.model";
 import { MarketDetail } from "../models/marketDetail.model";
 import { MarketingHead } from "../models/marketingHead.model";
 import { Project } from "../models/project.model";
-import { isEmail, isNull, isPhone, ReE, ReS, toAutoIncrCode, toAwait } from "../services/util.service";
+import { isEmail, isEmpty, isNull, isPhone, ReE, ReS, toAutoIncrCode, toAwait } from "../services/util.service";
 import { ICustomer } from "../type/customer";
 import CustomRequest from "../type/customRequest";
 import { IEditRequest } from "../type/editRequest";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
 import { IProject } from "../type/project";
+import { Billing } from "../models/billing.model";
+import { General } from "../models/general.model";
+import { IGeneral } from "../type/general";
+import { Emi } from "../models/emi.model";
 
 export const createCustomer = async (req: Request, res: Response) => {
   let body = req.body, err;
-  let { introducerId,marketerDetailId, ddId, cedId, email, phone, projectId } = body;
+  let { introducerId, marketerDetailId, ddId, cedId, email, phone, projectId } = body;
 
   //let check if any one present ddId, cedId if not throw error
   if (isNull(ddId) && isNull(cedId)) {
     return ReE(res, { message: `Please enter ddId or cedId!.` }, httpStatus.BAD_REQUEST);
   }
 
-  if(!isNull(cedId)){
-    if(!mongoose.isValidObjectId(cedId)){
+  if (!isNull(cedId)) {
+    if (!mongoose.isValidObjectId(cedId)) {
       return ReE(res, { message: `Invalid cedId!.` }, httpStatus.BAD_REQUEST);
     }
     let findCed;
@@ -36,8 +40,8 @@ export const createCustomer = async (req: Request, res: Response) => {
     }
   }
 
-  if(!isNull(ddId)){
-    if(!mongoose.isValidObjectId(ddId)){
+  if (!isNull(ddId)) {
+    if (!mongoose.isValidObjectId(ddId)) {
       return ReE(res, { message: `Invalid ddId!.` }, httpStatus.BAD_REQUEST);
     }
     let findDd;
@@ -48,8 +52,8 @@ export const createCustomer = async (req: Request, res: Response) => {
     }
   }
 
-  if(!isNull(introducerId)){
-    if(!mongoose.isValidObjectId(introducerId)){
+  if (!isNull(introducerId)) {
+    if (!mongoose.isValidObjectId(introducerId)) {
       return ReE(res, { message: `Invalid introducerId!.` }, httpStatus.BAD_REQUEST);
     }
     let findIntroducer;
@@ -62,7 +66,7 @@ export const createCustomer = async (req: Request, res: Response) => {
 
   if (email) {
     email = email.trim().toLowerCase();
-    if(!isEmail(email)){
+    if (!isEmail(email)) {
       return ReE(res, { message: `Invalid email!.` }, httpStatus.BAD_REQUEST);
     }
     // let findEmail;
@@ -84,7 +88,7 @@ export const createCustomer = async (req: Request, res: Response) => {
     // }
   }
 
-  if(isNull(projectId)){
+  if (isNull(projectId)) {
     return ReE(res, { message: `Please enter project id!.` }, httpStatus.BAD_REQUEST);
   }
 
@@ -95,7 +99,7 @@ export const createCustomer = async (req: Request, res: Response) => {
   [err, projectData] = await toAwait(Project.findOne({ _id: projectId }))
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   console.log(projectData, projectId);
-  
+
   if (!projectData) {
     return ReE(res, { message: `Project not found for given project id!.` }, httpStatus.NOT_FOUND);
   }
@@ -103,29 +107,29 @@ export const createCustomer = async (req: Request, res: Response) => {
 
   projectData = projectData as IProject
 
-  if(projectData?.projectName){
-    let id= toAutoIncrCode(projectData?.projectName)
-    let getCustomerCounter,count=0;
-    [err,getCustomerCounter] = await toAwait(Counter.findOne({name:"customerid"}));
-    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if(!getCustomerCounter){
+  if (projectData?.projectName) {
+    let id = toAutoIncrCode(projectData?.projectName)
+    let getCustomerCounter, count = 0;
+    [err, getCustomerCounter] = await toAwait(Counter.findOne({ name: "customerid" }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getCustomerCounter) {
       let newCounter = new Counter({
         name: "customerid",
         seq: 0
       });
       await newCounter.save();
-      getCustomerCounter=newCounter;
-    }else{
+      getCustomerCounter = newCounter;
+    } else {
       getCustomerCounter = getCustomerCounter as any;
-      count=getCustomerCounter.seq+1;
+      count = getCustomerCounter.seq + 1;
     }
-  
+
     let updateCustomerCounter;
-    [err,updateCustomerCounter] = await toAwait(
-      Counter.updateOne({name:"customerid"},{$set:{seq:count}})
+    [err, updateCustomerCounter] = await toAwait(
+      Counter.updateOne({ name: "customerid" }, { $set: { seq: count } })
     )
-    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    body.id= id+"-"+count.toString().padStart(4,'0');
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    body.id = id + "-" + count.toString().padStart(4, '0');
   }
 
   let customer;
@@ -173,10 +177,8 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     "phone",
     "address",
     "name",
-    "marketatName",
     "projectId",
     "introducerId",
-    "marketerDetailId",
     "ddId",
     "cedId"
   ];
@@ -188,38 +190,48 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     }
   }
 
-  if(!isNull(updateFields.ddId) && !isNull(updateFields.cedId)){
-    delete updateFields.cedId;
+  let getBillingForCus;
+  [err, getBillingForCus] = await toAwait(Billing.findOne({ customer: _id }));
+
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (getBillingForCus) {
+    if (updateFields.projectId || updateFields.introducerId || updateFields.ddId || updateFields.cedId) {
+      return ReE(res, { message: `For given customer id you can't update project id, cedId, ddId and introducerId!.` }, httpStatus.BAD_REQUEST);
+    }
+  }
+  
+  if (!user.isAdmin) {
+    if (updateFields.projectId || updateFields.introducerId || updateFields.ddId || updateFields.cedId) {
+      return ReE(res, { message: `For this fields (projectId, introducerId, ddId, cedId) you can't update, only admin can have this access!.` }, httpStatus.UNAUTHORIZED);
+    }
   }
 
-  if(!isNull(updateFields.cedId)){
-    if(!mongoose.isValidObjectId(updateFields.cedId)){
+  if (!isNull(updateFields.cedId)) {
+    if (!mongoose.isValidObjectId(updateFields.cedId)) {
       return ReE(res, { message: `Invalid cedId!.` }, httpStatus.BAD_REQUEST);
     }
     let findCed;
-    [err, findCed] = await toAwait(MarketingHead.findOne({ _id: updateFields.cedId }));
+    [err, findCed] = await toAwait(MarketDetail.findOne({ _id: updateFields.cedId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!findCed) {
-      return ReE(res, { message: `Ced is not found for given id!.` }, httpStatus.BAD_REQUEST);
+      return ReE(res, { message: `Ced is not found for given id in market detail table!.` }, httpStatus.BAD_REQUEST);
     }
   }
 
-  if(!isNull(updateFields.ddId)){
-    if(!mongoose.isValidObjectId(updateFields.ddId)){
+  if (!isNull(updateFields.ddId)) {
+    if (!mongoose.isValidObjectId(updateFields.ddId)) {
       return ReE(res, { message: `Invalid ddId!.` }, httpStatus.BAD_REQUEST);
     }
     let findDd;
     [err, findDd] = await toAwait(MarketingHead.findOne({ _id: updateFields.ddId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!findDd) {
-      return ReE(res, { message: `Dd is not found for given id!.` }, httpStatus.BAD_REQUEST);
+      return ReE(res, { message: `Dd is not found for given id in marketing head table!.` }, httpStatus.BAD_REQUEST);
     }
-    updateFields.ddId=updateFields.ddId;
-    delete updateFields.ddId;
   }
 
-  if(!isNull(updateFields.introducerId)){
-    if(!mongoose.isValidObjectId(updateFields.introducerId)){
+  if (!isNull(updateFields.introducerId)) {
+    if (!mongoose.isValidObjectId(updateFields.introducerId)) {
       return ReE(res, { message: `Invalid introducerId!.` }, httpStatus.BAD_REQUEST);
     }
     let findIntroducer;
@@ -228,26 +240,9 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     if (!findIntroducer) {
       return ReE(res, { message: `Introducer is not found for given id!.` }, httpStatus.BAD_REQUEST);
     }
-    updateFields.introducerId=updateFields.introducerId;
-    delete updateFields.introducerId;
   }
 
-  if(!isNull(updateFields.marketerDetailId)){
-    if(!mongoose.isValidObjectId(updateFields.marketerDetailId)){
-      return ReE(res, { message: `Invalid marketerDetailId!.` }, httpStatus.BAD_REQUEST);
-    }
-    let findMarketer;
-    [err, findMarketer] = await toAwait(MarketDetail.findOne({ _id: updateFields.marketerDetailId }));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!findMarketer) {
-      return ReE(res, { message: `Marketer detail is not found for given id!.` }, httpStatus.BAD_REQUEST);
-    }
-  }
-
-  if(updateFields.projectId || updateFields.scheme){
-    if(updateFields.scheme){
-      updateFields.projectId=updateFields.scheme
-    }
+  if (updateFields.projectId) {
     if (!mongoose.isValidObjectId(updateFields.projectId)) {
       return ReE(res, { message: `Invalid project id!.` }, httpStatus.BAD_REQUEST);
     }
@@ -285,15 +280,23 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     // } 
   }
 
-  console.log(updateFields);
   if (user.isAdmin === false) {
 
+    let getEditRequest;
+    [err, getEditRequest] = await toAwait(
+      EditRequest.findOne({ targetId: _id, status: "pending" })
+    )
+
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (getEditRequest) {
+      return ReE(res, { message: `Already this customer has pending edit request so you can't update!` }, httpStatus.BAD_REQUEST);
+    }
+
     const changes: { field: string; oldValue: any; newValue: any }[] = [];
-    console.log(allowedFields,body,getCustomer)
     allowedFields.forEach((key: any) => {
       const newValue = body[key];
       const oldValue = (getCustomer as any)[key];
-      if (isNull(newValue)) return
+      if (isNull(newValue) || isNull(oldValue)) return
       if (newValue?.toString() !== oldValue?.toString()) {
         changes.push({ field: key, oldValue, newValue });
       }
@@ -301,12 +304,6 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
 
     if (changes.length === 0) {
       return ReE(res, { message: "No changes found to update." }, httpStatus.BAD_REQUEST);
-    }
-
-    //ccdId not null means  ddId as null
-
-    if (changes.some((c) => c.field === "ccdId") && changes.some((c) => c.field === "ddId")) {
-      return ReE(res, { message: "You cannot update both ccdId and ddId at the same time." }, httpStatus.BAD_REQUEST);
     }
 
     let checkEditRequest;
@@ -360,11 +357,50 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     );
     if (updateErr) return ReE(res, updateErr, httpStatus.INTERNAL_SERVER_ERROR)
 
+    let updatedCustomer;
+    [err, updatedCustomer] = await toAwait(Customer.findOne({ _id }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (req.query.includeCustomer === 'true') {
-      let updatedCustomer;
-      [err, updatedCustomer] = await toAwait(Customer.findOne({ _id }));
-      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       return ReS(res, { message: "Customer updated successfully.", data: updatedCustomer }, httpStatus.OK);
+    }
+
+    updatedCustomer = updatedCustomer as ICustomer;
+
+    if(!updateCustomer){
+      return ReE(res, { message: `Customer not found!` }, httpStatus.NOT_FOUND);
+    }
+
+    let getGen;
+    [err, getGen] = await toAwait(General.findOne(
+      {customer: _id},
+    ));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if(!getGen) return ReE(res, { message: `Ced not found!` }, httpStatus.NOT_FOUND);
+    getGen = getGen as IGeneral;
+
+    if(updateFields.cedId || updateFields.ddId || updateFields.projectId ){
+      let update,object:any={};
+      if(updateFields.cedId){
+        object.marketer = updateFields.cedId;
+        object.marketerByModel = "MarketDetail";
+      }
+      if(updateFields.ddId && !updateFields.cedId){
+        if(getGen?.marketerByModel !== "MarketingHead"){
+          object.marketer = updateFields.ddId;
+          object.marketerByModel = "MarketingHead";
+        }
+      }
+      if(updateFields.projectId){
+        object.project = updateFields.projectId;
+      }
+      console.log(object, isEmpty(object));
+      if(!isEmpty(object)){
+        [err, update] = await toAwait(General.updateOne({customer: _id},{$set: object}))
+        if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if(!update){
+          return ReE(res, { message: `Failed to update marketer in general!` }, httpStatus.NOT_FOUND);
+        }
+      }
     }
 
     return ReS(res, { message: "Customer updated successfully." }, httpStatus.OK);
@@ -404,7 +440,7 @@ export const getAllCustomer = async (req: Request, res: Response) => {
       { name: { $regex: search, $options: "i" } },
       { mobile: { $regex: search, $options: "i" } },
       { email: { $regex: search, $options: "i" } },
-      { id: { $regex: search, $options: "i" }  }
+      { id: { $regex: search, $options: "i" } }
     );
 
     if (mongoose.Types.ObjectId.isValid(search)) {
@@ -447,7 +483,7 @@ export const getAllCustomer = async (req: Request, res: Response) => {
     }
   }
 
-  
+
   [err, customers] = await toAwait(query);
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 

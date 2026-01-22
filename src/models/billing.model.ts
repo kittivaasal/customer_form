@@ -149,7 +149,8 @@ const BillingSchema: Schema = new Schema<IBilling>(
       type: String,
     },
     createdBy: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "User",
     },
     totalAmount: {
       type: String,

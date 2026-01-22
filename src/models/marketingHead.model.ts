@@ -2,6 +2,7 @@ import mongoose, { Mongoose, Schema } from "mongoose";
 
 const marketingHeadSchema = new mongoose.Schema({
     name: { type: String, required: true },
+    id: { type: String, required: true, unique: true },
     email: { type: String, required: true, unique: true },
     gender: { type: String,  required: true },
     age: { type: Number, required: true },

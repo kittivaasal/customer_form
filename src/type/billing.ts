@@ -8,6 +8,7 @@ export interface IBilling extends Document {
     transactionType: "EMI Receipt" | "Other";
     referenceId: string;
     customerName: string;
+    id: string;
     billingId: string; // e.g., 6735:2-Sep
     balanceAmount: number;
     modeOfPayment: "cash" | "card" | "online";
@@ -40,7 +41,7 @@ export interface IBilling extends Document {
     plotNo?: string;
     SEEMINo?: string;
     payMode?: string;
-    createdBy?: string;
+    createdBy?: mongoose.Types.ObjectId;
     totalAmount?: string;
     totalPaid?: string;
     totalBalance?: string;

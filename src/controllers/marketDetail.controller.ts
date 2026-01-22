@@ -10,6 +10,7 @@ import { IUser } from "../type/user";
 import EditRequest from "../models/editRequest.model";
 import { IEditRequest } from "../type/editRequest";
 import { sendPushNotificationToSuperAdmin } from "./common";
+import { Counter } from "../models/counter.model";
 
 export const createMarketDetail = async (req: Request, res: Response) => {
     let body = req.body, err;
@@ -39,6 +40,29 @@ export const createMarketDetail = async (req: Request, res: Response) => {
     if (!findExist) {
         return ReE(res, { message: `Marketing head is not found given id: ${headBy}!.` }, httpStatus.NOT_FOUND);
     }
+
+    let getSequence, count = 0;
+    [err, getSequence] = await toAwait(Counter.findOne({ name: "Marketdetail" }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getSequence) {
+        let newCounter = new Counter({
+            name: "Marketdetail",
+            seq: 1
+        });
+        await newCounter.save();
+        count = 1;
+    } else {
+        getSequence = getSequence as any;
+        count = getSequence.seq + 1;
+        let updateCustomerCounter;
+        [err, updateCustomerCounter] = await toAwait(
+            Counter.updateOne({ _id: getSequence._id }, { $set: { seq: count } })
+        )
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    body.id = count.toString().padStart(4, '0');
+
     let marketDetail;
     [err, marketDetail] = await toAwait(MarketDetail.create(body));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -220,7 +244,7 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
             populate: [
                 { path: "percentageId" }
             ]
-        }) 
+        })
         .sort({ createdAt: -1 });
 
     if (page && limit) {

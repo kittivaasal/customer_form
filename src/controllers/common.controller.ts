@@ -1779,7 +1779,8 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       emi: element._id,
       oldData: checkCustomer.oldData,
       customerCode: checkCustomer.id,
-      billFor
+      billFor,
+      createdBy: user._id
     };
 
     let getMarketer;

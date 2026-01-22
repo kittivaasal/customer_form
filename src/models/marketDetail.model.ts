@@ -4,6 +4,7 @@ import { IMarketDetail } from '../type/marketDetail';
 const MarketDetailSchema: Schema = new Schema(
     {
         name:{type:String},
+        id:{type:String},
         headBy: { type: Schema.Types.ObjectId, ref: 'MarketingHead'},
         phone: { type: String, required: true },
         address: { type: String, required: true },

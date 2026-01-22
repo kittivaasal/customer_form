@@ -11,6 +11,7 @@ import { IMarketingHead } from "../type/marketingHead";
 import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
+import { Counter } from "../models/counter.model";
 
 export const createMarketingHead = async (req: Request, res: Response) => {
     let body = req.body, err;
@@ -60,6 +61,29 @@ export const createMarketingHead = async (req: Request, res: Response) => {
     if (findExist) {
         return ReE(res, { message: `Project already exist for given all data` }, httpStatus.BAD_REQUEST);
     }
+    //get auto id
+    let getSequence, count = 0;
+    [err, getSequence] = await toAwait(Counter.findOne({ name: "marketinghead" }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getSequence) {
+        let newCounter = new Counter({
+            name: "marketinghead",
+            seq: 1
+        });
+        await newCounter.save();
+        count = 1;
+    } else {
+        getSequence = getSequence as any;
+        count = getSequence.seq + 1;
+        let updateCustomerCounter;
+        [err, updateCustomerCounter] = await toAwait(
+            Counter.updateOne({ name: "marketinghead" }, { $set: { seq: count } })
+        )
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    body.id = count.toString().padStart(4, '0');
+
     let marketing_head;
     [err, marketing_head] = await toAwait(MarketingHead.create(body));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -71,7 +95,7 @@ export const createMarketingHead = async (req: Request, res: Response) => {
 
 export const updateMarketingHead = async (req: CustomRequest, res: Response) => {
     const body = req.body, user = req.user as IUser;
-    if(!user) return ReE(res, { message: "authentication not added in this api please contact admin" }, httpStatus.NOT_FOUND);
+    if (!user) return ReE(res, { message: "authentication not added in this api please contact admin" }, httpStatus.NOT_FOUND);
     let { _id, name, email, gender, age, phone, address, status, percentageId } = body;
     let err: any;
     if (!_id) {
@@ -244,20 +268,20 @@ export const getAllMarketingHead = async (req: Request, res: Response) => {
 
     // Build the query filter
     let filter: any = {};
-    
+
     // If percentageName is provided, first find the percentage ID(s) matching that name
     if (percentageName && typeof percentageName === 'string') {
         let percentage;
         [err, percentage] = await toAwait(Percentage.findOne({ name: percentageName }));
         percentage = percentage as IPercentage & { _id: string } | null;
-        
+
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        
+
         // If percentage name is provided but not found, return empty result
         if (!percentage) {
             return ReE(res, { message: `No percentage found with name: ${percentageName}` }, httpStatus.NOT_FOUND);
         }
-        
+
         // Add the percentageId to the filter
         filter.percentageId = percentage._id;
     }
