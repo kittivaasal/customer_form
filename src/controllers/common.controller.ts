@@ -871,14 +871,25 @@ export const getAllBilling = async (req: Request, res: Response) => {
   // Build query with pagination if requested
   [err, getBilling] = await toAwait(
     Billing.find(option)
-      .populate("customer")
-      .populate("general")
-      .populate("introducer")
-      .populate("emi")
-      .populate("createdBy")
+      .populate({
+          path:"general",
+          populate:[
+            { path: "project" }
+          ]
+        })
+        .populate("introducer")
+        .populate("emi")
+        .populate({
+          path: "customer",
+          populate: [
+            { path: "cedId" },
+            { path: "ddId" }
+          ]
+        })
+        .populate("createdBy")
+        .sort({ createdAt: -1 })
       .limit(setLimit)
       .skip(setOffset)
-      .sort({ createdAt: -1 })
   );
 
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -1259,6 +1270,7 @@ export const getByIdBilling = async (req: Request, res: Response) => {
           { path: "ddId" }
         ]
       })
+      .populate("createdBy")
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!getBilling) {
@@ -2098,11 +2110,23 @@ export const getAllDetailsByCustomerId = async (
   let getAllBilling;
   [err, getAllBilling] = await toAwait(
     Billing.find(option)
-      .populate("customer")
-      .populate("general")
-      .populate("introducer")
-      .populate("createdBy")
-      .populate("emi").sort({ createdAt: -1 })
+      .populate({
+          path:"general",
+          populate:[
+            { path: "project" }
+          ]
+        })
+        .populate("introducer")
+        .populate("emi")
+        .populate({
+          path: "customer",
+          populate: [
+            { path: "cedId" },
+            { path: "ddId" }
+          ]
+        })
+        .populate("createdBy")
+        .sort({ createdAt: -1 })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   data.billing = getAllBilling;
@@ -2204,11 +2228,23 @@ export const getAllDataBasedOnGeneral = async (req: Request, res: Response) => {
 
       [err, objBilling] = await toAwait(
         Billing.find({ general: general._id })
-          .populate("customer")
-          .populate("general")
-          .populate("introducer")
-          .populate("createdBy")
-          .populate("emi").sort({ createdAt: -1 })
+          .populate({
+          path:"general",
+          populate:[
+            { path: "project" }
+          ]
+        })
+        .populate("introducer")
+        .populate("emi")
+        .populate({
+          path: "customer",
+          populate: [
+            { path: "cedId" },
+            { path: "ddId" }
+          ]
+        })
+        .populate("createdBy")
+        .sort({ createdAt: -1 })
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       result.push({
@@ -2292,11 +2328,23 @@ export const getDataBasedOnGeneralById = async (
 
     [err, objBilling] = await toAwait(
       Billing.find({ general: general._id })
-        .populate("customer")
-        .populate("general")
+        .populate({
+          path:"general",
+          populate:[
+            { path: "project" }
+          ]
+        })
         .populate("introducer")
+        .populate("emi")
+        .populate({
+          path: "customer",
+          populate: [
+            { path: "cedId" },
+            { path: "ddId" }
+          ]
+        })
         .populate("createdBy")
-        .populate("emi").sort({ createdAt: -1 })
+        .sort({ createdAt: -1 })
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   }
@@ -2581,6 +2629,8 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
             { path: "ddId" }
           ]
         })
+        .populate("createdBy")
+        .sort({ createdAt: -1 })
     );
   }
 
@@ -2608,6 +2658,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
           { path: "project" }
         ]
       })
+      .sort({ createdAt: -1 })
     )
   }
 
