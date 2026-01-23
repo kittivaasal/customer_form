@@ -37,6 +37,7 @@ import { MarketDetail } from "../models/marketDetail.model";
 import { IMarketDetail } from "../type/marketDetail";
 import { Project } from "../models/project.model";
 import { IProject } from "../type/project";
+import { get } from "http";
 
 export const uploadImages = async (req: Request, res: Response) => {
   try {
@@ -364,7 +365,7 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
   let body = req.body,
     user = req.user,
     err: any;
-  const { general, plot, flat } = body;
+  const { customerId, general, plot, flat } = body;
 
   if (user) {
     if (user.isAdmin === false) {
@@ -430,6 +431,7 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     }
 
     if (!general._id) {
+
       return ReE(
         res,
         { message: "when update general then general._id is required" },
@@ -438,11 +440,46 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     }
 
     if (!mongoose.isValidObjectId(general._id)) {
-      return ReE(
-        res,
-        { message: "general _id is invalid" },
-        httpStatus.BAD_REQUEST
-      );
+      if(customerId && !mongoose.isValidObjectId(customerId)){
+        return ReE(
+          res,
+          { message: "customerId is invalid" },
+          httpStatus.BAD_REQUEST
+        );
+      }
+
+      if(customerId){
+        let checkCustomer;
+        [err, checkCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!checkCustomer) {
+          return ReE(
+            res,
+            { message: "customer not found for given id" },
+            httpStatus.BAD_REQUEST
+          );
+        }
+        checkCustomer = checkCustomer as ICustomer;
+        let getEmi;
+        [err, getEmi] = await toAwait(Emi.findOne({ customer: customerId }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!getEmi) {
+          return ReE(
+            res,
+            { message: "emi not found for this customer so create estimate for this customer" },
+            httpStatus.BAD_REQUEST
+          );
+        }
+        getEmi = getEmi as IEmi;
+        general._id = getEmi.general;
+      }
+      if(!customerId){
+        return ReE(
+          res,
+          { message: "general _id is invalid" },
+          httpStatus.BAD_REQUEST
+        );
+      }
     }
 
     if(general.noOfInstallments){
@@ -2476,101 +2513,59 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
     if (!isValidDate(date)) {
       return ReE(res, { message: "Invalid date format for date valid format is (YYYY-MM-DD)!" }, httpStatus.BAD_REQUEST);
     }
-    option.paymentDate = new Date(date);
-
+    
     if (new Date(date).toDateString() !== new Date().toDateString()) {
       return ReE(res, { message: "Date must be today!" }, httpStatus.BAD_REQUEST);
     }
 
-    emiOption.date = new Date(date);
+    const start = new Date(date);
+    start.setUTCHours(0, 0, 0, 0);
+
+    const end = new Date(date);
+    end.setUTCHours(23, 59, 59, 999);
+
+    option.paymentDate = {
+      $gte: start,
+      $lte: end
+    }
+
+    emiOption.date = {
+      $gte: start,
+      $lte: end
+    };
 
   }
 
   date = date as string;
 
-  // if (isNull(date)) {
-  //   if (!user.isAdmin) {
-  //     let checkRequest;
-  //     [err, checkRequest] = await toAwait(
-  //       BillingRequest.findOne({
-  //         userId: user._id,
-  //         excelFromDate: new Date(dateFrom as string),
-  //         excelToDate: new Date(dateTo as string),
-  //         requestFor: "excel"
-  //       })
-  //     )
+  if (isNull(date)) {
+    if (!user.isAdmin) {
+      let checkRequest;
+      [err, checkRequest] = await toAwait(
+        BillingRequest.findOne({
+          userId: user._id,
+          excelFromDate: new Date(dateFrom as string),
+          excelToDate: new Date(dateTo as string),
+          requestFor: "excel",
+          approvedDate: new Date()
+        })
+      )
 
-  //     if (err) {
-  //       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  //     }
+      if (err) {
+        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      }
 
-  //     if (!checkRequest) {
-  //       return ReE(res, { message: "You not have billing request for given from and to date" }, httpStatus.INTERNAL_SERVER_ERROR);
-  //     }
-  //     checkRequest = checkRequest as IBillingRequest;
-  //     if(checkRequest.status !== "approved"){
-        
-  //     }
-  //   //     let createRequest;
-  //   //     [err, createRequest] = await toAwait(
-  //   //       BillingRequest.create({
-  //   //         userId: user._id,
-  //   //         status: "pending",
-  //   //         message: `This user ${user._id} want to get billing report from ${dateFrom} to ${dateTo}`,
-  //   //         requestFor: "excel",
-  //   //         excelFromDate: new Date(dateFrom as string),
-  //   //         excelToDate: new Date(dateTo as string)
-  //   //       })
-  //   //     )
+      if (!checkRequest) {
+        return ReE(res, { message: "You not have billing request for given from and to date first create billing request" }, httpStatus.INTERNAL_SERVER_ERROR);
+      }
 
-  //   //     if(err){
-  //   //       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  //   //     }
-
-  //   //     if(!createRequest){
-  //   //       return ReE(res, { message: "Failed to create request" }, httpStatus.INTERNAL_SERVER_ERROR);
-  //   //     }
-
-
-  //   //     return ReS(res, { message: "Request created successfully please wait for approval" }, httpStatus.OK);
-
-  //   //   }
-
-  //   //   checkRequest = checkRequest as IBillingRequest;
-  //   //   if (checkRequest) {
-  //   //     if (checkRequest.status === "pending") {
-  //   //       return ReE(res, { message: "Your request for this date is pending" }, httpStatus.UNAUTHORIZED);
-  //   //     }
-  //   //   }
-
-  //   //   const approvedTime = checkRequest.approvedTime;
-
-  //   //   if (!approvedTime) {
-  //   //     return ReE(
-  //   //       res,
-  //   //       { message: "Approval time not found" },
-  //   //       httpStatus.BAD_REQUEST
-  //   //     );
-  //   //   }
-
-  //   //   // Convert stored time to moment
-  //   //   const expiryTime = moment(new Date(approvedTime));
-
-  //   //   // Current time
-  //   //   const now = moment();
-
-  //   //   // Check if expired
-  //   //   if (now.isAfter(expiryTime)) {
-  //   //     return ReE(res,{ message: "Excel download request expired, please create new request" },httpStatus.FORBIDDEN);
-  //   //   }
-
-  //   }
-  // }
+    }
+  }
 
   let getBilling:any =[];
   if(status !== "unpaid"){
     [err, getBilling] = await toAwait(
-      Billing.find({option})
+      Billing.find(option)
         .populate({
           path:"general",
           populate:[
@@ -2596,7 +2591,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
   getBilling = getBilling as IBilling[];
 
   let getEmi;
-  console.log(emiOption)
+  console.log(option)
   if(status === "unpaid"){
     [err,getEmi] = await toAwait(
       Emi.find(emiOption)

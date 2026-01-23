@@ -200,11 +200,11 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     }
   }
   
-  if (!user.isAdmin) {
-    if (updateFields.projectId || updateFields.introducerId || updateFields.ddId || updateFields.cedId) {
-      return ReE(res, { message: `For this fields (projectId, introducerId, ddId, cedId) you can't update, only admin can have this access!.` }, httpStatus.UNAUTHORIZED);
-    }
-  }
+  // if (!user.isAdmin) {
+  //   if (updateFields.projectId || updateFields.introducerId || updateFields.ddId || updateFields.cedId) {
+  //     return ReE(res, { message: `For this fields (projectId, introducerId, ddId, cedId) you can't update, only admin can have this access!.` }, httpStatus.UNAUTHORIZED);
+  //   }
+  // }
 
   if (!isNull(updateFields.cedId)) {
     if (!mongoose.isValidObjectId(updateFields.cedId)) {
@@ -290,118 +290,118 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     return ReE(res, { message: `Already this customer has pending edit request so you can't update!` }, httpStatus.BAD_REQUEST);
   }
 
-  if (user.isAdmin === false) {
+  // if (user.isAdmin === false) {
 
-    const changes: { field: string; oldValue: any; newValue: any }[] = [];
-    allowedFields.forEach((key: any) => {
-      const newValue = body[key];
-      const oldValue = (getCustomer as any)[key];
-      if (isNull(newValue) || isNull(oldValue)) return
-      if (newValue?.toString() !== oldValue?.toString()) {
-        changes.push({ field: key, oldValue, newValue });
-      }
-    });
+  //   const changes: { field: string; oldValue: any; newValue: any }[] = [];
+  //   allowedFields.forEach((key: any) => {
+  //     const newValue = body[key];
+  //     const oldValue = (getCustomer as any)[key];
+  //     if (isNull(newValue) || isNull(oldValue)) return
+  //     if (newValue?.toString() !== oldValue?.toString()) {
+  //       changes.push({ field: key, oldValue, newValue });
+  //     }
+  //   });
 
-    if (changes.length === 0) {
-      return ReE(res, { message: "No changes found to update." }, httpStatus.BAD_REQUEST);
+  //   if (changes.length === 0) {
+  //     return ReE(res, { message: "No changes found to update." }, httpStatus.BAD_REQUEST);
+  //   }
+
+  //   let checkEditRequest;
+  //   [err, checkEditRequest] = await toAwait(
+  //     EditRequest.findOne({ targetId: _id, editedBy: user._id })
+  //   )
+
+  //   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  //   if (checkEditRequest) {
+  //     checkEditRequest = checkEditRequest as IEditRequest;
+  //     let get = []
+  //     checkEditRequest.changes.forEach((change) => {
+  //       if (changes.some((c) => c.field.toString() === change.field.toString())) {
+  //         get.push(change)
+  //       }
+  //     })
+  //     // if (checkEditRequest.changes.length === get.length && checkEditRequest.status === "pending") {
+  //     //   return ReE(res, { message: "You already have a pending edit request for this customer." }, httpStatus.BAD_REQUEST);
+  //     // }
+  //   }
+
+  //   let createReq;
+  //   [err, createReq] = await toAwait(
+  //     EditRequest.create({
+  //       targetModel: "Customer",
+  //       targetId: _id,
+  //       editedBy: user._id,
+  //       changes,
+  //       status: "pending",
+  //     })
+  //   );
+
+  //   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+  //   createReq = createReq as IEditRequest;
+
+  //   ReS(res, { message: "Edit request created successfully, Awaiting for approval." }, httpStatus.OK);
+
+  //   let send = await sendPushNotificationToSuperAdmin("Edit request for Customer", `A new edit request for customer has been created by ${user.name}`, createReq._id.toString())
+
+  //   if (!send.success) {
+  //     return console.log(send.message);
+  //   }
+
+  //   return console.log("Edit request push notification sent.");
+
+  // }
+
+  const [updateErr, updateResult] = await toAwait(
+    Customer.updateOne({ _id }, { $set: updateFields })
+  );
+  if (updateErr) return ReE(res, updateErr, httpStatus.INTERNAL_SERVER_ERROR)
+
+  let updatedCustomer;
+  [err, updatedCustomer] = await toAwait(Customer.findOne({ _id }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (req.query.includeCustomer === 'true') {
+    return ReS(res, { message: "Customer updated successfully.", data: updatedCustomer }, httpStatus.OK);
+  }
+
+  updatedCustomer = updatedCustomer as ICustomer;
+
+  if(!updateCustomer){
+    return ReE(res, { message: `Customer not found!` }, httpStatus.NOT_FOUND);
+  }
+
+  let getGen;
+  [err, getGen] = await toAwait(General.findOne(
+    {customer: _id},
+  ));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if(!getGen) return ReE(res, { message: `Ced not found!` }, httpStatus.NOT_FOUND);
+  getGen = getGen as IGeneral;
+
+  if(updateFields.cedId || updateFields.ddId || updateFields.projectId ){
+    let update,object:any={};
+    if(updateFields.cedId){
+      object.marketer = updateFields.cedId;
+      object.marketerByModel = "MarketDetail";
     }
-
-    let checkEditRequest;
-    [err, checkEditRequest] = await toAwait(
-      EditRequest.findOne({ targetId: _id, editedBy: user._id })
-    )
-
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (checkEditRequest) {
-      checkEditRequest = checkEditRequest as IEditRequest;
-      let get = []
-      checkEditRequest.changes.forEach((change) => {
-        if (changes.some((c) => c.field.toString() === change.field.toString())) {
-          get.push(change)
-        }
-      })
-      // if (checkEditRequest.changes.length === get.length && checkEditRequest.status === "pending") {
-      //   return ReE(res, { message: "You already have a pending edit request for this customer." }, httpStatus.BAD_REQUEST);
-      // }
-    }
-
-    let createReq;
-    [err, createReq] = await toAwait(
-      EditRequest.create({
-        targetModel: "Customer",
-        targetId: _id,
-        editedBy: user._id,
-        changes,
-        status: "pending",
-      })
-    );
-
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-
-    createReq = createReq as IEditRequest;
-
-    ReS(res, { message: "Edit request created successfully, Awaiting for approval." }, httpStatus.OK);
-
-    let send = await sendPushNotificationToSuperAdmin("Edit request for Customer", `A new edit request for customer has been created by ${user.name}`, createReq._id.toString())
-
-    if (!send.success) {
-      return console.log(send.message);
-    }
-
-    return console.log("Edit request push notification sent.");
-
-  } else {
-
-    const [updateErr, updateResult] = await toAwait(
-      Customer.updateOne({ _id }, { $set: updateFields })
-    );
-    if (updateErr) return ReE(res, updateErr, httpStatus.INTERNAL_SERVER_ERROR)
-
-    let updatedCustomer;
-    [err, updatedCustomer] = await toAwait(Customer.findOne({ _id }));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (req.query.includeCustomer === 'true') {
-      return ReS(res, { message: "Customer updated successfully.", data: updatedCustomer }, httpStatus.OK);
-    }
-
-    updatedCustomer = updatedCustomer as ICustomer;
-
-    if(!updateCustomer){
-      return ReE(res, { message: `Customer not found!` }, httpStatus.NOT_FOUND);
-    }
-
-    let getGen;
-    [err, getGen] = await toAwait(General.findOne(
-      {customer: _id},
-    ));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if(!getGen) return ReE(res, { message: `Ced not found!` }, httpStatus.NOT_FOUND);
-    getGen = getGen as IGeneral;
-
-    if(updateFields.cedId || updateFields.ddId || updateFields.projectId ){
-      let update,object:any={};
-      if(updateFields.cedId){
-        object.marketer = updateFields.cedId;
-        object.marketerByModel = "MarketDetail";
-      }
-      if(updateFields.ddId && !updateFields.cedId){
-        if(getGen?.marketerByModel !== "MarketingHead"){
-          object.marketer = updateFields.ddId;
-          object.marketerByModel = "MarketingHead";
-        }
-      }
-      if(updateFields.projectId){
-        object.project = updateFields.projectId;
-      }
-
-      if(!isEmpty(object)){
-        [err, update] = await toAwait(General.updateOne({customer: _id},{$set: object}))
-        if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        if(!update){
-          return ReE(res, { message: `Failed to update marketer in general!` }, httpStatus.NOT_FOUND);
-        }
+    if(updateFields.ddId && !updateFields.cedId){
+      if(getGen?.marketerByModel !== "MarketingHead"){
+        object.marketer = updateFields.ddId;
+        object.marketerByModel = "MarketingHead";
       }
     }
+    if(updateFields.projectId){
+      object.project = updateFields.projectId;
+    }
+
+    if(!isEmpty(object)){
+      [err, update] = await toAwait(General.updateOne({customer: _id},{$set: object}))
+      if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if(!update){
+        return ReE(res, { message: `Failed to update marketer in general!` }, httpStatus.NOT_FOUND);
+      }
+    }
+  
 
     return ReS(res, { message: "Customer updated successfully." }, httpStatus.OK);
 
