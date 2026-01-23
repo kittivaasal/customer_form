@@ -234,6 +234,14 @@ export const createCommonData = async (req: Request, res: Response) => {
       )
     }
 
+    if(Number(checkProject.duration) !== Number(general.noOfInstallments)){
+      return ReE(
+        res,
+        { message: `no of installments not match with project duration in general, project duration is ${checkProject.duration}` },
+        httpStatus.BAD_REQUEST
+      )
+    }
+
     if(checkCustomer.cedId){
       let checkMarketDetail;
       [err, checkMarketDetail] = await toAwait(MarketDetail.findOne({ _id: checkCustomer.cedId }));
@@ -435,6 +443,22 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
         { message: "general _id is invalid" },
         httpStatus.BAD_REQUEST
       );
+    }
+
+    if(general.noOfInstallments){
+      return ReE(
+        res,
+        { message: "You can't update the no_of_installments directly. When you update the project duration, the no_of_installments is updated automatically" },
+        httpStatus.BAD_REQUEST
+      )
+    }
+
+    if(general.emiAmount){
+      return ReE(
+        res,
+        { message: "You can't update the emi_amount directly. When you update the project emi_amount, the emi_amount is updated automatically" },
+        httpStatus.BAD_REQUEST
+      )
     }
 
     let checkAlreadyExist = await General.findOne({ _id: general._id });
@@ -1487,6 +1511,10 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
   checkGeneral = checkGeneral as IGeneral;
 
+  if(checkGeneral.status?.toLowerCase() === "blocked") {
+    return ReE(res, { message: "Customer is in blocked status so you can't create billing" }, httpStatus.BAD_REQUEST);
+  }
+
   let readyForBill: IEmi[] = []
 
   if (billFor === "current") {
@@ -1648,8 +1676,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
     let unPaidTotal = getAllEmiPast.reduce((acc, curr) => acc + curr.emiAmt, 0);
     unPaidTotal = unPaidTotal as number;
-
-    console.log(getAllEmiPast);
 
     let validAmount = validateEmiPayment(amount, getAllEmiPast[0].emiAmt, unPaidTotal);
 

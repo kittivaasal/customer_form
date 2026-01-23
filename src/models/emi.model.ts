@@ -26,4 +26,7 @@ const EmiSchema = new Schema({
     modifyDate: { type: Date },
 },{ timestamps: true });
 
+EmiSchema.index({ customer: 1, general: 1, emiNo: 1 });
+EmiSchema.index({ general: 1, status: 1 });
+
 export const Emi = model("Emi", EmiSchema);

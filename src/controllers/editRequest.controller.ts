@@ -342,6 +342,17 @@ export const getByIdEditRequest = async (req: Request, res: Response) => {
     );
   }
 
+  // getUser = getUser as IEditRequest;
+
+  // for (let i = 0; i < getUser.changes.length; i++) {
+  //   const element = getUser.changes[i];
+  //   getUser.changes[i] = {
+  //     field: element.field,
+  //     oldValue: element.oldValue,
+  //     newValue: element.newValue,
+  //   };
+  // }
+
   ReS(res, { message: "edit request found", data: getUser }, httpStatus.OK);
 };
 

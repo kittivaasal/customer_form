@@ -9,10 +9,19 @@ import { IEditRequest } from "../type/editRequest";
 import CustomRequest from "../type/customRequest";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
+import { Billing } from "../models/billing.model";
+import { General } from "../models/general.model";
+import { Emi } from "../models/emi.model";
+import { IGeneral } from "../type/general";
 
 export const createProject = async (req: Request, res: Response) => {
   let body = req.body, err;
   let { projectName, description, shortName, duration, emiAmount, marketer, schema, returns, intrest, totalInvestimate, totalReturnAmount } = body;
+  if(duration){
+    if(isNaN(duration)){
+      return ReE(res, { message: "Duration should be in number" }, httpStatus.BAD_REQUEST);
+    }
+  }
   let checkProject;
   [err, checkProject] = await toAwait(Project.findOne(body))
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -57,6 +66,46 @@ export const updateProject = async (req: CustomRequest, res: Response) => {
   for (const key of allowedFields) {
     if (!isNull(body[key])) {
       updateFields[key] = body[key];
+    }
+  }
+
+  let getGeneral;
+  if(updateFields.duration || updateFields.emiAmount){
+
+    if(user.isAdmin === false){
+      return ReE(res, {message:"You can't update the duration, emiAmount fields"}, httpStatus.BAD_REQUEST)
+    }
+
+    [err,getGeneral] = await toAwait(General.findOne({project:_id}))
+
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (getGeneral) {
+      return ReE(
+        res,
+        {message:"You can't update the duration, emiAmount for this project, because this project based detail already created"},
+        httpStatus.BAD_REQUEST
+      )
+    }
+
+  }
+  
+  if(updateFields.duration){
+    if(isNaN(updateFields.duration)){
+      return ReE(res, { message: "Duration should be in number" }, httpStatus.BAD_REQUEST);
+    }
+  }
+  if(updateFields.emiAmount){
+    if(isNaN(updateFields.emiAmount)){
+      return ReE(res, { message: "emiAmount should be in number" }, httpStatus.BAD_REQUEST);
+    }
+  }
+
+  let checkBilling;
+  [err, checkBilling] = await toAwait(Billing.findOne({ project: _id }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (checkBilling) {
+    if(updateFields.emiAmount || updateFields.duration){
+      return ReE(res, { message: "EMI amount and project duration cannot be modified once the customer has been billed based on this project." }, httpStatus.BAD_REQUEST);
     }
   }
 
@@ -128,6 +177,26 @@ export const updateProject = async (req: CustomRequest, res: Response) => {
     if (!updateResult) {
       return ReE(res, { message: `Failed to update project!.` }, httpStatus.INTERNAL_SERVER_ERROR)
     }
+
+    // if(updateFields.duration || updateFields.emiAmount){
+    //   const session = await mongoose.startSession();
+    //   session.startTransaction();
+    //   let updateGeneral,genObj:any = {};
+    //   if(updateFields.duration){
+    //     genObj.duration = updateFields.duration;
+    //   }
+    //   if(updateFields.emiAmount){
+    //     genObj.emiAmount = updateFields.emiAmount;
+    //   }
+    //   [err, updateGeneral] = await toAwait(General.updateMany({project: _id},{$set:genObj}));
+    //   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //   if(!updateGeneral){
+    //     return ReE(res, { message: `Failed to update general!.` }, httpStatus.INTERNAL_SERVER_ERROR)
+    //   }
+    //   let updateEmi;
+    //   [err, updateEmi] = await toAwait(Emi.updateMany({project: _id},{$set:{emiAmount:updateFields.emiAmount}}));
+    // }
+
     return ReS(res, { message: "Project updated successfully." }, httpStatus.OK);
   }
 };

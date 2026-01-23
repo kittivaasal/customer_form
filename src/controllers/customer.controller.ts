@@ -280,17 +280,17 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     // } 
   }
 
+  let getEditRequest;
+  [err, getEditRequest] = await toAwait(
+    EditRequest.findOne({ targetId: _id, status: "pending" })
+  )
+
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (getEditRequest) {
+    return ReE(res, { message: `Already this customer has pending edit request so you can't update!` }, httpStatus.BAD_REQUEST);
+  }
+
   if (user.isAdmin === false) {
-
-    let getEditRequest;
-    [err, getEditRequest] = await toAwait(
-      EditRequest.findOne({ targetId: _id, status: "pending" })
-    )
-
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (getEditRequest) {
-      return ReE(res, { message: `Already this customer has pending edit request so you can't update!` }, httpStatus.BAD_REQUEST);
-    }
 
     const changes: { field: string; oldValue: any; newValue: any }[] = [];
     allowedFields.forEach((key: any) => {
@@ -393,7 +393,7 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
       if(updateFields.projectId){
         object.project = updateFields.projectId;
       }
-      console.log(object, isEmpty(object));
+
       if(!isEmpty(object)){
         [err, update] = await toAwait(General.updateOne({customer: _id},{$set: object}))
         if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
