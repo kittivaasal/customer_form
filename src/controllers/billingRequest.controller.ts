@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { ReE, ReS, toAwait } from "../services/util.service";
+import { isValidDate, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
 import { IUser } from "../type/user";
 import httpStatus from "http-status";
@@ -342,7 +342,7 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
   const query = req.query;
   const option: any = {};
 
-  let { status, limit, page } = query;
+  let { status, limit, page, date } = query;
 
   if (status) {
     status = String(status).toLowerCase().trim();
@@ -356,6 +356,15 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
       );
     }
     option.status = status;
+  }
+
+  if(date){
+    if (!isValidDate(date as string)) {
+      return ReE(res, { message: "Invalid date format valid format is (YYYY-MM-DD)!" }, httpStatus.BAD_REQUEST);
+    }
+    const start = moment(date as string).startOf('day').toDate();
+    const end = moment(date as string).endOf('day').toDate();
+    option.createdAt = { $gte: start, $lte: end };
   }
 
   let pageNo = Number(page);
@@ -509,6 +518,14 @@ export const createBillingRequestForExcel = async (req: CustomRequest, res: Resp
   }
 
   let { dateFrom, dateTo } = body;
+
+  if (!isValidDate(dateFrom)) {
+    return ReE(res, { message: "Invalid date format for dateFrom valid format is (YYYY-MM-DD)!" }, httpStatus.BAD_REQUEST);
+  }
+
+  if (!isValidDate(dateTo)) {
+    return ReE(res, { message: "Invalid date format for dateTo valid format is (YYYY-MM-DD)!" }, httpStatus.BAD_REQUEST);
+  }
 
   let checkRequest;
   [err, checkRequest] = await toAwait(
