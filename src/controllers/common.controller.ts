@@ -2430,7 +2430,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
 
   if(blocked){
     let valid = ["true", "false"];
-    blocked = valid.toString().toLocaleLowerCase();
+    blocked = blocked.toString().toLocaleLowerCase();
     if (!valid.includes(blocked)) {
       return ReE(
         res,
@@ -2470,6 +2470,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
       return ReE(res, { message: "Invalid date format for dateTo valid format is (YYYY-MM-DD)!" }, httpStatus.BAD_REQUEST);
     }
     option.paymentDate = { $gte: new Date(dateFrom), $lte: new Date(dateTo) };
+    emiOption.date = { $gte: new Date(dateFrom), $lte: new Date(dateTo) };
   } else if (date) {
     date = date as string;
     if (!isValidDate(date)) {
@@ -2480,6 +2481,8 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
     if (new Date(date).toDateString() !== new Date().toDateString()) {
       return ReE(res, { message: "Date must be today!" }, httpStatus.BAD_REQUEST);
     }
+
+    emiOption.date = new Date(date);
 
   }
 
@@ -2564,7 +2567,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
   //   }
   // }
 
-  let getBilling;
+  let getBilling:any =[];
   if(status !== "unpaid"){
     [err, getBilling] = await toAwait(
       Billing.find({option})
@@ -2593,22 +2596,25 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
   getBilling = getBilling as IBilling[];
 
   let getEmi;
-  [err,getEmi] = await toAwait(
-    Emi.find(emiOption)
-    .populate({
-      path: "customer",
-      populate: [
-        { path: "cedId" },
-        { path: "ddId" }
-      ]
-    })
-    .populate({
-      path:"general",
-      populate:[
-        { path: "project" }
-      ]
-    })
-  )
+  console.log(emiOption)
+  if(status === "unpaid"){
+    [err,getEmi] = await toAwait(
+      Emi.find(emiOption)
+      .populate({
+        path: "customer",
+        populate: [
+          { path: "cedId" },
+          { path: "ddId" }
+        ]
+      })
+      .populate({
+        path:"general",
+        populate:[
+          { path: "project" }
+        ]
+      })
+    )
+  }
 
   if (err) {
     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);

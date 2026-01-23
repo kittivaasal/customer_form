@@ -47,7 +47,9 @@ mongoose.connect(db).then(() => {
   console.log("Error connecting to MongoDB", error)
 })
 
-initializeFirebase();
+// initializeFirebase();
+
+
 
 app.use("/api/customer", customerRoutes);
 app.use("/api/project", projectRoutes);

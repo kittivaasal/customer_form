@@ -453,7 +453,7 @@ export const checkValidity = async (req: CustomRequest, res: Response) => {
     BillingRequest.findOne(
       {
         userId: user._id,
-        createAt: new Date()
+        approvedDate: new Date()
       }
     )
   );
@@ -470,11 +470,11 @@ export const checkValidity = async (req: CustomRequest, res: Response) => {
     return ReE(res, { message: "billing request not approved!" }, httpStatus.NOT_FOUND);
   }
 
-  if (!getBillingRequest.approvedValidity) {
+  if (!getBillingRequest.approvedDate) {
     return ReE(res, { message: "billing request not approved!" }, httpStatus.NOT_FOUND);
   }
 
-  let check = moment(getBillingRequest.approvedValidity).isBefore(new Date());
+  let check = moment(getBillingRequest.approvedDate).isBefore(new Date());
 
   if (check) {
     return ReE(res, { message: "billing request expired!" }, httpStatus.NOT_FOUND);

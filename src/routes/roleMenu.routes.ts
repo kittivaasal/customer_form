@@ -4,13 +4,13 @@ import verifyToken from "../middleware/verfiyToken";
 import isAdmin from "../middleware/admin";
 const router = express.Router();
 
-router.post("/create" , createRoleMenu);
-router.post("/multi/create" , createRoleMultiMenuMap);
-router.put("/multi/update" , updateRoleMultiMenuMap);
-router.put("/update" , updateRoleMenu);
+router.post("/create" ,[verifyToken,isAdmin(true)], createRoleMenu);
+router.post("/multi/create" ,[verifyToken,isAdmin(true)], createRoleMultiMenuMap);
+router.put("/multi/update" ,[verifyToken,isAdmin(true)], updateRoleMultiMenuMap);
+router.put("/update" ,[verifyToken,isAdmin(true)], updateRoleMenu);
 router.get("/get/role/:id", getAllMenuAccessByRoleId);
 router.get("/get/all", getAllRoleMenu);
 router.get("/get/:id", getByIdRoleMenu);
-router.delete("/delete" , deleteRoleMenu);
+router.delete("/delete" ,[verifyToken,isAdmin(true)], deleteRoleMenu);
 
 export default router;

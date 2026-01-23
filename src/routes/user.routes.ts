@@ -13,6 +13,6 @@ router.put("/update/their/profile",verifyToken, updateUserByToken);
 router.put("/update/their/password",verifyToken, changePasswordByToken);
 router.get("/get/all", getAllUser);
 router.get("/get/:id", getByIdUser);
-router.delete("/delete" , deleteUser);
+router.delete("/delete" ,[verifyToken,isAdmin(true)], deleteUser);
 
 export default router;
