@@ -60,11 +60,11 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
     getBillingRequest = getBillingRequest as any;
 
-    if (getBillingRequest.status === "approved") {
-      return ReE(res, { message: "billing request already approved" }, httpStatus.BAD_REQUEST);
-    }
-
+    
     if (getBillingRequest.requestFor === "create") {
+      if (getBillingRequest.status === "approved") {
+        return ReE(res, { message: "billing request already approved" }, httpStatus.BAD_REQUEST);
+      }
 
       let oldData = getBillingRequest.emi[0].oldData;
 
@@ -285,10 +285,10 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
       const hours = Number(validity);
 
-      if (!Number.isInteger(hours) || hours < 1 || hours > 12) {
+      if (!Number.isInteger(hours) || hours < 1 || hours > 24) {
         return ReE(
           res,
-          { message: "Validity must be between 1 and 12 hours" },
+          { message: "Validity must be between 1 and 24 hours" },
           httpStatus.BAD_REQUEST
         );
       }
@@ -302,6 +302,25 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
       approvedDate = expiry.toDate(); // date + time
       approvedTime = expiry.toDate(); // time included
       approvedHours = hours;
+
+      if(expiry.isBefore(moment())){
+        return ReE(
+          res,
+          { message: "Validity time must be in future" },
+          httpStatus.BAD_REQUEST
+        );
+      }
+
+      if (!moment(approvedDate).isSame(moment(), 'day')) {
+        let balanceHours = 24 - moment().hour() - 1;
+        console.log("balanceHours", balanceHours, moment(approvedDate).isSame(moment(), 'day'));
+        return ReE(
+          res,
+          { message: `Validity date must be within today date request date ${moment().format("YYYY-MM-DD")} so today balance hours are ${balanceHours}` },
+          httpStatus.BAD_REQUEST
+        );
+      }
+
     }
 
     let updateRequest;
@@ -332,8 +351,6 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
   } catch (error) {
     ReE(res, error, httpStatus.INTERNAL_SERVER_ERROR);
   }
-
-
 
 }
 
@@ -450,53 +467,6 @@ export const getBillingRequestByID = async (req: Request, res: Response) => {
 
 }
 
-export const checkValidity = async (req: CustomRequest, res: Response) => {
-  let err, getBillingRequest, user = req.user as IUser;
-  // const { id } = req.params;
-
-  // if (!mongoose.isValidObjectId(id)) {
-  //     return ReE(res, { message: `Invalid billing request id!` }, httpStatus.BAD_REQUEST);
-  // }
-
-  [err, getBillingRequest] = await toAwait(
-    BillingRequest.findOne(
-      {
-        userId: user._id,
-        approvedDate: new Date()
-      }
-    )
-  );
-
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-
-  if (!getBillingRequest) {
-    return ReE(res, { message: "billing request not found for today for this user!" }, httpStatus.NOT_FOUND);
-  }
-
-  getBillingRequest = getBillingRequest as IBillingRequest
-
-  if (getBillingRequest.status !== "approved") {
-    return ReE(res, { message: "billing request not approved!" }, httpStatus.NOT_FOUND);
-  }
-
-  if (!getBillingRequest.approvedDate) {
-    return ReE(res, { message: "billing request not approved!" }, httpStatus.NOT_FOUND);
-  }
-
-  let check = moment(getBillingRequest.approvedDate).isBefore(new Date());
-
-  if (check) {
-    return ReE(res, { message: "billing request expired!" }, httpStatus.NOT_FOUND);
-  }
-
-  return ReS(res, { message: "billing request found", data: check }, httpStatus.OK);
-
-  // let check = moment(getBillingRequest.approvedValidity).isBefore(new Date());
-
-  // return ReS(res, { message: "billing request found", data: check }, httpStatus.OK);
-
-}
-
 
 export const createBillingRequestForExcel = async (req: CustomRequest, res: Response) => {
   let err, body = req.body, user = req.user as IUser;
@@ -546,49 +516,29 @@ export const createBillingRequestForExcel = async (req: CustomRequest, res: Resp
   //get all approved request
   let approvedRequest;
   const now = moment();
+
+  let startDate = moment(dateFrom as string).startOf('day').toDate();
+  let endDate = moment(dateTo as string).endOf('day').toDate();
   [err, approvedRequest] = await toAwait(
-    BillingRequest.find({
+    BillingRequest.findOne({
       userId: user._id,
       excelFromDate: new Date(dateFrom as string),
       excelToDate: new Date(dateTo as string),
       requestFor: "excel",
       status: "approved",
-      approvedTime: { $gte: now.toDate() }
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
     })
   )
 
-  approvedRequest = approvedRequest as IBillingRequest[];
+  approvedRequest = approvedRequest as IBillingRequest;
 
-  if (approvedRequest.length > 0) {
-    return ReE(res, { message: "Your request for this date is already approved and not expired" }, httpStatus.BAD_REQUEST);
+  if (approvedRequest) {
+    return ReE(res, { message: "Your request for this date for today" }, httpStatus.BAD_REQUEST);
   }
 
-  // approvedRequest.forEach((request: IBillingRequest) => {
-
-  //     const approvedTime = request.approvedTime;
-
-  //     if (!approvedTime) {
-  //         return ReE(
-  //             res,
-  //             { message: "Approval time not found" },
-  //             httpStatus.BAD_REQUEST
-  //         );
-  //     }
-
-  //     // Convert stored time to moment
-  //     const expiryTime = moment(new Date(approvedTime));
-
-  //     // Current time
-  //     const now = moment();
-
-  //     // Check if expired
-  //     if (!now.isAfter(expiryTime)) {
-  //         return ReE(res, { message: "Excel download request already approved for this date has not expired" }, httpStatus.FORBIDDEN);
-  //     }
-
-  // })
-
-  //create request
   let createRequest;
   [err, createRequest] = await toAwait(
     BillingRequest.create({
@@ -597,9 +547,10 @@ export const createBillingRequestForExcel = async (req: CustomRequest, res: Resp
       message: `This user ${user.name} want to get billing report from ${dateFrom} to ${dateTo}`,
       requestFor: "excel",
       excelFromDate: new Date(dateFrom as string),
-      excelToDate: new Date(dateTo as string)
+      excelToDate: new Date(dateTo as string),
     })
   )
+
   return ReS(res, { message: "Billing request created successfully" }, httpStatus.OK);
 
 }
@@ -626,18 +577,24 @@ export const checkBillingRequestForExcel = async (req: CustomRequest, res: Respo
   let { dateFrom, dateTo } = body;
 
   let checkRequest;
+  let startDate = moment(dateFrom as string).startOf('day').toDate();
+  let endDate = moment(dateTo as string).endOf('day').toDate();
   [err, checkRequest] = await toAwait(
     BillingRequest.findOne({
       userId: user._id,
       excelFromDate: new Date(dateFrom as string),
       excelToDate: new Date(dateTo as string),
       requestFor: "excel",
+      approvedDate: {
+        $gte: startDate,
+        $lte: endDate
+      }
     })
   )
 
   checkRequest = checkRequest as IBillingRequest;
   if (!checkRequest) {
-    return ReE(res, { message: "Your request for this date is not found" }, httpStatus.BAD_REQUEST);
+    return ReE(res, { message: "Your request for this date's is not found for today" }, httpStatus.BAD_REQUEST);
   }
 
   if (checkRequest.status === "pending") {
@@ -645,7 +602,7 @@ export const checkBillingRequestForExcel = async (req: CustomRequest, res: Respo
   }
 
   if (moment().isAfter(moment(checkRequest.approvedTime))) {
-    return ReE(res, { message: "Excel download request already approved for this date has expired", expired: true }, httpStatus.FORBIDDEN);
+    return ReS(res, { message: "Excel download request already approved for this date has expired please contact admin to extend the validity", expired: true }, httpStatus.OK);
   }
 
   return ReS(res, { message: "Your request for this date is found", expired: false }, httpStatus.OK);

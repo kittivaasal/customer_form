@@ -38,6 +38,7 @@ import { IMarketDetail } from "../type/marketDetail";
 import { Project } from "../models/project.model";
 import { IProject } from "../type/project";
 import { get } from "http";
+import { sendPushNotificationToSuperAdmin } from "./common";
 
 export const uploadImages = async (req: Request, res: Response) => {
   try {
@@ -1809,11 +1810,25 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         return ReE(res, { message: "Failed to create billing request" }, httpStatus.INTERNAL_SERVER_ERROR);
       }
 
-      return ReS(
+      ReS(
         res,
         { message: "Billing request created successfully" },
         httpStatus.OK
       );
+
+      createBillRequest = createBillRequest as IBillingRequest;
+
+      if(!createBillRequest) return;
+      
+      if(!createBillRequest._id) return;
+
+      let send = await sendPushNotificationToSuperAdmin("Billing create request", `Billing creation Request from  ${user.name} for ${readyForBill.length} EMIs`, createBillRequest._id.toString())
+        
+      if (!send.success) {
+        return console.log(send.message);
+      }
+
+      return console.log("Edit request push notification sent.");
 
     }
   }
@@ -2589,22 +2604,94 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
   if (isNull(date)) {
     if (!user.isAdmin) {
       let checkRequest;
-      [err, checkRequest] = await toAwait(
-        BillingRequest.findOne({
-          userId: user._id,
-          excelFromDate: new Date(dateFrom as string),
-          excelToDate: new Date(dateTo as string),
-          requestFor: "excel",
-          approvedDate: new Date()
-        })
-      )
+        let startDate = moment(dateFrom as string).startOf('day').toDate();
+        let endDate = moment(dateTo as string).endOf('day').toDate();
+        [err, checkRequest] = await toAwait(
+          BillingRequest.findOne({
+            userId: user._id,
+            excelFromDate: new Date(dateFrom as string),
+            excelToDate: new Date(dateTo as string),
+            requestFor: "excel",
+            createdAt: {
+              $gte: startDate,
+              $lte: endDate
+            }
+          })
+        )
 
       if (err) {
         return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       }
 
-      if (!checkRequest) {
-        return ReE(res, { message: "You not have billing request for given from and to date first create billing request" }, httpStatus.INTERNAL_SERVER_ERROR);
+      if(!checkRequest){
+
+        let createRequest;
+        [err, createRequest] = await toAwait(
+          BillingRequest.create({
+            userId: user._id,
+            status: "pending",
+            message: `This user ${user._id} want to get billing report from ${dateFrom} to ${dateTo}`,
+            requestFor: "excel",
+            excelFromDate: new Date(dateFrom as string),
+            excelToDate: new Date(dateTo as string)
+          })
+        )
+
+        if(err){
+          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        if(!createRequest){
+          return ReE(res, { message: "Failed to create request" }, httpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+        createRequest = createRequest as IBillingRequest;
+
+        
+        ReS(res, { message: "Request created successfully please wait for approval" }, httpStatus.OK);
+
+        if(!createRequest._id){
+          return console.log("Billing request id not found, can't send push notification.");
+        }
+
+        let send = await sendPushNotificationToSuperAdmin("Billing request for some date", `This user ${user.name} want to get billing report from ${dateFrom} to ${dateTo}`, createRequest._id.toString())
+        
+        if (!send.success) {
+          return console.log(send.message);
+        }
+  
+        return console.log("Edit request push notification sent.");
+
+      }
+
+      checkRequest = checkRequest as IBillingRequest;
+      
+      if(checkRequest.status === "pending"){
+        return ReE(res, { message: "Your billing request is not approved yet" }, httpStatus.UNAUTHORIZED);
+      }
+      if(checkRequest.status === "rejected"){
+        return ReE(res, { message: "Your billing request is rejected please contact admin to approved" }, httpStatus.UNAUTHORIZED);
+      }
+
+      const approvedTime = checkRequest.approvedTime;
+
+      if (!approvedTime) {
+        return ReE(
+          res,
+          { message: "Approval time not found" },
+          httpStatus.BAD_REQUEST
+        );
+      }
+
+      // Convert stored time to moment
+      const expiryTime = moment(new Date(approvedTime));
+
+      // Current time
+      const now = moment();
+
+      // Check if expired
+      if (now.isAfter(expiryTime)) {
+        return ReE(res,{ message: "Excel download request expired, please create new request on tommorrow or contact admin extend the validity" },httpStatus.FORBIDDEN);
       }
 
     }
