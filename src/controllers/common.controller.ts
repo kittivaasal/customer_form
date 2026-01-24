@@ -496,7 +496,30 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     
     }
 
-    if(general.noOfInstallments){
+    let checkAlreadyExist = await General.findOne({ _id: general._id });
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!checkAlreadyExist){
+      return ReE(
+        res,
+        { message: `general not found given id` },
+        httpStatus.BAD_REQUEST
+      );
+    }
+
+    let getProject;
+    [err, getProject] = await toAwait(Project.findOne({ _id: checkAlreadyExist.project }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getProject) {
+      return ReE(
+        res,
+        { message: "project id not found in update general" },
+        httpStatus.BAD_REQUEST
+      );
+    }
+
+    getProject = getProject as IProject;
+
+    if(general.noOfInstallments && getProject.duration != general.noOfInstallments){
       return ReE(
         res,
         { message: "You can't update the no_of_installments directly. When you update the project duration, the no_of_installments is updated automatically" },
@@ -504,22 +527,13 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
       )
     }
 
-    if(general.emiAmount){
+    if(general.emiAmount  && getProject.emiAmount != general.emiAmount){
       return ReE(
         res,
         { message: "You can't update the emi_amount directly. When you update the project emi_amount, the emi_amount is updated automatically" },
         httpStatus.BAD_REQUEST
       )
     }
-
-    let checkAlreadyExist = await General.findOne({ _id: general._id });
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!checkAlreadyExist)
-      return ReE(
-        res,
-        { message: `general not found given id` },
-        httpStatus.BAD_REQUEST
-      );
   }
 
   if (flat) {
