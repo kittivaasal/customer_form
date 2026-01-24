@@ -887,7 +887,7 @@ export const getAllBilling = async (req: Request, res: Response) => {
             { path: "ddId" }
           ]
         })
-        .populate("createdBy")
+        .populate("createdBy", "-password -fcmToken")
         .sort({ createdAt: -1 })
       .limit(setLimit)
       .skip(setOffset)
@@ -1271,7 +1271,7 @@ export const getByIdBilling = async (req: Request, res: Response) => {
           { path: "ddId" }
         ]
       })
-      .populate("createdBy")
+      .populate("createdBy", "-password -fcmToken")
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!getBilling) {
@@ -2140,7 +2140,7 @@ export const getAllDetailsByCustomerId = async (
             { path: "ddId" }
           ]
         })
-        .populate("createdBy")
+        .populate("createdBy", "-password -fcmToken")
         .sort({ createdAt: -1 })
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2258,7 +2258,7 @@ export const getAllDataBasedOnGeneral = async (req: Request, res: Response) => {
             { path: "ddId" }
           ]
         })
-        .populate("createdBy")
+        .populate("createdBy", "-password -fcmToken")
         .sort({ createdAt: -1 })
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2358,7 +2358,7 @@ export const getDataBasedOnGeneralById = async (
             { path: "ddId" }
           ]
         })
-        .populate("createdBy")
+        .populate("createdBy", "-password -fcmToken")
         .sort({ createdAt: -1 })
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2716,7 +2716,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
             { path: "ddId" }
           ]
         })
-        .populate("createdBy")
+        .populate("createdBy", "-password -fcmToken")
         .sort({ createdAt: -1 })
     );
   }
