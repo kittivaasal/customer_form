@@ -432,15 +432,6 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     }
 
     if (!general._id) {
-
-      return ReE(
-        res,
-        { message: "when update general then general._id is required" },
-        httpStatus.BAD_REQUEST
-      );
-    }
-
-    if (!mongoose.isValidObjectId(general._id)) {
       if(customerId && !mongoose.isValidObjectId(customerId)){
         return ReE(
           res,
@@ -481,6 +472,17 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
           httpStatus.BAD_REQUEST
         );
       }
+    }
+
+
+    if (!general._id) {
+
+      return ReE(
+        res,
+        { message: "when update general then general._id or customerId is required" },
+        httpStatus.BAD_REQUEST
+      );
+    
     }
 
     if(general.noOfInstallments){
