@@ -21,6 +21,7 @@ export interface ICustomer {
   ddId?: mongoose.Types.ObjectId;
   introducerId?: mongoose.Types.ObjectId;
   marketerDetailId?: mongoose.Types.ObjectId;
+  generalId?: mongoose.Types.ObjectId;
   
   dob?: String,
   gender?: String,

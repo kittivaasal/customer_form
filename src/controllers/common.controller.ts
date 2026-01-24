@@ -317,6 +317,17 @@ export const createCommonData = async (req: Request, res: Response) => {
 
   results.general = createGeneral;
   createGeneral = createGeneral as IGeneral;
+
+  let updateGeneralInCustomer;
+  [err, updateGeneralInCustomer] = await toAwait(
+    Customer.updateOne(
+      { _id: customerId },
+      { generalId: createGeneral._id }
+    )
+  );
+
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
   if (createGeneral.noOfInstallments) {
     let id = createGeneral._id;
     for (let index = 0; index < general.noOfInstallments; index++) {
