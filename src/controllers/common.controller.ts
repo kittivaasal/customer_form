@@ -1,5 +1,5 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { Request, Response } from "express";
+import e, { Request, Response } from "express";
 import httpStatus from "http-status";
 import mongoose from "mongoose";
 import { Billing } from "../models/billing.model";
@@ -2516,7 +2516,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
 
   if(status){
     status = status as string;
-    let validValue = ["paid","unpaid"]
+    let validValue = ["paid","unpaid","blocked"];
     status= status.toLowerCase().trim();
     if(!validValue.includes(status)){
       return ReE(res,{message:`invalid status value in query valid value are (${validValue})`}, httpStatus.BAD_REQUEST)
@@ -2525,6 +2525,9 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
       emiOption.paidDate = {$ne : null}
     }else if(status === "unpaid"){
       emiOption.paidDate = null
+    }else if(status === "blocked"){
+      option.status = "blocked"
+      emiOption.status="blocked"
     }
   }
 
