@@ -1,16 +1,16 @@
 import { Request, Response } from "express";
-import { isNull, isPhone, isValidUUID, IsValidUUIDV4, ReE, ReS, toAwait } from "../services/util.service";
 import httpStatus from "http-status";
-import { MarketDetail } from "../models/marketDetail.model";
-import { IMarketDetail } from "../type/marketDetail";
 import mongoose from "mongoose";
-import { MarketingHead } from "../models/marketingHead.model";
-import CustomRequest from "../type/customRequest";
-import { IUser } from "../type/user";
-import EditRequest from "../models/editRequest.model";
-import { IEditRequest } from "../type/editRequest";
-import { sendPushNotificationToSuperAdmin } from "./common";
 import { Counter } from "../models/counter.model";
+import EditRequest from "../models/editRequest.model";
+import { MarketDetail } from "../models/marketDetail.model";
+import { MarketingHead } from "../models/marketingHead.model";
+import { isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
+import CustomRequest from "../type/customRequest";
+import { IEditRequest } from "../type/editRequest";
+import { IMarketDetail } from "../type/marketDetail";
+import { IUser } from "../type/user";
+import { sendPushNotificationToSuperAdmin } from "./common";
 
 export const createMarketDetail = async (req: Request, res: Response) => {
     let body = req.body, err;
@@ -281,6 +281,113 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
     // }
 
     ReS(res, { message: "marketDetail found", data: getMarketDetail }, httpStatus.OK)
+}
+
+export const getBothMarketerMarketerHead = async (req: Request, res: Response) => {
+    let err, getMarketDetail: any, getMarketerHead: any;
+    let { search, page, limit, head } = req.query;
+
+    let baseQuery: any = {};
+    if (search) {
+        baseQuery = {
+            $or: [
+                { name: { $regex: search, $options: 'i' } },
+                { phone: { $regex: search, $options: 'i' } }
+            ]
+        };
+    }
+
+    // Separate queries because 'head' filters differently for each collection
+    let queryMD = { ...baseQuery };
+    let queryMH = { ...baseQuery };
+
+    if (head) {
+        if (!mongoose.isValidObjectId(head)) {
+            return ReE(res, { message: `Invalid head id!` }, httpStatus.BAD_REQUEST);
+        }
+        queryMD.headBy = head;
+        queryMH._id = head;
+    }
+
+    const pageNum = page ? parseInt(page as string) : null;
+    const limitNum = limit ? parseInt(limit as string) : null;
+
+    if (pageNum && limitNum) {
+        let countMarketDetail: any = 0;
+        
+        let countRes: any[] = await toAwait(MarketDetail.countDocuments(queryMD));
+        err = countRes[0];
+        countMarketDetail = countRes[1];
+
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+        const skip = (pageNum - 1) * limitNum;
+
+        let marketDetailsPromise: Promise<any> = Promise.resolve([]);
+        let marketingHeadsPromise: Promise<any> = Promise.resolve([]);
+
+        if (skip < countMarketDetail) {
+            marketDetailsPromise = MarketDetail.find(queryMD)
+                .populate({
+                    path: "headBy",
+                    populate: { path: "percentageId" }
+                })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limitNum);
+        }
+
+        let fetchedFromDetailCount = 0;
+        if(skip < countMarketDetail) {
+             fetchedFromDetailCount = Math.min(limitNum, countMarketDetail - skip);
+        }
+
+        let remainingLimit = limitNum - fetchedFromDetailCount;
+
+        if (remainingLimit > 0) {
+            let headSkip = Math.max(0, skip - countMarketDetail);
+            marketingHeadsPromise = MarketingHead.find(queryMH)
+                .populate("percentageId")
+                .sort({ createdAt: -1 })
+                .skip(headSkip)
+                .limit(remainingLimit);
+        }
+
+        let marketDetailRes: any[] = await toAwait(marketDetailsPromise);
+        err = marketDetailRes[0];
+        getMarketDetail = marketDetailRes[1];
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+        let marketerHeadRes: any[] = await toAwait(marketingHeadsPromise);
+        err = marketerHeadRes[0];
+        getMarketerHead = marketerHeadRes[1];
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    } else {
+        let marketDetailRes: any[] = await toAwait(MarketDetail.find(queryMD)
+            .populate({
+                path: "headBy",
+                populate: { path: "percentageId" }
+            })
+            .sort({ createdAt: -1 }));
+        err = marketDetailRes[0];
+        getMarketDetail = marketDetailRes[1];
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+        let marketerHeadRes: any[] = await toAwait(MarketingHead.find(queryMH)
+            .populate("percentageId")
+            .sort({ createdAt: -1 }));
+        err = marketerHeadRes[0];
+        getMarketerHead = marketerHeadRes[1];
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    const combinedData = [
+        ...(getMarketDetail || []), 
+        ...(getMarketerHead || [])
+    ];
+
+    ReS(res, { message: "Data found", data: combinedData }, httpStatus.OK);
 }
 
 export const deleteMarketDetail = async (req: Request, res: Response) => {
