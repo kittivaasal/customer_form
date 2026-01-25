@@ -314,12 +314,20 @@ export const getBothMarketerMarketerHead = async (req: Request, res: Response) =
 
     if (pageNum && limitNum) {
         let countMarketDetail: any = 0;
-        
+        let countMarketingHead: any = 0;
+
         let countRes: any[] = await toAwait(MarketDetail.countDocuments(queryMD));
         err = countRes[0];
         countMarketDetail = countRes[1];
-
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+        let countHeadRes: any[] = await toAwait(MarketingHead.countDocuments(queryMH));
+        err = countHeadRes[0];
+        countMarketingHead = countHeadRes[1];
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+        const total = countMarketDetail + countMarketingHead;
+        const totalPages = Math.ceil(total / limitNum);
 
         const skip = (pageNum - 1) * limitNum;
 
@@ -363,6 +371,24 @@ export const getBothMarketerMarketerHead = async (req: Request, res: Response) =
         getMarketerHead = marketerHeadRes[1];
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
+        const combinedData = [
+            ...(getMarketDetail || []), 
+            ...(getMarketerHead || [])
+        ];
+    
+        ReS(res, { 
+            message: "Data found", 
+            data: combinedData,
+            pagination: {
+                page: pageNum,
+                limit: limitNum,
+                total,
+                totalPages,
+                hasNextPage: pageNum < totalPages,
+                hasPreviousPage: pageNum > 1
+            }
+        }, httpStatus.OK);
+
     } else {
         let marketDetailRes: any[] = await toAwait(MarketDetail.find(queryMD)
             .populate({
@@ -380,14 +406,14 @@ export const getBothMarketerMarketerHead = async (req: Request, res: Response) =
         err = marketerHeadRes[0];
         getMarketerHead = marketerHeadRes[1];
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+        const combinedData = [
+            ...(getMarketDetail || []), 
+            ...(getMarketerHead || [])
+        ];
+    
+        ReS(res, { message: "Data found", data: combinedData }, httpStatus.OK);
     }
-
-    const combinedData = [
-        ...(getMarketDetail || []), 
-        ...(getMarketerHead || [])
-    ];
-
-    ReS(res, { message: "Data found", data: combinedData }, httpStatus.OK);
 }
 
 export const deleteMarketDetail = async (req: Request, res: Response) => {
