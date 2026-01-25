@@ -285,7 +285,7 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
 
 export const getBothMarketerMarketerHead = async (req: Request, res: Response) => {
     let err, getMarketDetail: any, getMarketerHead: any;
-    let { search, page, limit, head } = req.query;
+    let { search, page, limit } = req.query;
 
     let baseQuery: any = {};
     if (search) {
@@ -301,13 +301,6 @@ export const getBothMarketerMarketerHead = async (req: Request, res: Response) =
     let queryMD = { ...baseQuery };
     let queryMH = { ...baseQuery };
 
-    if (head) {
-        if (!mongoose.isValidObjectId(head)) {
-            return ReE(res, { message: `Invalid head id!` }, httpStatus.BAD_REQUEST);
-        }
-        queryMD.headBy = head;
-        queryMH._id = head;
-    }
 
     const pageNum = page ? parseInt(page as string) : null;
     const limitNum = limit ? parseInt(limit as string) : null;
