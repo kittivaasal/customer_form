@@ -18,6 +18,7 @@ const customerSchema = new mongoose.Schema({
   marketatName: String,
   referenceId: String,
   projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project' },
+  generalId: { type: mongoose.Schema.Types.ObjectId, ref: 'General' },
 
   cedId: {type: mongoose.Schema.Types.ObjectId,ref: "MarketDetail"},
   ddId: {type: mongoose.Schema.Types.ObjectId,ref: "MarketingHead"},

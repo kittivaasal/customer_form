@@ -1,6 +1,7 @@
 import mongoose from "mongoose"
 
 export interface IBillingRequest {
+    _id?: mongoose.Types.ObjectId,
     id?: string,
     approvedValidity?: Date,
     userId: mongoose.Types.ObjectId,

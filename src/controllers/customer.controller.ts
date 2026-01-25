@@ -417,7 +417,8 @@ export const getByIdCustomer = async (req: Request, res: Response) => {
   }
 
   let getCustomer;
-  [err, getCustomer] = await toAwait(Customer.findOne({ _id: id }).populate('projectId').populate("cedId").populate("ddId").populate("introducerId").populate("marketerDetailId").sort({ createdAt: -1 }));
+  [err, getCustomer] = await toAwait(Customer.findOne({ _id: id }).populate('projectId').populate("cedId").populate("ddId").populate("introducerId").populate("marketerDetailId")
+    .populate("generalId"));
 
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!getCustomer) {
@@ -455,6 +456,7 @@ export const getAllCustomer = async (req: Request, res: Response) => {
     .populate("cedId")
     .populate("ddId")
     .populate("introducerId")
+    .populate("generalId")
     .populate("marketerDetailId")
     .sort({ createdAt: -1 });
 
