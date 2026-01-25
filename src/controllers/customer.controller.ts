@@ -35,9 +35,9 @@ export const createCustomer = async (req: Request, res: Response) => {
     let findCed;
     [err, findCed] = await toAwait(MarketDetail.findOne({ _id: cedId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!findCed) {
-      return ReE(res, { message: `Ced is not found for given id!.` }, httpStatus.BAD_REQUEST);
-    }
+    // if (!findCed) {
+    //   return ReE(res, { message: `Ced is not found for given id!.` }, httpStatus.BAD_REQUEST);
+    // }
   }
 
   if (!isNull(ddId)) {
