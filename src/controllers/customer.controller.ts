@@ -195,9 +195,9 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
 
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (getBillingForCus) {
-    if (updateFields.projectId || updateFields.introducerId || updateFields.ddId || updateFields.cedId) {
-      return ReE(res, { message: `For given customer id you can't update project id, cedId, ddId and introducerId!.` }, httpStatus.BAD_REQUEST);
-    }
+    // if (updateFields.projectId || updateFields.introducerId || updateFields.ddId || updateFields.cedId) {
+    //   return ReE(res, { message: `For given customer id you can't update project id, cedId, ddId and introducerId!.` }, httpStatus.BAD_REQUEST);
+    // }
   }
   
   // if (!user.isAdmin) {
