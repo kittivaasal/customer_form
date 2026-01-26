@@ -2634,20 +2634,21 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
   if (isNull(date)) {
     if (!user.isAdmin) {
       let checkRequest;
-        let startDate = moment(dateFrom as string).startOf('day').toDate();
-        let endDate = moment(dateTo as string).endOf('day').toDate();
-        [err, checkRequest] = await toAwait(
-          BillingRequest.findOne({
-            userId: user._id,
-            excelFromDate: new Date(dateFrom as string),
-            excelToDate: new Date(dateTo as string),
-            requestFor: "excel",
-            createdAt: {
-              $gte: startDate,
-              $lte: endDate
-            }
-          })
-        )
+       const start = new Date();
+       start.setHours(0, 0, 0, 0);
+
+       const end = new Date();
+       end.setHours(23, 59, 59, 999);
+
+       [err, checkRequest] = await toAwait(
+         BillingRequest.findOne({
+           userId: user._id,
+           excelFromDate: new Date(dateFrom as string),
+           excelToDate: new Date(dateTo as string),
+           requestFor: "excel",
+           createdAt: { $gte: start, $lte: end },
+         }),
+       );
 
       if (err) {
         return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
