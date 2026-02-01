@@ -82,6 +82,7 @@ const BillingSchema: Schema = new Schema<IBilling>(
     introducerByModel: {
       type: String,
       required: true,
+      default:"MarketDetail",
       enum: ["MarketDetail", "MarketingHead"]
     },
     status: {

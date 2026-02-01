@@ -8,6 +8,96 @@ export const IsValidUUIDV4 = (val: string): boolean => {
 };
 
 
+export function getMonthStartEndDate(): { start: Date; end: Date } {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  let daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+  // leap year logic INSIDE function
+  if (
+    month === 2 &&
+    ((year % 4 === 0 && year % 100 !== 0) || year % 400 === 0)
+  ) {
+    daysInMonth[1] = 29;
+  }
+
+  return {
+    start: new Date(`${year}-${String(month).padStart(2, "0")}-01`),
+    end:new Date(`${year}-${String(month).padStart(2, "0")}-${daysInMonth[month - 1]}T23:59:59.999Z`)
+  };
+}
+
+export function excelDateToJSDate(serial: number): Date | null {
+  if (!serial) return null;
+
+  const utc_days = Math.floor(serial - 25569); // 25569 = days between 1900-01-01 and 1970-01-01
+  const utc_value = utc_days * 86400; // seconds in a day
+  const date_info = new Date(utc_value * 1000);
+
+  // Add fractional day (time)
+  const fractional_day = serial - Math.floor(serial);
+  const total_seconds = Math.round(86400 * fractional_day);
+
+  const seconds = total_seconds % 60;
+  const minutes = Math.floor(total_seconds / 60) % 60;
+  const hours = Math.floor(total_seconds / 3600);
+
+  date_info.setUTCHours(hours, minutes, seconds, 0);
+
+  return date_info;
+}
+
+
+export function getEmiSchedule(numberOfEmis: number) {
+  const startDate = new Date()
+  const emis = [];
+  const start = new Date(startDate);
+
+  const startDay = start.getDate();
+  let year = start.getFullYear();
+  let month = start.getMonth(); // 0-based
+
+  for (let i = 0; i < numberOfEmis; i++) {
+    let m =  new Date(new Date(startDate).setMonth(new Date(startDate).getMonth() + i))
+    console.log(m)
+    
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    const emiDay = Math.min(startDay, daysInMonth);
+    const emiDate = new Date(year, month, emiDay);
+
+    emis.push(emiDate);
+
+    // move to next month
+    month++;
+    if (month > 11) {
+      month = 0;
+      year++;
+    }
+  }
+
+  return emis;
+}
+
+export function getEmiDate(index: number): Date {
+    const startDate = new Date()
+  const baseDate = new Date(startDate);
+
+  const startDay = baseDate.getDate();
+  let year = baseDate.getFullYear();
+  let month = baseDate.getMonth() + index;
+
+  // normalize year & month
+  year += Math.floor(month / 12);
+  month = month % 12;
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const emiDay = Math.min(startDay, daysInMonth);
+
+  return new Date(year, month, emiDay);
+}
+
 export const isEmail = (email_id: string) => {
   const reg = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
   if (reg.test(email_id)) {

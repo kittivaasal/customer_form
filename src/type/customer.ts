@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 export interface ICustomer {
   _id: mongoose.Types.ObjectId;
-  id?: string; // UUID
+  id?: string;
   duration: string;
   emiAmount: number;
   paymentTerms: string;

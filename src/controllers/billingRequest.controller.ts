@@ -70,19 +70,21 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
       let checkCustomer;
       let checkGeneral;
-      if (oldData) {
-        let getCustomer;
-        [err, getCustomer] = await toAwait(Customer.findOne({ id: getBillingRequest?.emi[0]?.supplierCode }));
-        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        checkCustomer = getCustomer as any;
-        let getGeneral;
-        [err, getGeneral] = await toAwait(General.findOne({ supplierCode: getBillingRequest?.emi[0]?.supplierCode, oldData: true }));
-        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        checkGeneral = getGeneral as any;
-      } else {
+      //replace oldData
+      // if (oldData) {
+      //   let getCustomer;
+      //   [err, getCustomer] = await toAwait(Customer.findOne({ id: getBillingRequest?.emi[0]?.supplierCode }));
+      //   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      //   checkCustomer = getCustomer as any;
+      //   let getGeneral;
+      //   [err, getGeneral] = await toAwait(General.findOne({ supplierCode: getBillingRequest?.emi[0]?.supplierCode, oldData: true }));
+      //   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      //   checkGeneral = getGeneral as any;
+      // } else {
+
         checkCustomer = getBillingRequest.emi[0].customer as any;
         checkGeneral = getBillingRequest.emi[0].general as any;
-      }
+      // }
 
       if (getBillingRequest.requestFor === "create" && status === "approved") {
 
@@ -205,7 +207,8 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
 
             let checkAlreadyExistMarketer
-            if (!checkCustomer.oldData) {
+            //replace oldData
+            // if (!checkCustomer.oldData) {
               let marketerDe: any = {
                 customer: checkCustomer._id,
                 emiNo: element?.emiNo,
@@ -248,7 +251,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                   return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
                 }
               }
-            }
+            // }
 
             let updateEmi;
             [err, updateEmi] = await toAwait(

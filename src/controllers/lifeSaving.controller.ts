@@ -75,7 +75,7 @@ export const createLifeSaving = async (req: Request, res: Response) => {
         }
 
         if(projectData?.projectName){
-            let id= toAutoIncrCode(projectData?.projectName)
+            let id= projectData?.shortName ? projectData?.shortName : toAutoIncrCode(projectData?.projectName)
             let getCustomerCounter,count=1;
             [err,getCustomerCounter] = await toAwait(Counter.findOne({name:"customerid"}));
             if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -91,7 +91,7 @@ export const createLifeSaving = async (req: Request, res: Response) => {
               )
             }
             if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            cusAutoId= id+"-"+count.toString().padStart(4,'0');
+            cusAutoId= id + projectData?.shortName?.endsWith("-") ? "" : "-" + count.toString().padStart(4, '0');
         }
 
         let createCustomer;

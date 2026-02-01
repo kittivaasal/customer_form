@@ -13,6 +13,7 @@ const GeneralSchema = new Schema(
     marketerByModel: {
       type: String,
       required: true,
+      default: "MarketDetail",
       enum: ["MarketDetail", "MarketingHead"]
     },
     project: {
