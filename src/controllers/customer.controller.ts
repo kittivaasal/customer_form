@@ -108,7 +108,8 @@ export const createCustomer = async (req: Request, res: Response) => {
   projectData = projectData as IProject
 
   if (projectData?.projectName) {
-    let id = projectData?.shortName ? projectData?.shortName : toAutoIncrCode(projectData?.projectName);
+    projectData.shortName = "LSS-18"
+    let id = projectData?.shortName ? projectData?.shortName.endsWith("-") ? projectData?.shortName : projectData?.shortName + "-" : toAutoIncrCode(projectData?.projectName);
     let getCustomerCounter, count = 0;
     [err, getCustomerCounter] = await toAwait(Counter.findOne({ name: "customerid" }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -124,12 +125,14 @@ export const createCustomer = async (req: Request, res: Response) => {
       count = getCustomerCounter.seq + 1;
     }
 
+    
+    console.log(projectData?.shortName, id,"kkkk")
     let updateCustomerCounter;
     [err, updateCustomerCounter] = await toAwait(
       Counter.updateOne({ name: "customerid" }, { $set: { seq: count } })
     )
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    body.id = id + projectData?.shortName.endsWith("-") ? "" : "-" + count.toString().padStart(4, '0');
+    body.id = id + count.toString().padStart(4, '0');
   }
 
   let customer;
