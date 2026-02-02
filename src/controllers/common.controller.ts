@@ -853,7 +853,8 @@ export const getAllBilling = async (req: Request, res: Response) => {
       { transactionType: new RegExp(`^${search}$`, 'i') },
       { modeOfPayment: new RegExp(`^${search}$`, 'i') },
       { saleType: new RegExp(`^${search}$`, 'i') },
-      { status: new RegExp(`^${search}$`, 'i') }
+      { status: new RegExp(`^${search}$`, 'i') },
+      { id: new RegExp(`^${search}$`, 'i') }
     ];
 
     if (mongoose.Types.ObjectId.isValid(search as string)) {

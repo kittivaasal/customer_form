@@ -78,46 +78,36 @@ app.use("/api/logs", logRoutes)
 // app.get("/", async (req: Request, res: Response) => {
 //   try {
 //     // 1️⃣ Convert string dates to real Date objects
+
 //     let up = await Emi.updateMany(
-//       { oldData: true, paidDate: { $type: "string" } },
-//       [{ $set: { paidDate: { $toDate: "$paidDate" } } }]
+//       { general: { $type: "string" }, oldData: true },
+//       [
+//         {
+//           $set: {
+//             general: { $toObjectId: "$general" },
+//             paidDate: { $toDate: "$paidDate" },
+//             date: {$toDate: "$date"}
+//           }
+//         }
+//       ]
 //     );
+  
+//     // let up = await Emi.updateMany(
+//     //   {emiAmt:null},
+//     //   { $rename: { "emiAmount": "emiAmt" } }
+//     // );
 
 //     if (up.modifiedCount > 0) {
-//       console.log(`Updated ${up.modifiedCount} EMI paidDate fields from string to Date.`);
+//       console.log(`Updated ${up.modifiedCount} EMI customer field rename.`);
 //     }
+
+//     res.json({ success: true, message: "Update operation completed", modifiedCount: up.modifiedCount });
 
 //   } catch (error) {
 //     console.error("Error updating bills:", error);
 //     res.status(500).json({ success: false, message: "Error updating bills", error });
 //   }
 // });
-
-//add counter
-app.post("/api/counter/auto/increment/create", async (req, res) => {
-  let body = req.body;
-  let { name } = body;
-  if (!name) {
-    return res.status(400).json({ message: "name is required" });
-  }
-  try {
-    name = name.toLowerCase().trim();
-    const counter = await Counter.findOne(
-      { name: name },
-    );
-    if (counter) {
-      return res.status(400).json({ message: "Counter with this name already exists" });
-    }
-    let newCounter = new Counter({
-      name: name,
-      seq: 0
-    });
-    await newCounter.save();
-    return res.status(201).json({ message: "Counter created successfully", counter: newCounter });
-  } catch (error) {
-    return res.status(500).json({ message: "Internal server error", error });
-  }
-});
 
 cron.schedule("02 00 * * *", async () => {
   console.log("Running cron job");
@@ -154,9 +144,6 @@ cron.schedule("02 00 * * *", async () => {
   }
 });
 
-
-
-// const rows = readExcel("./src/uploads/EmiAlliance.xlsx");
 
 // //market detail upload
 // app.get("/upload", async (req, res) => {
@@ -249,15 +236,13 @@ cron.schedule("02 00 * * *", async () => {
 //     > = {};
 
 //     // Path to Excel
-//     const excelPath = "./src/uploads/EmiAlliance.xlsx";
-
-
+//     const excelPath = "./src/uploads/customerHosing.xlsx";
 
 //     // Output JSON path
 //     const outputDir = "./src/uploads/generated";
 //     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-//     const jsonPath = path.join(outputDir, `emi-count-${Date.now()}.json`);
+//     const jsonPath = path.join(outputDir, `customer-count-${Date.now()}Housing.json`);
 
 //     // Use `as any` to bypass missing TS types
 //     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
@@ -268,7 +253,22 @@ cron.schedule("02 00 * * *", async () => {
 //       hyperlinks: "ignore",
 //     });
 
-//     let getAllCustomers = await Customer.find({});
+//     let getAllMarketer = await MarketDetail.find({});
+//     let pro = await Project.find({});
+//     let markerter:any=[]
+
+//     const MarketDetailMap = new Map<string, any>();
+//     for (const cust of getAllMarketer) {
+//       if (cust.id) {
+//         MarketDetailMap.set(cust.id.toString(), cust);
+//       }
+//     }
+//     const proMap = new Map<string, any>();
+//     for (const cust of pro) {
+//       if (cust.id) {
+//         proMap.set(cust.id.toString(), cust);
+//       }
+//     }
 
 //     workbook.on("worksheet", (worksheet: any) => {
 //       worksheet.on("row", (row: any) => {
@@ -276,39 +276,42 @@ cron.schedule("02 00 * * *", async () => {
 
 //         console.log("Processing row:", row.number);
 
-//         const supplier = row.getCell(1).text?.trim();
+//         const ddid = row.getCell(16).value;
+        
 //         const salesNo = row.getCell(3).value;
-//         const emiAmt = row.getCell(6).value;
+//         const projectId = row.getCell(10).value;
 
-//         if (!supplier || salesNo == null) return;
+//         if (!ddid || salesNo == null) return;
 
-//         let findCustomer = getAllCustomers.find(cust => cust.id.toString() === supplier.toString());
+//         // let findMarket = getAllMarketer.find(cust => cust.id.toString() === ddid.toString());
+//         let findMarket = MarketDetailMap.get(ddid.toString());
+//         let findPro = proMap.get(projectId.toString());
 
-//         const key = `${supplier}|${salesNo}`;
-//         if (!emiMap[key]) {
-//           emiMap[key] = {
-//             supplierCode: supplier,
-//             sSalesNo: salesNo,
-//             noOfInstallments: 0,
-//             emiAmt: emiAmt,
-//             customer: findCustomer ? findCustomer._id : null,
-//             project: findCustomer ? findCustomer.projectId : null,
-//             marketer: findCustomer ? (findCustomer.ddId ? findCustomer.ddId : findCustomer.cedId ? findCustomer.cedId : null) : null,
-//             oldData: true,
-//             loan:"no",
-//             createdAt: new Date(),
-//             updatedAt: new Date(),
-//             status: "Enquiry",
-//           };
+
+//         let o = {
+//           id: row.getCell(1).value,
+//           name: row.getCell(2).value,
+//           phone: row.getCell(3).value?.toString(),
+//           address: row.getCell(5).value,
+//           city: row.getCell(6).value,
+//           state: row.getCell(7).value,
+//           pincode: row.getCell(8).value,
+//           email: row.getCell(9).value,
+//           // phone: row.getCell(4).value,
+//           project: findPro?._id,
+//           ddId: findMarket?._id,
+//           cedId: findMarket?.headBy,
+//           createdBy: row.getCell(18).value
 //         }
 
-//         emiMap[key].noOfInstallments++;
+//         markerter.push(o)
+        
 //       });
 //     });
 
 //     workbook.on("end", () => {
 //       // Write JSON file
-//       fs.writeFileSync(jsonPath, JSON.stringify(Object.values(emiMap), null, 2));
+//       fs.writeFileSync(jsonPath, JSON.stringify(markerter, null, 2));
 
 //       console.log("✅ EMI JSON generated at:", jsonPath);
 
@@ -316,8 +319,6 @@ cron.schedule("02 00 * * *", async () => {
 //       res.status(200).json({
 //         success: true,
 //         file: jsonPath,
-//         count: Object.keys(emiMap).length,
-//         data: Object.values(emiMap),
 //       });
 //     });
 
@@ -342,66 +343,85 @@ cron.schedule("02 00 * * *", async () => {
 // general count upload
 // app.get("/general-count", async (req: Request, res: Response) => {
 //   try {
-//     const emiMap: Record<
-//       string,
-//       {
-//         oldData: boolean; createdAt: Date; updatedAt: Date; loan: string; status: string;
-//         noOfInstallments: number; supplierCode: string; sSalesNo: any; emiAmt: any; customer: any; project: any; marketer: any;
-// }
-//     > = {};
+//     console.log("Starting general count upload...");
+//     const emiMap: Record<string, any> = {};
 
-//     // Path to Excel
-//     const excelPath = "./src/uploads/EmiAlliance.xlsx";
+//     const excelPath = "./src/uploads/emiHouseing.xlsx";
 
-
-
-//     // Output JSON path
 //     const outputDir = "./src/uploads/generated";
-//     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+//     if (!fs.existsSync(outputDir)) {
+//       fs.mkdirSync(outputDir, { recursive: true });
+//     }
 
-//     const jsonPath = path.join(outputDir, `emi-count-${Date.now()}.json`);
+//     const jsonPath = path.join(
+//       outputDir,
+//       `general-count-${Date.now()}Hosing.json`
+//     );
 
-//     // Use `as any` to bypass missing TS types
-//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
-//       entries: "emit",
-//       worksheets: "emit",
-//       sharedStrings: "cache",
-//       styles: "ignore",
-//       hyperlinks: "ignore",
-//     });
+//     /* -------------------- LOAD CUSTOMERS ONCE -------------------- */
+//     const customers = await Customer.find({}).lean();
 
-//     let getAllCustomers = await Customer.find({});
+//     const customerMap = new Map<string, any>();
+//     for (const cust of customers) {
+//       if (cust.id) {
+//         customerMap.set(cust.id.toString(), cust);
+//       }
+//     }
+
+//     const now = new Date();
+
+//     /* -------------------- STREAM EXCEL -------------------- */
+//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(
+//       excelPath,
+//       {
+//         entries: "emit",
+//         worksheets: "emit",
+//         sharedStrings: "cache",
+//         styles: "ignore",
+//         hyperlinks: "ignore",
+//       }
+//     );
 
 //     workbook.on("worksheet", (worksheet: any) => {
 //       worksheet.on("row", (row: any) => {
-//         if (row.number === 1) return;
-
+//         if (row.number === 1) return; // skip header
 //         console.log("Processing row:", row.number);
-
-//         const supplier = row.getCell(1).text?.trim();
+//         const supplier = row.getCell(1).value?.toString().trim();
 //         const salesNo = row.getCell(3).value;
 //         const emiAmt = row.getCell(6).value;
+//         const status = row.getCell(10).value
 
 //         if (!supplier || salesNo == null) return;
 
-//         let findCustomer = getAllCustomers.find(cust => cust.id.toString() === supplier.toString());
+//         const customer = customerMap.get(supplier);
 
 //         const key = `${supplier}|${salesNo}`;
+
 //         if (!emiMap[key]) {
 //           emiMap[key] = {
 //             supplierCode: supplier,
 //             sSalesNo: salesNo,
 //             noOfInstallments: 0,
-//             emiAmt: emiAmt,
-//             customer: findCustomer ? findCustomer._id : null,
-//             project: findCustomer ? findCustomer.projectId : null,
-//             marketer: findCustomer ? (findCustomer.ddId ? findCustomer.ddId : findCustomer.cedId ? findCustomer.cedId : null) : null,
+//             customer: customer?._id || null,
+//             project: customer?.project || null,
+//             marketer:
+//               customer?.ddId ??
+//               customer?.cedId ??
+//               null,
 //             oldData: true,
-//             loan:"no",
-//             createdAt: new Date(),
-//             updatedAt: new Date(),
+//             loan: "no",
+//             createdAt: now,
+//             updatedAt: now,
+//             paidStauts: status,
+//             emiAmt,
 //             status: "Enquiry",
 //           };
+//         }
+
+//         if(emiMap[key].paidStauts.toString()?.toLowerCase() === "unpaid"){
+//           if(!emiMap[key]?.emiAmt){
+//             emiAmt[key].emiAmt = emiAmt
+//           }
 //         }
 
 //         emiMap[key].noOfInstallments++;
@@ -409,17 +429,15 @@ cron.schedule("02 00 * * *", async () => {
 //     });
 
 //     workbook.on("end", () => {
-//       // Write JSON file
-//       fs.writeFileSync(jsonPath, JSON.stringify(Object.values(emiMap), null, 2));
+//       const data = Object.values(emiMap);
 
-//       console.log("✅ EMI JSON generated at:", jsonPath);
+//       fs.writeFileSync(jsonPath, JSON.stringify(data, null, 2));
 
-//       // Send response with path
 //       res.status(200).json({
 //         success: true,
+//         count: data.length,
 //         file: jsonPath,
-//         count: Object.keys(emiMap).length,
-//         data: Object.values(emiMap),
+//         data,
 //       });
 //     });
 
@@ -444,6 +462,7 @@ cron.schedule("02 00 * * *", async () => {
 
 
 // data get all emi upload
+
 // app.get("/emi-count", async (req: Request, res: Response) => {
 //   try {
 //     const emiMap: Record<
@@ -453,13 +472,13 @@ cron.schedule("02 00 * * *", async () => {
 //         emiAmt: any; customer: any;
 //       }
 //     > = {};
-//     const excelPath = "./src/uploads/EmiAlliance.xlsx";
+//     const excelPath = "./src/uploads/emiHouseing.xlsx";
 
 //     // Output JSON path
 //     const outputDir = "./src/uploads/generated";
 //     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-//     const jsonPath = path.join(outputDir, `emi-count-${Date.now()}.json`);
+//     const jsonPath = path.join(outputDir, `emi-count-${Date.now()}housing.json`);
 
 //     // Use `as any` to bypass missing TS types
 //     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
@@ -560,20 +579,12 @@ cron.schedule("02 00 * * *", async () => {
 //   }
 // });
 
-// const generalsPath = path.join(__dirname, "./data/generalAlliance.json");
-// const generals: any[] = JSON.parse(fs.readFileSync(generalsPath, "utf-8"));
-
-// const emisPath = path.join(__dirname, "./data/emiAlliance.json");
-// const emis: any[] = JSON.parse(fs.readFileSync(emisPath, "utf-8"));
-
-// cosnt bill
-
 // bill count upload
 // app.get("/bill-count", async (req: Request, res: Response) => {
 //   try {
 //     console.log("Starting bill count upload...");
 
-//     const excelPath = "./src/uploads/billingAlliance.xlsx";
+//     const excelPath = "./src/uploads/billingHosing.xlsx";
 //     const outputDir = "./src/uploads/generated";
 //     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 //     const jsonPath = path.join(outputDir, `bill-count-${Date.now()}.json`);
@@ -628,7 +639,9 @@ cron.schedule("02 00 * * *", async () => {
 //         if(row.number === 5){
 //           console.log({emiKey, emi });
 //         }
-//         // console.log({ message: `Matched EMI for row ${row.number}:`, emi });
+
+//         // console.log(excelDateToJSDate(row.getCell(10).value), row.getCell(10).value, new Date(row.getCell(10).value) === null );
+
 //         bills.push({
 //           general: emi?.general || null,
 //           customer: customer._id,
@@ -637,7 +650,7 @@ cron.schedule("02 00 * * *", async () => {
 //           customerCode: customerCode,
 //           phone: row.getCell(5).value,
 //           sSalesNo: salesNo,
-//           paymentDate: row.getCell(10).value ? excelDateToJSDate(row.getCell(10).value) : null,
+//           paymentDate: row.getCell(10).value,
 //           amountPaid: row.getCell(11).value,
 //           bookingId: row.getCell(12).value,
 //           emiNo: row.getCell(14).value,
