@@ -849,17 +849,22 @@ export const getAllBilling = async (req: Request, res: Response) => {
       { customerName: searchRegex },
       { billingId: searchRegex },
       { remarks: searchRegex },
+      {id : searchRegex},
+      {customerCode : searchRegex},
       // Exact match for enums (case-insensitive)
       { transactionType: new RegExp(`^${search}$`, 'i') },
       { modeOfPayment: new RegExp(`^${search}$`, 'i') },
       { saleType: new RegExp(`^${search}$`, 'i') },
       { status: new RegExp(`^${search}$`, 'i') },
-      { id: new RegExp(`^${search}$`, 'i') }
     ];
 
     if (mongoose.Types.ObjectId.isValid(search as string)) {
       option.$or.push({ _id: new mongoose.Types.ObjectId(search as string) });
+      option.$or.push({ customer: new mongoose.Types.ObjectId(search as string) });
     }
+
+
+    console.log(option)
   }
 
   // Get total count for pagination
