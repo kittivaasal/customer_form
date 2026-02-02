@@ -1696,7 +1696,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     let getAllEmiPast;
     //replace oldData
       [err, getAllEmiPast] = await toAwait(
-        Emi.find({ general: checkGeneral._id, customer: customerId, paidDate: { $ne: null } }).sort({ emiNo: 1 })
+        Emi.find({ general: checkGeneral._id, customer: customerId, paidDate: { $eq: null } }).sort({ emiNo: 1 })
       );
 
     if (err) {
@@ -1743,6 +1743,8 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
     let unPaidTotal = getAllEmiPast.reduce((acc, curr) => acc + curr.emiAmt, 0);
     unPaidTotal = unPaidTotal as number;
+
+    console.log("unPaidTotal",getAllEmiPast[0] );
 
     let validAmount = validateEmiPayment(amount, getAllEmiPast[0].emiAmt, unPaidTotal);
 
@@ -1795,7 +1797,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           status: "pending",
           userId: user._id,
           message: `Billing creation Request from  ${user.name} for ${readyForBill.length} EMIs`,
-          // createBill: readyForBill,
           requestFor: "create",
           customerId: customerId,
           emi: readyForBill.map((emi) => emi._id),
@@ -1851,11 +1852,9 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
     let getAllBill;
     [err, getAllBill] = await toAwait(
-      Billing.find({
-        $or: [
-          { customer: customerId },
-          { customerCode: checkCustomer.id, oldData: true },
-        ]
+      Billing.find({ 
+        customer: customerId,
+        general: checkGeneral._id,
       })
     );
     if (err) {
@@ -1865,10 +1864,20 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     let totalAmount = checkGeneral.emiAmount! * checkGeneral.noOfInstallments!;
     if (getAllBill.length === 0) {
       balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
+      console.log("balanceAmount", balanceAmount, totalAmount, amount);
     } else {
       let total = getAllBill.reduce((acc, curr) => acc + curr.amountPaid, 0);
       balanceAmount = totalAmount - (total + amount);
+      console.log("balanceAmount", balanceAmount, totalAmount, total, amount);
     }
+    return res.json(
+      { message: "Billing created successfully" ,
+        data: getAllBill,
+        balanceAmount,
+        checkGeneral
+      }
+
+    )
     let createBill = {
       emiNo: element.emiNo,
       amountPaid: amount,
@@ -1887,7 +1896,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       cardHolderName,
       remarks,
       customerName: checkCustomer.name,
-      balanceAmount: balanceAmount,
+      balanceAmount: isNaN(balanceAmount) ? 0 : balanceAmount,
       emi: element._id,
       oldData: checkCustomer.oldData,
       customerCode: checkCustomer.id,
