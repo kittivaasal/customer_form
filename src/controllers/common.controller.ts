@@ -1870,14 +1870,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       balanceAmount = totalAmount - (total + amount);
       console.log("balanceAmount", balanceAmount, totalAmount, total, amount);
     }
-    return res.json(
-      { message: "Billing created successfully" ,
-        data: getAllBill,
-        balanceAmount,
-        checkGeneral
-      }
 
-    )
     let createBill = {
       emiNo: element.emiNo,
       amountPaid: amount,
