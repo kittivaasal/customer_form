@@ -1696,7 +1696,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     let getAllEmiPast;
     //replace oldData
       [err, getAllEmiPast] = await toAwait(
-        Emi.find({ general: checkGeneral._id, customer: customerId, paidDate: { $eq: null } }).sort({ emiNo: 1 })
+        Emi.find({ general: checkGeneral._id, customer: customerId, paidDate: { $eq: null } }).sort({ emiNo: 1 }) 
       );
 
     if (err) {
