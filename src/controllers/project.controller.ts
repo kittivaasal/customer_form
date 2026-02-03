@@ -22,6 +22,14 @@ export const createProject = async (req: Request, res: Response) => {
       return ReE(res, { message: "Duration should be in number" }, httpStatus.BAD_REQUEST);
     }
   }
+  if(projectName){
+    
+    let checkProjectName;
+    [err, checkProjectName] = await toAwait(Project.findOne({ projectName: projectName }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (checkProjectName) return ReE(res, { message: "Project name already exist" }, httpStatus.BAD_REQUEST);
+
+  }
   let checkProject;
   [err, checkProject] = await toAwait(Project.findOne(body))
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -87,6 +95,15 @@ export const updateProject = async (req: CustomRequest, res: Response) => {
       )
     }
 
+  }
+
+  if(updateFields.projectName){
+    
+    let checkProjectName;
+    [err, checkProjectName] = await toAwait(Project.findOne({ projectName: updateFields.projectName, _id: { $ne: _id } }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (checkProjectName) return ReE(res, { message: "Project name already exist" }, httpStatus.BAD_REQUEST);
+    
   }
   
   if(updateFields.duration){

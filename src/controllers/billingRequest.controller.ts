@@ -3,7 +3,7 @@ import { isValidDate, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
 import { IUser } from "../type/user";
 import httpStatus from "http-status";
-import mongoose from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
 import { BillingRequest } from "../models/billingRequest.model";
 import { IBillingRequest } from "../type/billingRequest";
 import { Billing } from "../models/billing.model";
@@ -17,6 +17,8 @@ import moment from "moment";
 import { Customer } from "../models/customer.model";
 import { General } from "../models/general.model";
 import { MarketDetail } from "../models/marketDetail.model";
+import { ICustomer } from "../type/customer";
+import { IGeneral } from "../type/general";
 
 
 export const approvedBillingRequest = async (req: CustomRequest, res: Response) => {
@@ -72,19 +74,16 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
       let checkGeneral;
       //replace oldData
       // if (oldData) {
-      //   let getCustomer;
-      //   [err, getCustomer] = await toAwait(Customer.findOne({ id: getBillingRequest?.emi[0]?.supplierCode }));
-      //   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      //   checkCustomer = getCustomer as any;
-      //   let getGeneral;
-      //   [err, getGeneral] = await toAwait(General.findOne({ supplierCode: getBillingRequest?.emi[0]?.supplierCode, oldData: true }));
-      //   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      //   checkGeneral = getGeneral as any;
-      // } else {
-
-        checkCustomer = getBillingRequest.emi[0].customer as any;
-        checkGeneral = getBillingRequest.emi[0].general as any;
-      // }
+      let generalId = isValidObjectId(getBillingRequest.emi[0].general._id) ? getBillingRequest.emi[0].general._id : getBillingRequest.emi[0] ;
+      let customerId = isValidObjectId(getBillingRequest.emi[0].customer._id) ? getBillingRequest.emi[0].customer._id : getBillingRequest.emi[0] ;
+      let getCustomer;
+      [err, getCustomer] = await toAwait(Customer.findOne({ id: customerId }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      checkCustomer = getCustomer as ICustomer;
+      let getGeneral;
+      [err, getGeneral] = await toAwait(General.findOne({ _id: generalId }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      checkGeneral = getGeneral as IGeneral;
 
       if (getBillingRequest.requestFor === "create" && status === "approved") {
 
@@ -119,8 +118,8 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             amountPaid: element.emiAmt,
             paymentDate: new Date(getBillingRequest?.billingDetails?.paymentDate || new Date()),
             transactionType: "EMI Receipt",
-            introducer: checkGeneral?.marketer,
-            introducerByModel: checkGeneral?.marketerByModel,
+            introducer: checkCustomer?.ddId,
+            introducerByModel: "MarketDetail",
             mobileNo: checkCustomer?.phone,
             customer: checkCustomer._id,
             general: element.general,
@@ -141,9 +140,10 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
           };
 
           let getMarketer;
-          if (!checkCustomer.oldData) {
+          //remove olddata
+          // if (!checkCustomer.oldData) {
             [err, getMarketer] = await toAwait(
-              MarketDetail.findOne({ _id: checkGeneral.marketer }).populate({
+              MarketDetail.findOne({ _id: checkCustomer.ddId }).populate({
                 path: "headBy",
                 populate: [
                   { path: "percentageId" }
@@ -154,7 +154,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             if (!getMarketer) {
               let checkMarketerHead;
               [err, checkMarketerHead] = await toAwait(
-                MarketingHead.findOne({ _id: checkGeneral.marketer }).populate("percentageId")
+                MarketingHead.findOne({ _id: checkCustomer.cedId }).populate("percentageId")
               );
 
               if (err) {
@@ -169,20 +169,20 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               }
 
             }
-          }
+          // }
 
           let checkAlreadyExist;
-          if (!oldData) {
-            [err, checkAlreadyExist] = await toAwait(Billing.findOne({
-              emiNo: element.emiNo, customer: checkCustomer._id
-            }));
-          } else {
+          //remove old data
+          // if (!oldData) {
+          //   [err, checkAlreadyExist] = await toAwait(Billing.findOne({
+          //     emiNo: element.emiNo, customer: checkCustomer._id
+          //   }));
+          // } else {
             [err, checkAlreadyExist] = await toAwait(Billing.findOne({
               emiNo: element.emiNo,
               customerCode: checkCustomer.id,
-              oldData: true
             }));
-          }
+          // }
 
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
           if (checkAlreadyExist) {
@@ -191,10 +191,20 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             [err, updateEmiPaid] = await toAwait(
               Emi.updateOne(
                 { _id: checkAlreadyExist?.emi },
-                { $set: { paidDate: checkAlreadyExist?.paymentDate } }
+                { $set: { paidDate: checkAlreadyExist?.paymentDate , paidAmt: checkAlreadyExist.amountPaid} }
               )
             )
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            let getEmi;
+            [err, getEmi] = await toAwait(Emi.findOne({ _id: checkAlreadyExist?.emi }));
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            getEmi = getEmi as IEmi
+            if (getEmi?.paidDate) {
+              if(i === readyForBill.length - 1){
+                return ReS(res, { message: `billing already exist for this emi no ${readyForBill.map(element => element.emiNo)} for this customer, please try again!` }, httpStatus.BAD_REQUEST);
+              }
+              // return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
+            }
             // return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
           } else {
 
@@ -214,10 +224,10 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                 emiNo: element?.emiNo,
                 paidDate: billing.paymentDate,
                 paidAmt: billing.amountPaid,
-                marketer: billing.introducer,
+                marketer: checkCustomer?.ddId || checkCustomer?.cedId,
                 emiId: element._id,
                 generalId: checkGeneral._id,
-                marketerHeadId: checkGeneral.getMarketer?.headBy?._id || getMarketer?._id,
+                marketerHeadId: checkCustomer?.cedId,
                 percentageId: getMarketer?.headBy?.percentageId?._id || getMarketer?.percentageId?._id,
               };
               [err, checkAlreadyExistMarketer] = await toAwait(Marketer.findOne({
