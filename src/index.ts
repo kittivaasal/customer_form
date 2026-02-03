@@ -79,18 +79,22 @@ app.use("/api/logs", logRoutes)
 //   try {
 //     // 1️⃣ Convert string dates to real Date objects
 
-//     let up = await Emi.updateMany(
-//       { general: { $type: "string" }, oldData: true },
+//     let up = await  Billing.updateMany(
+//       { paymentDate: { $type: "string" } },
 //       [
 //         {
 //           $set: {
-//             general: { $toObjectId: "$general" },
-//             paidDate: { $toDate: "$paidDate" },
-//             date: {$toDate: "$date"}
+//             paymentDate: {
+//               $cond: [
+//                 { $regexMatch: { input: "$paymentDate", regex: "^[0-9]{2}/[0-9]{2}/[0-9]{4}$" } },
+//                 { $dateFromString: { dateString: "$paymentDate", format: "%d/%m/%Y" } },
+//                 { $toDate: "$paymentDate" } // fallback for ISO strings
+//               ]
+//             }
 //           }
 //         }
 //       ]
-//     );
+//     )
   
 //     // let up = await Emi.updateMany(
 //     //   {emiAmt:null},
@@ -144,6 +148,65 @@ cron.schedule("02 00 * * *", async () => {
   }
 });
 
+// app.get("/emi/bill",async(req,res)=>{
+//   try {
+//     const emis = await Emi.find({oldData:true, paidDate: null}).lean();
+  
+//     const emiMap = new Map<string, any>();
+//     for (const e of emis) {
+//       if (e.emiNo && e.customer) {
+//         emiMap.set(`${e.emiNo.toString()}|${e.customer.toString()}`, e);
+//       }
+//     }
+
+//     let billing = await Billing.find({oldData:})
+
+
+    
+//   } catch (error) {
+    
+//   }
+// })
+
+//mass
+// db.emis.updateMany(
+//   { paidDate: null },  // only EMIs that are unpaid
+//   [
+//     // Lookup bills for each EMI
+//     {
+//       $lookup: {
+//         from: "bills",
+//         localField: "_id",
+//         foreignField: "emi_id",
+//         as: "bills"
+//       }
+//     },
+//     // Calculate total paid and last payment date
+//     {
+//       $set: {
+//         totalPaid: { $sum: "$bills.amount" },
+//         lastPaymentDate: { $max: "$bills.paymentDate" }
+//       }
+//     },
+//     // Only set paidDate if EMI is fully paid
+//     {
+//       $set: {
+//         paidDate: {
+//           $cond: [
+//             { $gte: ["$totalPaid", "$amount"] },
+//             "$lastPaymentDate",
+//             "$paidDate"
+//           ]
+//         }
+//       }
+//     },
+//     // Clean up temporary fields
+//     {
+//       $unset: ["bills", "totalPaid", "lastPaymentDate"]
+//     }
+//   ]
+// )
+
 
 // //market detail upload
 // app.get("/upload", async (req, res) => {
@@ -186,7 +249,238 @@ cron.schedule("02 00 * * *", async () => {
 //   }
 // });
 
-//project detail upload
+// app.get("/markerHead-count", async (req: Request, res: Response) => {
+//   try {
+//     const emiMap: Record<
+//       string,
+//       {
+//         oldData: boolean; createdAt: Date; updatedAt: Date; loan: string; status: string;
+//         noOfInstallments: number; supplierCode: string; sSalesNo: any; emiAmt: any; customer: any; project: any; marketer: any;
+// }
+//     > = {};
+
+//     // Path to Excel
+//     const excelPath = "./src/uploads/customerHosing.xlsx";
+
+//     // Output JSON path
+//     const outputDir = "./src/uploads/generated";
+//     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+//     const jsonPath = path.join(outputDir, `customer-count-${Date.now()}Housing.json`);
+
+//     // Use `as any` to bypass missing TS types
+//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
+//       entries: "emit",
+//       worksheets: "emit",
+//       sharedStrings: "cache",
+//       styles: "ignore",
+//       hyperlinks: "ignore",
+//     });
+
+//     let getAllMarketer = await MarketDetail.find({});
+//     let pro = await Project.find({});
+//     let markerter:any=[]
+
+//     const MarketDetailMap = new Map<string, any>();
+//     for (const cust of getAllMarketer) {
+//       if (cust.id) {
+//         MarketDetailMap.set(cust.id.toString(), cust);
+//       }
+//     }
+//     const proMap = new Map<string, any>();
+//     for (const cust of pro) {
+//       if (cust.id) {
+//         proMap.set(cust.id.toString(), cust);
+//       }
+//     }
+
+//     workbook.on("worksheet", (worksheet: any) => {
+//       worksheet.on("row", (row: any) => {
+//         if (row.number === 1) return;
+
+//         console.log("Processing row:", row.number);
+
+//         const ddid = row.getCell(16).value;
+        
+//         const salesNo = row.getCell(3).value;
+//         const projectId = row.getCell(10).value;
+
+//         if (!ddid || salesNo == null) return;
+
+//         // let findMarket = getAllMarketer.find(cust => cust.id.toString() === ddid.toString());
+//         let findMarket = MarketDetailMap.get(ddid.toString());
+//         let findPro = proMap.get(projectId.toString());
+
+
+//         let o = {
+//           id: row.getCell(1).value,
+//           name: row.getCell(2).value,
+//           phone: row.getCell(3).value?.toString(),
+//           address: row.getCell(5).value,
+//           city: row.getCell(6).value,
+//           state: row.getCell(7).value,
+//           pincode: row.getCell(8).value,
+//           email: row.getCell(9).value,
+//           // phone: row.getCell(4).value,
+//           project: findPro?._id,
+//           ddId: findMarket?._id,
+//           cedId: findMarket?.headBy,
+//           createdBy: row.getCell(18).value
+//         }
+
+//         markerter.push(o)
+        
+//       });
+//     });
+
+//     workbook.on("end", () => {
+//       // Write JSON file
+//       fs.writeFileSync(jsonPath, JSON.stringify(markerter, null, 2));
+
+//       console.log("✅ EMI JSON generated at:", jsonPath);
+
+//       // Send response with path
+//       res.status(200).json({
+//         success: true,
+//         file: jsonPath,
+//       });
+//     });
+
+//     workbook.on("error", (err: any) => {
+//       console.error("Excel read error:", err);
+//       res.status(500).json({
+//         success: false,
+//         message: "Failed to read Excel file",
+//       });
+//     });
+
+//     await workbook.read();
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
+
+// app.get("/marker-count", async (req: Request, res: Response) => {
+//   try {
+//     const emiMap: Record<
+//       string,
+//       {
+//         oldData: boolean; createdAt: Date; updatedAt: Date; loan: string; status: string;
+//         noOfInstallments: number; supplierCode: string; sSalesNo: any; emiAmt: any; customer: any; project: any; marketer: any;
+// }
+//     > = {};
+
+//     // Path to Excel
+//     const excelPath = "./src/uploads/markerDetailHosing.xlsx";
+
+//     // Output JSON path
+//     const outputDir = "./src/uploads/generated";
+//     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+//     const jsonPath = path.join(outputDir, `markerDetail-count-${Date.now()}Housing.json`);
+
+//     // Use `as any` to bypass missing TS types
+//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
+//       entries: "emit",
+//       worksheets: "emit",
+//       sharedStrings: "cache",
+//       styles: "ignore",
+//       hyperlinks: "ignore",
+//     });
+
+//     let getAllMarketer = await MarketDetail.find({});
+//     let pro = await Project.find({});
+//     let markerter:any=[]
+
+//     const MarketDetailMap = new Map<string, any>();
+//     for (const cust of getAllMarketer) {
+//       if (cust.id) {
+//         MarketDetailMap.set(cust.id.toString(), cust);
+//       }
+//     }
+//     const proMap = new Map<string, any>();
+//     for (const cust of pro) {
+//       if (cust.id) {
+//         proMap.set(cust.id.toString(), cust);
+//       }
+//     }
+
+//     workbook.on("worksheet", (worksheet: any) => {
+//       worksheet.on("row", (row: any) => {
+//         if (row.number === 1) return;
+
+//         console.log("Processing row:", row.number);
+
+//         const ddid = row.getCell(16).value;
+        
+//         const salesNo = row.getCell(3).value;
+//         const projectId = row.getCell(10).value;
+
+//         if (!ddid || salesNo == null) return;
+
+//         // let findMarket = getAllMarketer.find(cust => cust.id.toString() === ddid.toString());
+//         let findMarket = MarketDetailMap.get(ddid.toString());
+//         let findPro = proMap.get(projectId.toString());
+
+
+//         let o = {
+//           id: row.getCell(1).value,
+//           name: row.getCell(2).value,
+//           phone: row.getCell(3).value?.toString(),
+//           address: row.getCell(5).value,
+//           city: row.getCell(6).value,
+//           state: row.getCell(7).value,
+//           pincode: row.getCell(8).value,
+//           email: row.getCell(9).value,
+//           // phone: row.getCell(4).value,
+//           project: findPro?._id,
+//           ddId: findMarket?._id,
+//           cedId: findMarket?.headBy,
+//           createdBy: row.getCell(18).value
+//         }
+
+//         markerter.push(o)
+        
+//       });
+//     });
+
+//     workbook.on("end", () => {
+//       // Write JSON file
+//       fs.writeFileSync(jsonPath, JSON.stringify(markerter, null, 2));
+
+//       console.log("✅ EMI JSON generated at:", jsonPath);
+
+//       // Send response with path
+//       res.status(200).json({
+//         success: true,
+//         file: jsonPath,
+//       });
+//     });
+
+//     workbook.on("error", (err: any) => {
+//       console.error("Excel read error:", err);
+//       res.status(500).json({
+//         success: false,
+//         message: "Failed to read Excel file",
+//       });
+//     });
+
+//     await workbook.read();
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
+
+
+// project detail upload
 // app.get("/upload", async (req, res) => {
 //   try {
 //     const BATCH_SIZE = 500;
@@ -584,14 +878,14 @@ cron.schedule("02 00 * * *", async () => {
 //   try {
 //     console.log("Starting bill count upload...");
 
-//     const excelPath = "./src/uploads/billingHosing.xlsx";
+//     const excelPath = "./src/uploads/billingAlliance.xlsx";
 //     const outputDir = "./src/uploads/generated";
 //     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 //     const jsonPath = path.join(outputDir, `bill-count-${Date.now()}.json`);
 
 //     // Fetch EMIs and customers once
 //     const customers = await Customer.find({}).lean();
-//     const emis = await Emi.find({paidDate:{$ne:null}}).lean();
+//     const emis = await Emi.find({oldData:true}).lean();
 
 //     // Maps for fast lookup
 //     const customerMap = new Map<string, any>();
@@ -605,8 +899,6 @@ cron.schedule("02 00 * * *", async () => {
 //         emiMap.set(`${e.emiNo.toString()}|${e.customer.toString()}`, e);
 //       }
 //     }
-
-//     console.log("Maps prepared. Starting to read Excel...");
 
 //     const bills: any[] = [];
 //     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
@@ -629,10 +921,6 @@ cron.schedule("02 00 * * *", async () => {
 //         const customer = customerMap.get(customerCode.toString()) || null;
 //         if (!customer) return;
 
-//         //  console.log({emis });
-//         //  console.log({ message: `Processing row ${row.number}: CustomerCode=${customerCode}, SalesNo=${salesNo}`, emiNo: row.getCell(14).value.toString()});
-
-
 //         const emiKey = `${row.getCell(14).value.toString()}|${customer._id.toString()}`;
 //         const emi = emiMap.get(emiKey) || null;
         
@@ -650,7 +938,7 @@ cron.schedule("02 00 * * *", async () => {
 //           customerCode: customerCode,
 //           phone: row.getCell(5).value,
 //           sSalesNo: salesNo,
-//           paymentDate: row.getCell(10).value,
+//           paymentDate: excelDateToJSDate(row.getCell(10).value),
 //           amountPaid: row.getCell(11).value,
 //           bookingId: row.getCell(12).value,
 //           emiNo: row.getCell(14).value,
