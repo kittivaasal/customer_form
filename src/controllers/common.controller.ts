@@ -1,7 +1,7 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import e, { Request, Response } from "express";
 import httpStatus from "http-status";
-import mongoose, { Types } from "mongoose";
+import mongoose, { isValidObjectId, Types } from "mongoose";
 import { Billing } from "../models/billing.model";
 import { Customer } from "../models/customer.model";
 import { Emi } from "../models/emi.model";
@@ -1316,7 +1316,29 @@ export const getByIdBilling = async (req: Request, res: Response) => {
       httpStatus.NOT_FOUND
     );
   }
-  return ReS(res, { data: getBilling }, httpStatus.OK);
+  getBilling = getBilling as any
+  let getAllFull, generalId, customerId;
+  if(isValidObjectId(getBilling.general)){
+    generalId = getBilling.general
+  }else if(isValidObjectId(getBilling.general._id)){
+    generalId = getBilling.general._id
+  }
+
+  if(isValidObjectId(getBilling.customer)){
+    customerId = getBilling.customer
+  }else if(isValidObjectId(getBilling.customer._id)){
+    customerId = getBilling.customer._id
+  }
+
+  [err, getAllFull] = await toAwait(
+    Emi.find({ general: generalId, customer: customerId }).populate("customer").populate("general")
+  )
+
+  if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+  getBilling.fullEmi =getAllFull;
+
+  return ReS(res, { data: getBilling , emi : getAllFull  }, httpStatus.OK);
 };
 
 export const getByIdEmi = async (req: Request, res: Response) => {
@@ -2056,6 +2078,142 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     return ReE(res, error, httpStatus.INTERNAL_SERVER_ERROR);
   }
 };
+
+export const updateBilling = async (req: CustomRequest, res: Response) => {
+  try {
+    let err, body = req.body, user = req.user,obj:any = {};
+    let fields = ["status", "paymentDate", "modeOfPayment"];
+
+    if (!user) return ReE(res, { message: "You are not access this api" }, httpStatus.UNAUTHORIZED);
+
+    if (!user.isAdmin) return ReE(res, { message: "You are not access this api" }, httpStatus.UNAUTHORIZED);
+
+    let inVaildFields = fields.filter((x) => !isNull(body[x]));
+    if (inVaildFields.length === 0) {
+      return ReE(
+        res,
+        { message: `Please enter any one field to update ${fields}!.` },
+        httpStatus.BAD_REQUEST
+      );
+    }
+
+    let { status, paymentDate, modeOfPayment, _id, cardNo, cardHolderName, remarks, referenceId } = body;
+
+    if (!_id) {
+      return ReE(res, { message: `_id is required!` }, httpStatus.BAD_REQUEST);
+    }
+    if (!mongoose.isValidObjectId(_id)) {
+      return ReE(res, { message: `Invalid _id!` }, httpStatus.BAD_REQUEST);
+    }
+
+    if (status) {
+      if (status) {
+        status = status.toLowerCase();
+        let validValue = ["enquired", "blocked"];
+        if (!validValue.includes(status)) {
+          return ReE(
+            res,
+            { message: `status value is invalid valid value are (${validValue})` },
+            httpStatus.BAD_REQUEST
+          );
+        }
+        status = status === "enquired" ? "Enquiry" : "Blocked";
+        obj.status = status;
+      }
+    }
+
+    
+    if (modeOfPayment) {
+      let validValue = ["cash", "card", "online"];
+      modeOfPayment = modeOfPayment.toLowerCase();
+      if (!validValue.includes(modeOfPayment)) {
+        return ReE(
+          res,
+          {
+            message: `mode of payment value is invalid valid value are (${validValue})`,
+          },
+          httpStatus.BAD_REQUEST
+        );
+      }
+      modeOfPayment =
+        modeOfPayment === "cash"
+          ? "Cash"
+          : modeOfPayment === "card"
+            ? "Card"
+            : "Online";
+      obj.modeOfPayment = modeOfPayment;
+      if(obj.modeOfPayment !== "Cash"){
+        if(!referenceId){
+          return ReE(res, { message: `referenceId is required!` }, httpStatus.BAD_REQUEST);
+        }
+        obj.referenceId = referenceId
+      }else{
+        obj.referenceId = null
+      }
+      if(obj.modeOfPayment === "Card"){
+        if(!cardNo){
+          return ReE(res, { message: `cardNo is required!` }, httpStatus.BAD_REQUEST);
+        }
+        if(!cardHolderName){
+          return ReE(res, { message: `cardHolderName is required!` }, httpStatus.BAD_REQUEST);
+        }
+        obj.cardNo = cardNo;
+        obj.cardHolderName = cardHolderName
+      }else{
+        obj.cardNo = null;
+        obj.cardHolderName = null
+      }
+    }
+
+    if(remarks){
+      obj.remarks = remarks
+    }
+
+    if(referenceId){
+      obj.referenceId = referenceId
+    }
+
+    if(paymentDate){
+      if (!isValidDate(paymentDate as string)) {
+        return ReE(res, { message: "Invalid paymentDate format, valid format is (YYYY-MM-DD)!" }, httpStatus.BAD_REQUEST);
+      }
+      paymentDate = new Date(paymentDate);
+      obj.paymentDate = paymentDate
+    }
+
+    let getBilling;
+    [err, getBilling] = await toAwait(Billing.findOne({ _id: _id }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getBilling) {
+      return ReE(
+        res,
+        { message: "billing not found given id" },
+        httpStatus.NOT_FOUND
+      );
+    }
+
+    getBilling = getBilling as IBilling
+
+    let updateBilling;
+    [err, updateBilling] = await toAwait(
+      Billing.findOneAndUpdate(
+        { _id: _id },
+        { $set: obj },
+        { new: true }
+      )
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    return ReS(
+      res,
+      { message: "billing updated successfully!" },
+      httpStatus.OK
+    );
+
+  } catch (error) {
+    return ReE(res, error, httpStatus.INTERNAL_SERVER_ERROR);
+  }
+}
 
 export const getAllDetailsByCustomerId = async (
   req: Request,
