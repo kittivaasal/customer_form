@@ -108,7 +108,6 @@ export const createCustomer = async (req: Request, res: Response) => {
   projectData = projectData as IProject
 
   if (projectData?.projectName) {
-    projectData.shortName = "LSS-18"
     let id = projectData?.shortName ? projectData?.shortName.endsWith("-") ? projectData?.shortName : projectData?.shortName + "-" : toAutoIncrCode(projectData?.projectName);
     let getCustomerCounter, count = 0;
     [err, getCustomerCounter] = await toAwait(Counter.findOne({ name: "customerid" }));
