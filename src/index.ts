@@ -37,6 +37,7 @@ import { Project } from "./models/project.model";
 import fs from "fs";
 import Excel from "exceljs";
 import { excelDateToJSDate } from "./services/util.service";
+import { IBilling } from "./type/billing";
 
 const app = express();
 app.use(express.json());
@@ -79,23 +80,19 @@ app.use("/api/logs", logRoutes)
 //   try {
 //     // 1️⃣ Convert string dates to real Date objects
 
-//     let up = await  Billing.updateMany(
-//       { paymentDate: { $type: "string" } },
+//     let up = await Billing.updateMany(
+//       { emi: { $type: "string" } },
 //       [
 //         {
 //           $set: {
-//             paymentDate: {
-//               $cond: [
-//                 { $regexMatch: { input: "$paymentDate", regex: "^[0-9]{2}/[0-9]{2}/[0-9]{4}$" } },
-//                 { $dateFromString: { dateString: "$paymentDate", format: "%d/%m/%Y" } },
-//                 { $toDate: "$paymentDate" } // fallback for ISO strings
-//               ]
-//             }
+//             emi: { $toObjectId: "$emi" },
+//             general: { $toObjectId: "$general" },
+//             introducer: { $toObjectId: "$introducer" },
 //           }
 //         }
 //       ]
 //     )
-  
+
 //     // let up = await Emi.updateMany(
 //     //   {emiAmt:null},
 //     //   { $rename: { "emiAmount": "emiAmt" } }
@@ -151,7 +148,7 @@ cron.schedule("02 00 * * *", async () => {
 // app.get("/emi/bill",async(req,res)=>{
 //   try {
 //     const emis = await Emi.find({oldData:true, paidDate: null}).lean();
-  
+
 //     const emiMap = new Map<string, any>();
 //     for (const e of emis) {
 //       if (e.emiNo && e.customer) {
@@ -162,51 +159,124 @@ cron.schedule("02 00 * * *", async () => {
 //     let billing = await Billing.find({oldData:})
 
 
-    
+
 //   } catch (error) {
-    
+
 //   }
 // })
 
-//mass
-// db.emis.updateMany(
-//   { paidDate: null },  // only EMIs that are unpaid
-//   [
-//     // Lookup bills for each EMI
-//     {
-//       $lookup: {
-//         from: "bills",
-//         localField: "_id",
-//         foreignField: "emi_id",
-//         as: "bills"
-//       }
-//     },
-//     // Calculate total paid and last payment date
-//     {
-//       $set: {
-//         totalPaid: { $sum: "$bills.amount" },
-//         lastPaymentDate: { $max: "$bills.paymentDate" }
-//       }
-//     },
-//     // Only set paidDate if EMI is fully paid
-//     {
-//       $set: {
-//         paidDate: {
-//           $cond: [
-//             { $gte: ["$totalPaid", "$amount"] },
-//             "$lastPaymentDate",
-//             "$paidDate"
-//           ]
+//bill emi
+// app.get("/emi/bill/merge", async (req: Request, res: Response) => {
+//   try {
+//     // STEP 1: COUNT
+//     const countPipeline: any[] = [
+//       {
+//         $match: {
+//           paidDate: false,
+//           paymentDate: { $ne: null }
+//         }
+//       },
+//       {
+//         $lookup: {
+//           from: "emis",
+//           let: {
+//             billCustomer: "$customer",
+//             billEmiNo: "$emiNo"
+//           },
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $and: [
+//                     { $eq: ["$customer", "$$billCustomer"] },
+//                     { $eq: ["$emiNo", "$$billEmiNo"] },
+//                     {
+//                       $or: [
+//                         { $eq: ["$paidDate", null] },
+//                         { $not: ["$paidDate"] }
+//                       ]
+//                     }
+//                   ]
+//                 }
+//               }
+//             }
+//           ],
+//           as: "emi"
+//         }
+//       },
+//       { $unwind: "$emi" },
+//       { $count: "modifiedCount" }
+//     ];
+
+//     const countResult = await Billing.aggregate(countPipeline);
+//     const modifiedCount = countResult[0]?.modifiedCount || 0;
+
+
+//     // STEP 2: UPDATE
+//     const mergePipeline: any[] = [
+//       {
+//         $match: {
+//           paidDate:null
+//         }
+//       },
+//       {
+//         $lookup: {
+//           from: "emis",
+//           let: {
+//             billCustomer: "$customer",
+//             billEmiNo: "$emiNo"
+//           },
+//           pipeline: [
+//             {
+//               $match: {
+//                 $expr: {
+//                   $and: [
+//                     { $eq: ["$customer", "$$billCustomer"] },
+//                     { $eq: ["$emiNo", "$$billEmiNo"] }
+//                   ]
+//                 }
+//               }
+//             }
+//           ],
+//           as: "emi"
+//         }
+//       },
+//       { $unwind: "$emi" },
+//       {
+//         $project: {
+//           _id: "$emi._id",
+//           paidDate: "$paymentDate",
+//           oldDate: true
+//         }
+//       },
+//       {
+//         $merge: {
+//           into: "emis",
+//           on: "_id",
+//           whenMatched: "merge",
+//           whenNotMatched: "discard"
 //         }
 //       }
-//     },
-//     // Clean up temporary fields
-//     {
-//       $unset: ["bills", "totalPaid", "lastPaymentDate"]
-//     }
-//   ]
-// )
+//     ];
 
+//     await Billing.aggregate(mergePipeline);
+
+
+//     res.json({
+//       success: true,
+//       message: "EMI paidDate updated using aggregation + merge",
+//       modifiedCount
+//     });
+
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Aggregation merge failed",
+//       error
+//     });
+//   }
+// });
 
 // //market detail upload
 // app.get("/upload", async (req, res) => {
@@ -301,7 +371,7 @@ cron.schedule("02 00 * * *", async () => {
 //         console.log("Processing row:", row.number);
 
 //         const ddid = row.getCell(16).value;
-        
+
 //         const salesNo = row.getCell(3).value;
 //         const projectId = row.getCell(10).value;
 
@@ -329,7 +399,6 @@ cron.schedule("02 00 * * *", async () => {
 //         }
 
 //         markerter.push(o)
-        
 //       });
 //     });
 
@@ -416,7 +485,7 @@ cron.schedule("02 00 * * *", async () => {
 //         console.log("Processing row:", row.number);
 
 //         const ddid = row.getCell(16).value;
-        
+
 //         const salesNo = row.getCell(3).value;
 //         const projectId = row.getCell(10).value;
 
@@ -444,7 +513,7 @@ cron.schedule("02 00 * * *", async () => {
 //         }
 
 //         markerter.push(o)
-        
+
 //       });
 //     });
 
@@ -571,7 +640,7 @@ cron.schedule("02 00 * * *", async () => {
 //         console.log("Processing row:", row.number);
 
 //         const ddid = row.getCell(16).value;
-        
+
 //         const salesNo = row.getCell(3).value;
 //         const projectId = row.getCell(10).value;
 
@@ -599,7 +668,7 @@ cron.schedule("02 00 * * *", async () => {
 //         }
 
 //         markerter.push(o)
-        
+
 //       });
 //     });
 
@@ -878,14 +947,14 @@ cron.schedule("02 00 * * *", async () => {
 //   try {
 //     console.log("Starting bill count upload...");
 
-//     const excelPath = "./src/uploads/billingAlliance.xlsx";
+//     const excelPath = "./src/uploads/billingHousing.xlsx";
 //     const outputDir = "./src/uploads/generated";
 //     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 //     const jsonPath = path.join(outputDir, `bill-count-${Date.now()}.json`);
 
 //     // Fetch EMIs and customers once
 //     const customers = await Customer.find({}).lean();
-//     const emis = await Emi.find({oldData:true}).lean();
+//     const emis = await Emi.find({ oldData: true }).lean();
 
 //     // Maps for fast lookup
 //     const customerMap = new Map<string, any>();
@@ -911,6 +980,7 @@ cron.schedule("02 00 * * *", async () => {
 
 //     workbook.on("worksheet", (worksheet: any) => {
 //       worksheet.on("row", (row: any) => {
+//         // console.log("Processing row:", row.getCell(4).text?.trim());
 //         if (row.number === 1) return;
 
 //         const customerCode = row.getCell(4).text?.trim();
@@ -919,13 +989,14 @@ cron.schedule("02 00 * * *", async () => {
 //         if (!customerCode || !salesNo) return;
 
 //         const customer = customerMap.get(customerCode.toString()) || null;
+//         console.log({ customer });
 //         if (!customer) return;
 
 //         const emiKey = `${row.getCell(14).value.toString()}|${customer._id.toString()}`;
 //         const emi = emiMap.get(emiKey) || null;
-        
-//         if(row.number === 5){
-//           console.log({emiKey, emi });
+
+//         if (row.number === 5) {
+//           console.log({ emiKey, emi });
 //         }
 
 //         // console.log(excelDateToJSDate(row.getCell(10).value), row.getCell(10).value, new Date(row.getCell(10).value) === null );
@@ -951,6 +1022,7 @@ cron.schedule("02 00 * * *", async () => {
 //           oldData: true,
 //           createdAt: new Date(),
 //           updatedAt: new Date(),
+//           paidDate: emi?.paidDate ? true : false
 //         });
 
 //         if (row.number % 1000 === 0) console.log(`Processed ${row.number} rows`);
