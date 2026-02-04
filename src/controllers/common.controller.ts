@@ -1928,35 +1928,35 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         createdBy: user._id
       };
 
-      let getMarketer;
+      // let getMarketer;
       //replace oldData
       // if (!checkCustomer.oldData) {
-      [err, getMarketer] = await toAwait(
-        MarketDetail.findOne({ _id: checkCustomer.ddId }).populate({
-          path: "headBy",
-          populate: [
-            { path: "percentageId" }
-          ]
-        })
-      );
-      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      if (!getMarketer) {
-        let checkMarketerHead;
-        [err, checkMarketerHead] = await toAwait(
-          MarketingHead.findOne({ _id: checkCustomer.cedId }).populate("percentageId")
-        );
+      // [err, getMarketer] = await toAwait(
+      //   MarketDetail.findOne({ _id: checkCustomer.ddId }).populate({
+      //     path: "headBy",
+      //     populate: [
+      //       { path: "percentageId" }
+      //     ]
+      //   })
+      // );
+      // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      // if (!getMarketer) {
+      //   let checkMarketerHead;
+      //   [err, checkMarketerHead] = await toAwait(
+      //     MarketingHead.findOne({ _id: checkCustomer.cedId }).populate("percentageId")
+      //   );
 
-        if (err) {
-          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        }
+      //   if (err) {
+      //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      //   }
 
-        if (!checkMarketerHead && !getMarketer) {
-          return ReE(res, { message: "In general inside marketer not in marketer head or marketer table not found" }, httpStatus.BAD_REQUEST);
-        }
-        if (checkMarketerHead) {
-          getMarketer = checkMarketerHead
-        }
-      }
+      //   if (!checkMarketerHead && !getMarketer) {
+      //     return ReE(res, { message: "In general inside marketer not in marketer head or marketer table not found" }, httpStatus.BAD_REQUEST);
+      //   }
+      //   if (checkMarketerHead) {
+      //     getMarketer = checkMarketerHead
+      //   }
+      // }
 
       // }
 
@@ -2004,53 +2004,53 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
         billing = billing as IBilling;
 
-        getMarketer = getMarketer as any;
+        // getMarketer = getMarketer as any;
 
-        let checkAlreadyExistMarketer
+        // let checkAlreadyExistMarketer
         //replace oldData
         // if (!checkCustomer.oldData) {
-        let marketerDe: any = {
-          customer: customerId,
-          emiNo: element?.emiNo,
-          paidDate: billing.paymentDate,
-          paidAmt: billing.amountPaid,
-          marketer: billing.introducer,
-          emiId: element._id,
-          generalId: checkGeneral._id,
-          marketerHeadId: getMarketer?.headBy?._id || getMarketer?._id,
-          percentageId: getMarketer?.headBy?.percentageId?._id || getMarketer?.percentageId?._id,
-        };
-        [err, checkAlreadyExistMarketer] = await toAwait(Marketer.findOne({
-          marketer: marketerDe.marketer,
-          emiId: marketerDe.emiId,
-          general: marketerDe.general,
-        }));
+        // let marketerDe: any = {
+        //   customer: customerId,
+        //   emiNo: element?.emiNo,
+        //   paidDate: billing.paymentDate,
+        //   paidAmt: billing.amountPaid,
+        //   marketer: billing.introducer,
+        //   emiId: element._id,
+        //   generalId: checkGeneral._id,
+          // marketerHeadId: getMarketer?.headBy?._id || getMarketer?._id,
+          // percentageId: getMarketer?.headBy?.percentageId?._id || getMarketer?.percentageId?._id,
+        // };
+        // [err, checkAlreadyExistMarketer] = await toAwait(Marketer.findOne({
+        //   marketer: marketerDe.marketer,
+        //   emiId: marketerDe.emiId,
+        //   general: marketerDe.general,
+        // }));
 
-        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        if (!checkAlreadyExistMarketer) {
-          if (getMarketer?.headBy?.percentageId?.rate) {
-            let percent = Number(
-              getMarketer?.headBy?.percentageId?.rate?.replace("%", "")
-            );
-            let correctPercent = billing.amountPaid * (percent / 100);
-            marketerDe.commPercentage = percent;
-            marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
-          }
-          if (getMarketer?.percentageId?.rate) {
-            let percent = Number(
-              getMarketer?.percentageId?.rate?.replace("%", "")
-            );
-            let correctPercent = billing.amountPaid * (percent / 100);
-            marketerDe.commPercentage = percent;
-            marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
-          }
+        // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        // if (!checkAlreadyExistMarketer) {
+        //   if (getMarketer?.headBy?.percentageId?.rate) {
+        //     let percent = Number(
+        //       getMarketer?.headBy?.percentageId?.rate?.replace("%", "")
+        //     );
+        //     let correctPercent = billing.amountPaid * (percent / 100);
+        //     marketerDe.commPercentage = percent;
+        //     marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
+        //   }
+        //   if (getMarketer?.percentageId?.rate) {
+        //     let percent = Number(
+        //       getMarketer?.percentageId?.rate?.replace("%", "")
+        //     );
+        //     let correctPercent = billing.amountPaid * (percent / 100);
+        //     marketerDe.commPercentage = percent;
+        //     marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
+        //   }
 
-          let marketer;
-          [err, marketer] = await toAwait(Marketer.create(marketerDe));
-          if (err) {
-            return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-          }
-        }
+        //   let marketer;
+        //   [err, marketer] = await toAwait(Marketer.create(marketerDe));
+        //   if (err) {
+        //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        //   }
+        // }
         // }
 
         let updateEmi;
