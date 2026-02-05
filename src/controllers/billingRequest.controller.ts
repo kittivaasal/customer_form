@@ -1,24 +1,20 @@
 import { Request, Response } from "express";
-import { isValidDate, ReE, ReS, toAwait } from "../services/util.service";
-import CustomRequest from "../type/customRequest";
-import { IUser } from "../type/user";
 import httpStatus from "http-status";
-import mongoose, { isValidObjectId } from "mongoose";
-import { BillingRequest } from "../models/billingRequest.model";
-import { IBillingRequest } from "../type/billingRequest";
-import { Billing } from "../models/billing.model";
-import { IBilling } from "../type/billing";
-import { Marketer } from "../models/marketer";
-import { IEmi } from "../type/emi";
-import { MarketingHead } from "../models/marketingHead.model";
-import { Emi } from "../models/emi.model";
-import { IMarketingHead } from "../type/marketingHead";
 import moment from "moment";
+import mongoose from "mongoose";
+import { Billing } from "../models/billing.model";
+import { BillingRequest } from "../models/billingRequest.model";
 import { Customer } from "../models/customer.model";
+import { Emi } from "../models/emi.model";
 import { General } from "../models/general.model";
-import { MarketDetail } from "../models/marketDetail.model";
+import { isValidDate, ReE, ReS, toAwait } from "../services/util.service";
+import { IBilling } from "../type/billing";
+import { IBillingRequest } from "../type/billingRequest";
 import { ICustomer } from "../type/customer";
+import CustomRequest from "../type/customRequest";
+import { IEmi } from "../type/emi";
 import { IGeneral } from "../type/general";
+import { IUser } from "../type/user";
 
 
 export const approvedBillingRequest = async (req: CustomRequest, res: Response) => {
@@ -74,15 +70,19 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
       let checkGeneral;
       //replace oldData
       // if (oldData) {
-      let generalId = isValidObjectId(getBillingRequest.emi[0].general._id) ? getBillingRequest.emi[0].general._id : getBillingRequest.emi[0] ;
-      let customerId = isValidObjectId(getBillingRequest.emi[0].customer._id) ? getBillingRequest.emi[0].customer._id : getBillingRequest.emi[0] ;
+      let generalId = (getBillingRequest.emi[0].general && (getBillingRequest.emi[0].general as any)._id) ? (getBillingRequest.emi[0].general as any)._id : getBillingRequest.emi[0].general;
+      let customerId = (getBillingRequest.emi[0].customer && (getBillingRequest.emi[0].customer as any)._id) ? (getBillingRequest.emi[0].customer as any)._id : getBillingRequest.emi[0].customer;
+      
       let getCustomer;
-      [err, getCustomer] = await toAwait(Customer.findOne({ id: customerId }));
+      [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getCustomer) return ReE(res, { message: "Customer not found" }, httpStatus.NOT_FOUND);
       checkCustomer = getCustomer as ICustomer;
+      
       let getGeneral;
       [err, getGeneral] = await toAwait(General.findOne({ _id: generalId }));
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getGeneral) return ReE(res, { message: "General info not found" }, httpStatus.NOT_FOUND);
       checkGeneral = getGeneral as IGeneral;
 
       if (getBillingRequest.requestFor === "create" && status === "approved") {
