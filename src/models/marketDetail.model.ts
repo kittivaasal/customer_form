@@ -1,11 +1,11 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 import { IMarketDetail } from '../type/marketDetail';
 
 const MarketDetailSchema: Schema = new Schema(
     {
         name:{type:String},
         id:{type:String},
-        headBy: { type: Schema.Types.ObjectId, ref: 'headByModel'},
+        headBy: { type: Schema.Types.ObjectId, refPath: 'headByModel'},
         headByModel: { 
             type: String,
             required: true,
