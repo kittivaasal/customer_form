@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import EditRequest from "../models/editRequest.model";
 import { MarketingHead } from "../models/marketingHead.model";
 import { Percentage } from "../models/percentage.model";
-import { isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
+import { isEmail, isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
 import { IEditRequest } from "../type/editRequest";
 import { IMarketingHead } from "../type/marketingHead";
@@ -34,6 +34,10 @@ export const createMarketingHead = async (req: Request, res: Response) => {
         if (!genderList.includes(gender)) {
             return ReE(res, { message: `Invalid gender valid values are (${genderList})!.` }, httpStatus.BAD_REQUEST);
         }
+    }
+    checkPer = checkPer as IPercentage;
+    if(checkPer.name.toUpperCase() !== "DIAMOND DIRECTOR"){
+        return ReE(res, { message: `Marking_head must be in DIAMOND DIRECTOR!.` }, httpStatus.BAD_REQUEST);
     }
     if (email) {
         email = email.trim().toLowerCase();
@@ -117,6 +121,10 @@ export const updateMarketingHead = async (req: CustomRequest, res: Response) => 
         [err, checkPer] = await toAwait(Percentage.findOne({ _id: percentageId }));
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
         if (!checkPer) return ReE(res, { message: "Percentage is not found for given id" }, httpStatus.NOT_FOUND)
+        checkPer = checkPer as IPercentage;
+        if(checkPer.name.toUpperCase() !== "DIAMOND DIRECTOR"){
+            return ReE(res, { message: `Marking_head must be in DIAMOND DIRECTOR!.` }, httpStatus.BAD_REQUEST);
+        }   
     }
     if (gender) {
         gender = gender.toLowerCase();
@@ -145,6 +153,9 @@ export const updateMarketingHead = async (req: CustomRequest, res: Response) => 
 
     if (updateFields.email) {
         updateFields.email = updateFields.email.trim().toLowerCase();
+        if(!isEmail(updateFields.email)){
+            return ReE(res, { message: `Invalid email!.` }, httpStatus.BAD_REQUEST)
+        }
         let findEmail;
         [err, findEmail] = await toAwait(MarketingHead.findOne({ email: updateFields.email, _id: { $ne: _id } }));
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);

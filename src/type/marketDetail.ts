@@ -12,4 +12,11 @@ export interface IMarketDetail {
   levelId:Number;
   autoId:Number;
   leader: String;
+  overAllHeadBy: [
+    {
+      headBy: Types.ObjectId;
+      headByModel: string;
+      level: Number;
+    }
+  ]
 }
