@@ -264,6 +264,7 @@ export const getAllMod = async (req: Request, res: Response) => {
         const page = req.query.page ? parseInt(req.query.page as string) : null;
         const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
         const search = (req.query.search as string) || "";
+        const customerId = (req.query.customerId as string) || "";
         const searchConditions: any[] = [];
 
         if (search) {
@@ -294,7 +295,11 @@ export const getAllMod = async (req: Request, res: Response) => {
             }
         }
 
-        const searchQuery = searchConditions.length > 0 ? { $or: searchConditions } : {};
+        const searchQuery: any = searchConditions.length > 0 ? { $or: searchConditions } : {};
+
+        if (customerId && mongoose.isValidObjectId(customerId)) {
+            searchQuery.customerId = customerId;
+        }
 
         let query = Mod.find(searchQuery)
             .populate("customerId")
@@ -324,6 +329,30 @@ export const getAllMod = async (req: Request, res: Response) => {
         }
 
         const getMod = await query;
+
+        // Group by Project if customerId is present and pagination is disabled (Export Case)
+        if (customerId && !page && !limit) {
+            const projectMap = new Map<string, any>();
+            
+            getMod.forEach((mod: any) => {
+                const project = mod.projectId;
+                if (!project) return;
+                
+                const projectIdStr = project._id ? project._id.toString() : 'unknown';
+
+                if (!projectMap.has(projectIdStr)) {
+                    // Create project object (using raw object to avoid mongoose wrapper issues)
+                    const projectObj = project.toObject ? project.toObject() : project;
+                    projectObj.mod = [];
+                    projectMap.set(projectIdStr, projectObj);
+                }
+
+                projectMap.get(projectIdStr).mod.push(mod);
+            });
+
+            const groupedData = Array.from(projectMap.values());
+            return ReS(res, { message: "Mod found", data: groupedData }, httpStatus.OK);
+        }
         
         return ReS(
             res,
