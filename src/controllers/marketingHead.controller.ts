@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import httpStatus from "http-status";
 import mongoose from "mongoose";
+import { Counter } from "../models/counter.model";
 import EditRequest from "../models/editRequest.model";
 import { MarketingHead } from "../models/marketingHead.model";
 import { Percentage } from "../models/percentage.model";
@@ -11,7 +12,6 @@ import { IMarketingHead } from "../type/marketingHead";
 import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
-import { Counter } from "../models/counter.model";
 
 export const createMarketingHead = async (req: Request, res: Response) => {
     let body = req.body, err;
@@ -277,6 +277,10 @@ export const getAllMarketingHead = async (req: Request, res: Response) => {
     let err, getMarketing_head;
     const { percentageName } = req.query;
 
+    const page = req.query.page ? parseInt(req.query.page as string) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
+    const search = (req.query.search as string) || "";
+
     // Build the query filter
     let filter: any = {};
 
@@ -297,15 +301,84 @@ export const getAllMarketingHead = async (req: Request, res: Response) => {
         filter.percentageId = percentage._id;
     }
 
-    [err, getMarketing_head] = await toAwait(MarketingHead.find(filter).populate("percentageId"));
+    const searchConditions: any[] = [];
+    if (search) {
+        searchConditions.push(
+            { name: { $regex: search, $options: "i" } },
+            { email: { $regex: search, $options: "i" } },
+            { phone: { $regex: search, $options: "i" } },
+            { address: { $regex: search, $options: "i" } },
+            { id: { $regex: search, $options: "i" } }
+        );
+
+        if (mongoose.Types.ObjectId.isValid(search)) {
+            searchConditions.push({ _id: new mongoose.Types.ObjectId(search) });
+        }
+    }
+
+    if (searchConditions.length > 0) {
+        // If there's an existing filter (e.g. from percentageName), we need to AND it with the search OR condition
+        // But since filter is an object, we can just add the $or property if it doesn't conflict. 
+        // However, if we want to be safe and combine proper AND logic if filter was more complex:
+        // filter = { $and: [filter, { $or: searchConditions }] };
+        // For simplicity and typical mongoose behavior, adding $or to the top level works 
+        // as long as there isn't another $or. 
+        // Given the code above, filter only has percentageId, so it is safe to add $or.
+        filter.$or = searchConditions;
+    }
+
+    let query = MarketingHead.find(filter).populate("percentageId").sort({ createdAt: -1 });
+
+    if (page && limit) {
+        const skip = (page - 1) * limit;
+        query = query.skip(skip).limit(limit);
+    }
+
+    let total;
+    let totalPages = 1;
+
+    if (page && limit) {
+        let count;
+        [err, count] = await toAwait(MarketingHead.countDocuments(filter));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+        total = count as number;
+        totalPages = Math.ceil(total / limit);
+
+        if (page > totalPages) {
+            return ReE(
+                res,
+                { message: `Page no ${page} not available. The last page no is ${totalPages}.` },
+                httpStatus.NOT_FOUND
+            );
+        }
+    }
+
+    [err, getMarketing_head] = await toAwait(query);
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getMarketing_head = getMarketing_head as IMarketingHead[]
-    if (getMarketing_head.length === 0) {
-        return ReE(res, { message: `marketing_head not found!.` }, httpStatus.NOT_FOUND)
-    }
 
-    ReS(res, { message: "marketing_head found", data: getMarketing_head }, httpStatus.OK)
+    // Note: User requested mirroring, and in previous examples we removed the check for empty array 404 
+    // to support smooth pagination/search results (returning empty list instead of error).
+    // if (getMarketing_head.length === 0) {
+    //     return ReE(res, { message: `marketing_head not found!.` }, httpStatus.NOT_FOUND)
+    // }
+
+    return ReS(res, {
+        message: "marketing_head found",
+        data: getMarketing_head,
+        ...(page && limit && {
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPreviousPage: page > 1
+            }
+        })
+    }, httpStatus.OK)
 }
 
 export const deleteMarketingHead = async (req: Request, res: Response) => {

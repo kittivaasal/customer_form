@@ -1,18 +1,16 @@
 import { Request, Response } from "express";
-import { isNull, isPhone, isValidUUID, IsValidUUIDV4, ReE, ReS, toAwait } from "../services/util.service";
 import httpStatus from "http-status";
-import { Project } from "../models/project.model";
-import { IProject } from "../type/project";
 import mongoose from "mongoose";
+import { Billing } from "../models/billing.model";
 import EditRequest from "../models/editRequest.model";
-import { IEditRequest } from "../type/editRequest";
+import { General } from "../models/general.model";
+import { Project } from "../models/project.model";
+import { isNull, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
+import { IEditRequest } from "../type/editRequest";
+import { IProject } from "../type/project";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
-import { Billing } from "../models/billing.model";
-import { General } from "../models/general.model";
-import { Emi } from "../models/emi.model";
-import { IGeneral } from "../type/general";
 
 export const createProject = async (req: Request, res: Response) => {
   let body = req.body, err;
@@ -238,15 +236,81 @@ export const getByIdProject = async (req: Request, res: Response) => {
 
 export const getAllProject = async (req: Request, res: Response) => {
   let err, getProject;
-  [err, getProject] = await toAwait(Project.find());
+
+  const page = req.query.page ? parseInt(req.query.page as string) : null;
+  const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
+  const search = (req.query.search as string) || "";
+  const searchConditions: any[] = [];
+
+  if (search) {
+    searchConditions.push(
+      { projectName: { $regex: search, $options: "i" } },
+      { shortName: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+      { marketer: { $regex: search, $options: "i" } }
+    );
+
+    if (mongoose.Types.ObjectId.isValid(search)) {
+      searchConditions.push({ _id: new mongoose.Types.ObjectId(search) });
+    }
+  }
+
+  const searchQuery = searchConditions.length > 0 ? { $or: searchConditions } : {};
+
+  let query = Project.find(searchQuery).sort({ createdAt: -1 });
+
+  if (page && limit) {
+    const skip = (page - 1) * limit;
+    query = query.skip(skip).limit(limit);
+  }
+
+  let total;
+  let totalPages = 1;
+
+  if (page && limit) {
+    let count;
+    [err, count] = await toAwait(Project.countDocuments(searchQuery));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    total = count as number;
+    totalPages = Math.ceil(total / limit);
+
+    if (page > totalPages) {
+      return ReE(
+        res,
+        { message: `Page no ${page} not available. The last page no is ${totalPages}.` },
+        httpStatus.NOT_FOUND
+      );
+    }
+  }
+
+  [err, getProject] = await toAwait(query);
 
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   getProject = getProject as IProject[]
-  if (getProject.length === 0) {
-    return ReE(res, { message: `project not found!.` }, httpStatus.NOT_FOUND)
-  }
 
-  ReS(res, { message: "project found", data: getProject }, httpStatus.OK)
+  // Note: The original returned 404 if empty, but for search/pagination typically we return empty array with 200.
+  // However, keeping with the strict 'mirror' request minus the 404 for empty list if searching/paginating might be safer,
+  // but the user's template had this:
+  // if (getProject.length === 0) return ReE(...)
+  // In the customer example, it returns ReS with data even if empty (implied, though logic doesn't explicitly block it).
+  // The customer example does NOT have a check for length === 0 causing 404.
+  // I will remove the 404 check to match getAllCustomer's behavior which allows empty pages/searches smoothly.
+
+  return ReS(res, {
+    message: "project found",
+    data: getProject,
+    ...(page && limit && {
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
+    })
+  }, httpStatus.OK)
 }
 
 

@@ -5,14 +5,14 @@ import { Counter } from "../models/counter.model";
 import EditRequest from "../models/editRequest.model";
 import { MarketDetail } from "../models/marketDetail.model";
 import { MarketingHead } from "../models/marketingHead.model";
+import { Percentage } from "../models/percentage.model";
 import { isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
 import { IEditRequest } from "../type/editRequest";
 import { IMarketDetail } from "../type/marketDetail";
+import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
-import { Percentage } from "../models/percentage.model";
-import { IPercentage } from "../type/percentage";
 
 export const createMarketDetail = async (req: Request, res: Response) => {
   let body = req.body, err, getFrom;
@@ -348,6 +348,25 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
 
   const page = req.query.page ? parseInt(req.query.page as string) : null;
   const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
+  const search = (req.query.search as string) || "";
+  const searchConditions: any[] = [];
+
+  if (search) {
+    searchConditions.push(
+      { name: { $regex: search, $options: "i" } },
+      { phone: { $regex: search, $options: "i" } },
+      { address: { $regex: search, $options: "i" } },
+      { id: { $regex: search, $options: "i" } }
+    );
+
+    if (mongoose.Types.ObjectId.isValid(search)) {
+      searchConditions.push({ _id: new mongoose.Types.ObjectId(search) });
+    }
+  }
+
+  if (searchConditions.length > 0) {
+    option.$or = searchConditions;
+  }
 
   let queryTo = MarketDetail.find(option)
     .populate({
@@ -391,7 +410,20 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
   //     return ReE(res, { message: `marketDetail not found!.` }, httpStatus.NOT_FOUND)
   // }
 
-  ReS(res, { message: "marketDetail found", data: getMarketDetail }, httpStatus.OK)
+  return ReS(res, {
+    message: "marketDetail found",
+    data: getMarketDetail,
+    ...(page && limit && {
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1
+      }
+    })
+  }, httpStatus.OK)
 }
 
 export const getBothMarketerMarketerHead = async (req: Request, res: Response) => {
