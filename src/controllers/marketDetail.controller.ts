@@ -981,16 +981,14 @@ export const getUplineDownline = async (req: Request, res: Response) => {
     }
 
     const data = await MarketDetail.aggregate([
-      /* ----------------------------
-         1️⃣ MATCH SELF
-      ----------------------------- */
-      {
-        $match: { _id: objectId }
-      },
+      /* -------------------------------------------------- */
+      /* 1️⃣ MATCH SELF */
+      /* -------------------------------------------------- */
+      { $match: { _id: objectId } },
 
-      /* ----------------------------
-         2️⃣ PREPARE UPLINE IDS (MarketDetail only)
-      ----------------------------- */
+      /* -------------------------------------------------- */
+      /* 2️⃣ PREPARE UPLINE IDS */
+      /* -------------------------------------------------- */
       {
         $addFields: {
           uplineIds: {
@@ -1009,47 +1007,154 @@ export const getUplineDownline = async (req: Request, res: Response) => {
         }
       },
 
-      /* ----------------------------
-         3️⃣ FETCH UPLINE DOCUMENTS
-      ----------------------------- */
+      /* -------------------------------------------------- */
+      /* 3️⃣ FETCH UPLINE WITH FULL POPULATION */
+      /* -------------------------------------------------- */
       {
         $lookup: {
           from: "marketdetails",
           let: { ids: "$uplineIds" },
           pipeline: [
+            { $match: { $expr: { $in: ["$_id", "$$ids"] } } },
+
+            /* percentage */
             {
-              $match: {
-                $expr: { $in: ["$_id", "$$ids"] }
+              $lookup: {
+                from: "percentages",
+                localField: "percentageId",
+                foreignField: "_id",
+                as: "percentageId"
+              }
+            },
+            { $unwind: { path: "$percentageId", preserveNullAndEmptyArrays: true } },
+
+            /* headBy both models */
+            {
+              $lookup: {
+                from: "marketdetails",
+                localField: "headBy",
+                foreignField: "_id",
+                as: "mdHead"
+              }
+            },
+            {
+              $lookup: {
+                from: "marketingheads",
+                localField: "headBy",
+                foreignField: "_id",
+                as: "mhHead"
               }
             },
             {
               $addFields: {
-                order: { $indexOfArray: ["$$ids", "$_id"] }
+                headBy: {
+                  $cond: [
+                    { $eq: ["$headByModel", "MarketDetail"] },
+                    { $arrayElemAt: ["$mdHead", 0] },
+                    { $arrayElemAt: ["$mhHead", 0] }
+                  ]
+                }
+              }
+            },
+
+            /* overAllHeadBy populate */
+            {
+              $lookup: {
+                from: "marketdetails",
+                localField: "overAllHeadBy.headBy",
+                foreignField: "_id",
+                as: "mdOver"
+              }
+            },
+            {
+              $lookup: {
+                from: "marketingheads",
+                localField: "overAllHeadBy.headBy",
+                foreignField: "_id",
+                as: "mhOver"
+              }
+            },
+            {
+              $addFields: {
+                overAllHeadBy: {
+                  $map: {
+                    input: "$overAllHeadBy",
+                    as: "o",
+                    in: {
+                      $mergeObjects: [
+                        "$$o",
+                        {
+                          headBy: {
+                            $cond: [
+                              { $eq: ["$$o.headByModel", "MarketDetail"] },
+                              {
+                                $arrayElemAt: [
+                                  {
+                                    $filter: {
+                                      input: "$mdOver",
+                                      as: "m",
+                                      cond: { $eq: ["$$m._id", "$$o.headBy"] }
+                                    }
+                                  },
+                                  0
+                                ]
+                              },
+                              {
+                                $arrayElemAt: [
+                                  {
+                                    $filter: {
+                                      input: "$mhOver",
+                                      as: "mh",
+                                      cond: { $eq: ["$$mh._id", "$$o.headBy"] }
+                                    }
+                                  },
+                                  0
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+
+            /* remove temp inside pipeline */
+            {
+              $project: {
+                mdHead: 0,
+                mhHead: 0,
+                mdOver: 0,
+                mhOver: 0
               }
             }
           ],
-          as: "uplineRaw"
+          as: "upline"
         }
       },
 
-      /* ----------------------------
-         4️⃣ SORT & ASSIGN LEVELS
-      ----------------------------- */
+      /* -------------------------------------------------- */
+      /* 4️⃣ FIX UPLINE LEVEL */
+      /* -------------------------------------------------- */
       {
         $addFields: {
           upline: {
             $map: {
-              input: {
-                $sortArray: {
-                  input: "$uplineRaw",
-                  sortBy: { order: 1 }   // ✅ LEGAL
-                }
-              },
+              input: "$upline",
               as: "u",
               in: {
                 $mergeObjects: [
                   "$$u",
-                  { level: { $add: ["$$u.order", 2] } }
+                  {
+                    level: {
+                      $add: [
+                        { $indexOfArray: ["$uplineIds", "$$u._id"] },
+                        2
+                      ]
+                    }
+                  }
                 ]
               }
             }
@@ -1057,9 +1162,9 @@ export const getUplineDownline = async (req: Request, res: Response) => {
         }
       },
 
-      /* ----------------------------
-         5️⃣ ADD SELF
-      ----------------------------- */
+      /* -------------------------------------------------- */
+      /* 5️⃣ ADD SELF WITH LEVEL */
+      /* -------------------------------------------------- */
       {
         $addFields: {
           self: {
@@ -1071,16 +1176,82 @@ export const getUplineDownline = async (req: Request, res: Response) => {
         }
       },
 
-      /* ----------------------------
-         6️⃣ DOWNLINE
-      ----------------------------- */
+      /* -------------------------------------------------- */
+      /* 6️⃣ POPULATE SELF overAllHeadBy */
+      /* -------------------------------------------------- */
+      {
+        $lookup: {
+          from: "marketdetails",
+          localField: "self.overAllHeadBy.headBy",
+          foreignField: "_id",
+          as: "selfMdOver"
+        }
+      },
+      {
+        $lookup: {
+          from: "marketingheads",
+          localField: "self.overAllHeadBy.headBy",
+          foreignField: "_id",
+          as: "selfMhOver"
+        }
+      },
+      {
+        $addFields: {
+          "self.overAllHeadBy": {
+            $map: {
+              input: "$self.overAllHeadBy",
+              as: "o",
+              in: {
+                $mergeObjects: [
+                  "$$o",
+                  {
+                    headBy: {
+                      $cond: [
+                        { $eq: ["$$o.headByModel", "MarketDetail"] },
+                        {
+                          $arrayElemAt: [
+                            {
+                              $filter: {
+                                input: "$selfMdOver",
+                                as: "m",
+                                cond: { $eq: ["$$m._id", "$$o.headBy"] }
+                              }
+                            },
+                            0
+                          ]
+                        },
+                        {
+                          $arrayElemAt: [
+                            {
+                              $filter: {
+                                input: "$selfMhOver",
+                                as: "mh",
+                                cond: { $eq: ["$$mh._id", "$$o.headBy"] }
+                              }
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+
+      /* -------------------------------------------------- */
+      /* 7️⃣ DOWNLINE */
+      /* -------------------------------------------------- */
       {
         $graphLookup: {
           from: "marketdetails",
           startWith: "$_id",
           connectFromField: "_id",
           connectToField: "headBy",
-          as: "downlineRaw",
+          as: "downline",
           depthField: "depth"
         }
       },
@@ -1089,12 +1260,16 @@ export const getUplineDownline = async (req: Request, res: Response) => {
         $addFields: {
           downline: {
             $map: {
-              input: "$downlineRaw",
+              input: "$downline",
               as: "d",
               in: {
                 $mergeObjects: [
                   "$$d",
-                  { level: { $add: ["$$d.depth", "$self.level", 1] } }
+                  {
+                    level: {
+                      $add: ["$$d.depth", "$self.level", 1]
+                    }
+                  }
                 ]
               }
             }
@@ -1102,31 +1277,350 @@ export const getUplineDownline = async (req: Request, res: Response) => {
         }
       },
 
+
+      /* ---------------- 6️⃣ POPULATE DOWNLINE ---------------- */
+      { $unwind: { path: "$downline", preserveNullAndEmptyArrays: true } },
+
+      /* Populate downline percentage */
+      {
+        $lookup: {
+          from: "percentages",
+          localField: "downline.percentageId",
+          foreignField: "_id",
+          as: "downline.percentageId"
+        }
+      },
+      { $unwind: { path: "$downline.percentageId", preserveNullAndEmptyArrays: true } },
+
+      /* Populate downline headBy (dual model) */
+      {
+        $lookup: {
+          from: "marketdetails",
+          localField: "downline.headBy",
+          foreignField: "_id",
+          as: "dlMdHead"
+        }
+      },
+      {
+        $lookup: {
+          from: "marketingheads",
+          localField: "downline.headBy",
+          foreignField: "_id",
+          as: "dlMhHead"
+        }
+      },
       {
         $addFields: {
-          downline: {
-            $sortArray: {
-              input: "$downline",
-              sortBy: { level: 1 }   // ✅ LEGAL
+          "downline.headBy": {
+            $cond: [
+              { $eq: ["$downline.headByModel", "MarketDetail"] },
+              { $arrayElemAt: ["$dlMdHead", 0] },
+              { $arrayElemAt: ["$dlMhHead", 0] }
+            ]
+          }
+        }
+      },
+
+      /* Populate downline.overAllHeadBy.headBy */
+      {
+        $lookup: {
+          from: "marketdetails",
+          localField: "downline.overAllHeadBy.headBy",
+          foreignField: "_id",
+          as: "dlMdOver"
+        }
+      },
+
+      {
+        $lookup: {
+          from: "marketingheads",
+          localField: "downline.overAllHeadBy.headBy",
+          foreignField: "_id",
+          as: "dlMhOver"
+        }
+      },
+      {
+        $addFields: {
+          "downline.overAllHeadBy": {
+            $map: {
+              input: "$downline.overAllHeadBy",
+              as: "o",
+              in: {
+                $mergeObjects: [
+                  "$$o",
+                  {
+                    headBy: {
+                      $cond: [
+                        { $eq: ["$$o.headByModel", "MarketDetail"] },
+                        {
+                          $arrayElemAt: [
+                            {
+                              $filter: {
+                                input: "$dlMdOver",
+                                as: "m",
+                                cond: { $eq: ["$$m._id", "$$o.headBy"] }
+                              }
+                            },
+                            0
+                          ]
+                        },
+                        {
+                          $arrayElemAt: [
+                            {
+                              $filter: {
+                                input: "$dlMhOver",
+                                as: "mh",
+                                cond: { $eq: ["$$mh._id", "$$o.headBy"] }
+                              }
+                            },
+                            0
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
             }
           }
         }
       },
 
-      /* ----------------------------
-         7️⃣ CLEANUP
-      ----------------------------- */
+
+      /* ---------------- 7️⃣ GROUP BACK ---------------- */
+      {
+        $group: {
+          _id: "$_id",
+          doc: { $first: "$$ROOT" },
+          downline: { $push: "$downline" }
+        }
+      },
+      {
+        $addFields: { "doc.downline": "$downline" }
+      },
+      { $replaceRoot: { newRoot: "$doc" } },
+
+      /* -------------------------------------------------- */
+      /* 8️⃣ FINAL CLEANUP */
+      /* -------------------------------------------------- */
       {
         $project: {
-          uplineRaw: 0,
-          downlineRaw: 0,
           uplineIds: 0,
-          "upline.order": 0
+          depth: 0,
+          selfMdOver: 0,
+          selfMhOver: 0,
+          dlMhOver: 0,
         }
       }
     ]);
 
+    // const data = await MarketDetail.aggregate([
+    //   { $match: { _id: objectId } },
 
+    //   /* ---------------- UPLINE IDS ---------------- */
+    //   {
+    //     $addFields: {
+    //       uplineIds: {
+    //         $map: {
+    //           input: {
+    //             $filter: {
+    //               input: "$overAllHeadBy",
+    //               as: "h",
+    //               cond: { $eq: ["$$h.headByModel", "MarketDetail"] }
+    //             }
+    //           },
+    //           as: "m",
+    //           in: "$$m.headBy"
+    //         }
+    //       }
+    //     }
+    //   },
+
+    //   /* ---------------- SELF LEVEL ---------------- */
+    //   {
+    //     $addFields: {
+    //       self: {
+    //         $mergeObjects: [
+    //           "$$ROOT",
+    //           { level: { $add: [{ $size: "$uplineIds" }, 2] } }
+    //         ]
+    //       }
+    //     }
+    //   },
+
+    //   /* ---------------- DOWNLINE ---------------- */
+    //   {
+    //     $graphLookup: {
+    //       from: "marketdetails",
+    //       startWith: "$_id",
+    //       connectFromField: "_id",
+    //       connectToField: "headBy",
+    //       as: "downline",
+    //       depthField: "depth"
+    //     }
+    //   },
+
+    //   /* ---------------- DOWNLINE LEVEL FIX ---------------- */
+    //   {
+    //     $addFields: {
+    //       downline: {
+    //         $map: {
+    //           input: "$downline",
+    //           as: "d",
+    //           in: {
+    //             $mergeObjects: [
+    //               "$$d",
+    //               {
+    //                 level: {
+    //                   $add: ["$$d.depth", "$self.level", 1]
+    //                 }
+    //               }
+    //             ]
+    //           }
+    //         }
+    //       }
+    //     }
+    //   },
+
+    //   /* ===================================================== */
+    //   /* 🔥 FULL DOWNLINE POPULATION STARTS HERE 🔥 */
+    //   /* ===================================================== */
+
+    //   { $unwind: { path: "$downline", preserveNullAndEmptyArrays: true } },
+
+    //   /* Populate percentage */
+    //   {
+    //     $lookup: {
+    //       from: "percentages",
+    //       localField: "downline.percentageId",
+    //       foreignField: "_id",
+    //       as: "downline.percentageId"
+    //     }
+    //   },
+    //   { $unwind: { path: "$downline.percentageId", preserveNullAndEmptyArrays: true } },
+
+    //   /* Populate headBy (dual model) */
+    //   {
+    //     $lookup: {
+    //       from: "marketdetails",
+    //       localField: "downline.headBy",
+    //       foreignField: "_id",
+    //       as: "dlMdHead"
+    //     }
+    //   },
+    //   {
+    //     $lookup: {
+    //       from: "marketingheads",
+    //       localField: "downline.headBy",
+    //       foreignField: "_id",
+    //       as: "dlMhHead"
+    //     }
+    //   },
+    //   {
+    //     $addFields: {
+    //       "downline.headBy": {
+    //         $cond: [
+    //           { $eq: ["$downline.headByModel", "MarketDetail"] },
+    //           { $arrayElemAt: ["$dlMdHead", 0] },
+    //           { $arrayElemAt: ["$dlMhHead", 0] }
+    //         ]
+    //       }
+    //     }
+    //   },
+
+    //   /* Populate downline.overAllHeadBy.headBy */
+    //   {
+    //     $lookup: {
+    //       from: "marketdetails",
+    //       localField: "downline.overAllHeadBy.headBy",
+    //       foreignField: "_id",
+    //       as: "dlMdOver"
+    //     }
+    //   },
+    //   {
+    //     $lookup: {
+    //       from: "marketingheads",
+    //       localField: "downline.overAllHeadBy.headBy",
+    //       foreignField: "_id",
+    //       as: "dlMhOver"
+    //     }
+    //   },
+    //   {
+    //     $addFields: {
+    //       "downline.overAllHeadBy": {
+    //         $map: {
+    //           input: "$downline.overAllHeadBy",
+    //           as: "o",
+    //           in: {
+    //             $mergeObjects: [
+    //               "$$o",
+    //               {
+    //                 headBy: {
+    //                   $cond: [
+    //                     { $eq: ["$$o.headByModel", "MarketDetail"] },
+    //                     {
+    //                       $arrayElemAt: [
+    //                         {
+    //                           $filter: {
+    //                             input: "$dlMdOver",
+    //                             as: "m",
+    //                             cond: { $eq: ["$$m._id", "$$o.headBy"] }
+    //                           }
+    //                         },
+    //                         0
+    //                       ]
+    //                     },
+    //                     {
+    //                       $arrayElemAt: [
+    //                         {
+    //                           $filter: {
+    //                             input: "$dlMhOver",
+    //                             as: "mh",
+    //                             cond: { $eq: ["$$mh._id", "$$o.headBy"] }
+    //                           }
+    //                         },
+    //                         0
+    //                       ]
+    //                     }
+    //                   ]
+    //                 }
+    //               }
+    //             ]
+    //           }
+    //         }
+    //       }
+    //     }
+    //   },
+
+    //   /* ---------------- GROUP BACK ---------------- */
+    //   {
+    //     $group: {
+    //       _id: "$_id",
+    //       doc: { $first: "$$ROOT" },
+    //       downline: { $push: "$downline" }
+    //     }
+    //   },
+
+    //   {
+    //     $addFields: {
+    //       "doc.downline": "$downline"
+    //     }
+    //   },
+
+    //   { $replaceRoot: { newRoot: "$doc" } },
+
+    //   /* ---------------- FINAL CLEAN ---------------- */
+    //   {
+    //     $project: {
+    //       uplineIds: 0,
+    //       depth: 0,
+    //       dlMdHead: 0,
+    //       dlMhHead: 0,
+    //       dlMdOver: 0,
+    //       dlMhOver: 0
+    //     }
+    //   }
+    // ]);
 
     if (data.length === 0) {
       return ReS(res, { message: `marketDetail not found for given id!.`, data: [] }, httpStatus.NOT_FOUND)
