@@ -81,6 +81,10 @@ const GeneralSchema = new Schema(
     modifiedOn: {
       type: String,
     },
+    push:{
+      type:Boolean,
+      default:true
+    }
   },
 
   { timestamps: true }

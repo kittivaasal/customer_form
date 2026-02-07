@@ -5,6 +5,10 @@ const PercentageSchema: Schema = new Schema(
     {
         name: { type: String, required: true },
         rate: { type: String, required: true },
+        push:{
+            type:Boolean,
+            default:true
+        }
     },
     {
         timestamps: true

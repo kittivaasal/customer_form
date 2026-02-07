@@ -52,6 +52,10 @@ const projectSchema = new mongoose.Schema({
   oldData:{
     type:Boolean,
     default:false
+  },
+  push:{
+    type:Boolean,
+    default:true
   }
 }, { timestamps: true });
 

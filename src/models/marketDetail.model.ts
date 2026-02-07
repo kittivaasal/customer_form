@@ -30,7 +30,11 @@ const MarketDetailSchema: Schema = new Schema(
                 },
                 level:Number
             }
-        ]
+        ],
+        push:{
+            type:Boolean,
+            default:true
+        }
     },
     {
         timestamps: true

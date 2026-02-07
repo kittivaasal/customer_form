@@ -50,5 +50,6 @@ export interface IBilling extends Document {
     product?: string;
     EMIDate?: string;
     SEEMIAmt?: string;
-    SEBalanceAmt?: string; 
+    SEBalanceAmt?: string;
+    push?: boolean;
 }
