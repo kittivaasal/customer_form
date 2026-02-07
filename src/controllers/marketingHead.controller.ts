@@ -36,7 +36,8 @@ export const createMarketingHead = async (req: Request, res: Response) => {
         }
     }
     checkPer = checkPer as IPercentage;
-    if(checkPer.name.toUpperCase() !== "DIAMOND DIRECTOR"){
+    console.log(checkPer)
+    if(checkPer.name.toUpperCase()?.trim() !== "DIAMOND DIRECTOR"){
         return ReE(res, { message: `Marking_head must be in DIAMOND DIRECTOR!.` }, httpStatus.BAD_REQUEST);
     }
     if (email) {
@@ -122,7 +123,7 @@ export const updateMarketingHead = async (req: CustomRequest, res: Response) => 
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
         if (!checkPer) return ReE(res, { message: "Percentage is not found for given id" }, httpStatus.NOT_FOUND)
         checkPer = checkPer as IPercentage;
-        if(checkPer.name.toUpperCase() !== "DIAMOND DIRECTOR"){
+        if(checkPer.name.toUpperCase()?.trim() !== "DIAMOND DIRECTOR"){
             return ReE(res, { message: `Marking_head must be in DIAMOND DIRECTOR!.` }, httpStatus.BAD_REQUEST);
         }   
     }
