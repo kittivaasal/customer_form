@@ -22,7 +22,7 @@ const MarketDetailSchema: Schema = new Schema(
         percentageId: {type: Schema.Types.ObjectId, ref: 'Percentage' },
         overAllHeadBy: [
             {
-                headBy: { type: Schema.Types.ObjectId, ref: 'MarketingHead'},
+                headBy: { type: Schema.Types.ObjectId, refPath: "overAllHeadBy.headByModel" },
                 headByModel: { 
                     type: String,
                     default: "MarketingHead",

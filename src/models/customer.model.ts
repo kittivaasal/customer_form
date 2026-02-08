@@ -52,6 +52,12 @@ const customerSchema = new mongoose.Schema({
   push:{
     type:Boolean,
     default:true
+  },
+  update:{
+    type:Boolean
+  },
+  batch:{
+    type:Number
   }
 }, { timestamps: true });
 
