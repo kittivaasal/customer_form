@@ -1342,28 +1342,28 @@ export const getByIdBilling = async (req: Request, res: Response) => {
 
   let checkDownLineforCed;
   let cedId = ""
-  if(isValidObjectId(getBilling.customer.cedId)){
-    cedId = getBilling.customer.cedId
-  }else if(isValidObjectId(getBilling.customer.cedId._id)){
-    cedId = getBilling.customer.cedId._id
-  }
-  [err, checkDownLineforCed] = await toAwait(
-    MarketDetail.findOne({ headBy : cedId })
-  )
-
-  if(err){
-    return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  }
-  console.log(checkDownLineforCed)
-  if(!checkDownLineforCed){
-    getBilling.customer.cedId.downLine = false
-    // console.log("downline not found", getBilling.customer.cedId)
+  if(getBilling.customer.cedId){
+    if(isValidObjectId(getBilling.customer.cedId)){
+      cedId = getBilling.customer.cedId
+    }else if(isValidObjectId(getBilling.customer.cedId._id)){
+      cedId = getBilling.customer.cedId._id
+    }
+    [err, checkDownLineforCed] = await toAwait(
+      MarketDetail.findOne({ headBy : cedId })
+    )
+    if(err){
+      return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+    if(!checkDownLineforCed){
+      getBilling.customer.cedId.downLine = false
+    }else{
+      getBilling.customer.cedId.downLine = true
+    }
   }else{
-    getBilling.customer.cedId.downLine = true
-    // console.log("downline not found", getBilling.customer.cedId)
+    if(getBilling.customer.ddId){
+      getBilling.customer.ddId.downLine = false
+    }
   }
-
-
 
   if (isValidObjectId(getBilling.customer)) {
     customerId = getBilling.customer
