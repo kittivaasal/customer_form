@@ -1,15 +1,14 @@
 // controllers/lifeSaving.controller.ts
 import { Request, Response } from "express";
-import LifeSaving from "../models/lifeSaving.model";
-import lifeSavingModel from "../models/lifeSaving.model";
-import { isEmail, isNull, isPhone, ReE, ReS, toAutoIncrCode, toAwait } from "../services/util.service";
 import httpStatus from "http-status";
-import { toLowerCaseObj } from "./common";
-import { Customer } from "../models/customer.model";
-import { Project } from "../models/project.model";
 import mongoose from "mongoose";
-import { IProject } from "../type/project";
 import { Counter } from "../models/counter.model";
+import { Customer } from "../models/customer.model";
+import lifeSavingModel from "../models/lifeSaving.model";
+import { Project } from "../models/project.model";
+import { isEmail, isNull, isPhone, ReE, ReS, toAutoIncrCode, toAwait } from "../services/util.service";
+import { IProject } from "../type/project";
+import { toLowerCaseObj } from "./common";
 
 export const createLifeSaving = async (req: Request, res: Response) => {
     let payload = toLowerCaseObj(req.body),err,body = req.body;
@@ -119,7 +118,7 @@ export const getAllLifeSaving = async (req: Request, res: Response) => {
 
     let err, getAll,query = req.query;
     let filter: any = {};
-    let { projectId, pageNo, limit } = query;
+    let { projectId, pageNo, limit, search } = query;
     if (projectId) {
         if(!mongoose.isValidObjectId(projectId)){
             return ReE(res, { message: `Invalid projectId!..` }, httpStatus.BAD_REQUEST);
@@ -133,11 +132,36 @@ export const getAllLifeSaving = async (req: Request, res: Response) => {
         filter.projectId = projectId;
     }
 
+    if(search){
+        const searchString = search as string;
+        const searchConditions: any[] = [
+            { nameOfCustomer: { $regex: searchString, $options: "i" } },
+            { mobileNo: { $regex: searchString, $options: "i" } },
+            { email: { $regex: searchString, $options: "i" } },
+            { schemeNo: { $regex: searchString, $options: "i" } },
+            { idNo: { $regex: searchString, $options: "i" } },
+            
+        ];
+        
+        if (mongoose.Types.ObjectId.isValid(searchString)) {
+            searchConditions.push({ _id: new mongoose.Types.ObjectId(searchString) });
+        }
+
+        if (filter.$or) {
+            filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
+            delete filter.$or;
+        } else {
+            filter.$or = searchConditions;
+        }
+    }
+
     let lifeSavingCount;
     [err, lifeSavingCount] = await toAwait(lifeSavingModel.countDocuments(filter));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
     lifeSavingCount = lifeSavingCount as number;    
+
+    let pagination:any = {};
 
     if(pageNo && limit){
         let page = parseInt(pageNo as string) || 1;
@@ -145,33 +169,30 @@ export const getAllLifeSaving = async (req: Request, res: Response) => {
         let skip = (page - 1) * lim;
         //get last page no 2 if page No 3 requested send error as last page no is 2
         let lastPageNo = Math.ceil(lifeSavingCount / lim); 
-
-        if (page > lastPageNo) {
+        
+        // Handle case where count is 0, lastPageNo will be 0. 
+        // If page is 1 and lastPageNo is 0, we shouldn't error, just return empty.
+        // But if page > 1 and page > lastPageNo, then error.
+        if (page > lastPageNo && lastPageNo > 0) {
             return ReE(res, { message: `Only ${lastPageNo} page available!.` }, httpStatus.BAD_REQUEST);
         }
         
         [err, getAll] = await toAwait(lifeSavingModel.find(filter).populate('projectId').skip(skip).limit(lim).sort({ createdAt: -1 }));
+
+        pagination = {
+            totalItems: lifeSavingCount,
+            currentPage: page,
+            totalPages: lastPageNo,
+            pageSize: lim,
+            hasNextPage: page < lastPageNo,
+            hasPrevPage: page > 1
+        };
+
     }else{
         [err, getAll] = await toAwait(lifeSavingModel.find(filter).populate('projectId').sort({ createdAt: -1 }));
     }
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-    let pagination:any = {};
-
-    if(pageNo && limit){
-        const page = parseInt(pageNo as string) || 1;
-        const pageSize = parseInt(limit as string) || 10;
-        const totalPages = Math.ceil(lifeSavingCount / pageSize);
-
-        pagination = {
-            totalItems: lifeSavingCount,
-            currentPage: page,
-            totalPages: totalPages,
-            pageSize: pageSize,
-            hasNextPage: page < totalPages,
-            hasPrevPage: page > 1
-        };
-    }
 
     ReS(res, { message: "LifeSaving fetched", data: getAll, pagination }, httpStatus.OK);
 

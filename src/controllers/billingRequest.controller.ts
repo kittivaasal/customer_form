@@ -7,6 +7,7 @@ import { BillingRequest } from "../models/billingRequest.model";
 import { Customer } from "../models/customer.model";
 import { Emi } from "../models/emi.model";
 import { General } from "../models/general.model";
+import { User } from "../models/user.model";
 import { isValidDate, ReE, ReS, toAwait } from "../services/util.service";
 import { IBilling } from "../type/billing";
 import { IBillingRequest } from "../type/billingRequest";
@@ -372,7 +373,7 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
   const query = req.query;
   const option: any = {};
 
-  let { status, limit, page, date } = query;
+  let { status, limit, page, date, search } = query;
 
   if (status) {
     status = String(status).toLowerCase().trim();
@@ -388,13 +389,76 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
     option.status = status;
   }
 
-  if(date){
+  if (date) {
     if (!isValidDate(date as string)) {
       return ReE(res, { message: "Invalid date format valid format is (YYYY-MM-DD)!" }, httpStatus.BAD_REQUEST);
     }
     const start = moment(date as string).startOf('day').toDate();
     const end = moment(date as string).endOf('day').toDate();
     option.createdAt = { $gte: start, $lte: end };
+  }
+
+  // Search Logic
+  if (search) {
+    const searchString = search as string;
+    const searchConditions: any[] = [];
+
+    // 1. Search in BillingRequest fields
+    searchConditions.push(
+      { status: { $regex: searchString, $options: "i" } },
+      // { message: { $regex: searchString, $options: "i" } } // Optional: search message
+    );
+
+    if (mongoose.Types.ObjectId.isValid(searchString)) {
+      searchConditions.push({ _id: new mongoose.Types.ObjectId(searchString) });
+    }
+
+    // 2. Search in Customer fields (find matching customers first)
+    // We assume BillingRequest has a customerId field as per model, or we can look up via aggregation if needed.
+    // Based on model: customerId: { type: Schema.Types.ObjectId, ref: "Customer" }
+    
+    let customers;
+    [err, customers] = await toAwait(Customer.find({
+      $or: [
+        { name: { $regex: searchString, $options: "i" } },
+        { phone: { $regex: searchString, $options: "i" } },
+        { email: { $regex: searchString, $options: "i" } },
+        { id: { $regex: searchString, $options: "i" } } // Customer custom ID
+      ]
+    }).select('_id'));
+
+    if (customers && (customers as any[]).length > 0) {
+       const customerIds = (customers as any[]).map(c => c._id);
+       searchConditions.push({ customerId: { $in: customerIds } });
+       
+       // Also check 'emi' -> 'customer' if customerId is not reliably populated on BillingRequest (fallback)
+       // But 'find' with 'in' on nested arrays via another collection is hard in a simple query.
+       // We'll rely on 'customerId' being present on BillingRequest as per schema.
+    }
+
+    // 3. Search in User fields (find matching users)
+    let users;
+    [err, users] = await toAwait(User.find({
+      $or: [
+        { name: { $regex: searchString, $options: "i" } },
+        { email: { $regex: searchString, $options: "i" } },
+        { phone: { $regex: searchString, $options: "i" } }
+      ]
+    }).select('_id'));
+
+    if (users && (users as any[]).length > 0) {
+       const userIds = (users as any[]).map(u => u._id);
+       searchConditions.push({ userId: { $in: userIds } });
+    }
+
+    if(searchConditions.length > 0) {
+        if(option.$or) {
+            option.$and = [{ $or: option.$or }, { $or: searchConditions }];
+            delete option.$or;
+        } else {
+            option.$or = searchConditions;
+        }
+    }
   }
 
   let pageNo = Number(page);
@@ -411,27 +475,33 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
   totalCount = totalCount as number;
-
-  [err, getBillingRequest] = await toAwait(
-    BillingRequest.find(option)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNo)
-      .populate({
+  
+  // Handle pagination only if page and limit are provided (backward compatibility logic mostly implies 
+  // if not provided, usually return all, but here code had defaults or logic. 
+  // The original code calculated skip/limit but didn't enforce if page/limit undefined? 
+  // Actually page/limit were 'undefined' -> Number(undefined) is NaN.
+  // We should handle that.
+  
+  let queryObj = BillingRequest.find(option).sort({ createdAt: -1 }).populate({
         path: "emi",
         populate: [
           { path: "general" },
           { path: "customer" }
         ]
-      }).populate("userId").populate("approvedBy")
-  );
+      }).populate("userId").populate("approvedBy").populate("customerId"); // Added populate customerId
+
+  if (page && limit) {
+      queryObj = queryObj.skip(skip).limit(limitNo);
+  }
+
+  [err, getBillingRequest] = await toAwait(queryObj);
 
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-  if (!getBillingRequest) {
-    return ReE(res, { message: "billing request not found!" }, httpStatus.NOT_FOUND);
-  }
-
+  // if (!getBillingRequest) {
+  //   return ReE(res, { message: "billing request not found!" }, httpStatus.NOT_FOUND);
+  // }
+  
   getBillingRequest = getBillingRequest as IBillingRequest[];
 
   return ReS(
@@ -439,12 +509,16 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
     {
       message: "billing request found",
       data: getBillingRequest,
-      pagination: {
-        page,
-        limit: limitNo,
-        totalRecords: totalCount,
-        totalPages: Math.ceil(totalCount / limitNo)
-      }
+      ...(page && limit && {
+        pagination: {
+            page: pageNo,
+            limit: limitNo,
+            totalRecords: totalCount,
+            totalPages: Math.ceil(totalCount / limitNo),
+            hasNextPage: pageNo < Math.ceil(totalCount / limitNo),
+            hasPreviousPage: pageNo > 1
+        }
+      })
     },
     httpStatus.OK
   );

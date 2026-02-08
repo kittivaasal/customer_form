@@ -1,14 +1,13 @@
 import { Request, Response } from "express";
-import { isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
 import httpStatus from "http-status";
-import { Percentage } from "../models/percentage.model";
-import { IPercentage } from "../type/percentage";
 import mongoose from "mongoose";
-import { MarketingHead } from "../models/marketingHead.model";
 import EditRequest from "../models/editRequest.model";
+import { Percentage } from "../models/percentage.model";
+import { isNull, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
-import { IUser } from "../type/user";
 import { IEditRequest } from "../type/editRequest";
+import { IPercentage } from "../type/percentage";
+import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
 export const createPercentage = async (req: Request, res: Response) => {
     let body = req.body, err;
@@ -163,15 +162,80 @@ export const getByIdPercentage = async (req: Request, res: Response) => {
 
 export const getAllPercentage = async (req: Request, res: Response) => {
     let err, getPercentage;
-    [err, getPercentage] = await toAwait(Percentage.find());
+
+    const page = req.query.page ? parseInt(req.query.page as string) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
+    const search = (req.query.search as string) || "";
+
+    const searchConditions: any[] = [];
+    if (search) {
+        searchConditions.push(
+            { name: { $regex: search, $options: "i" } },
+            { rate: { $regex: search, $options: "i" } },
+            { id: { $regex: search, $options: "i" } }
+        );
+
+        if (mongoose.Types.ObjectId.isValid(search)) {
+            searchConditions.push({ _id: new mongoose.Types.ObjectId(search) });
+        }
+    }
+
+    let filter: any = {};
+    if (searchConditions.length > 0) {
+        filter.$or = searchConditions;
+    }
+
+    let query = Percentage.find(filter).sort({ createdAt: -1 });
+
+    if (page && limit) {
+        const skip = (page - 1) * limit;
+        query = query.skip(skip).limit(limit);
+    }
+
+    let total;
+    let totalPages = 1;
+
+    if (page && limit) {
+        let count;
+        [err, count] = await toAwait(Percentage.countDocuments(filter));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+        total = count as number;
+        totalPages = Math.ceil(total / limit);
+
+        if (page > totalPages) {
+            return ReE(
+                res,
+                { message: `Page no ${page} not available. The last page no is ${totalPages}.` },
+                httpStatus.NOT_FOUND
+            );
+        }
+    }
+
+    [err, getPercentage] = await toAwait(query);
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getPercentage = getPercentage as IPercentage[]
-    if (getPercentage.length === 0) {
-        return ReE(res, { message: `percentage not found!.` }, httpStatus.NOT_FOUND)
-    }
+    
+    // Note: Removed the 404 check for empty array to be consistent with other endpoints
+    // if (getPercentage.length === 0) {
+    //     return ReE(res, { message: `percentage not found!.` }, httpStatus.NOT_FOUND)
+    // }
 
-    ReS(res, { message: "percentage found", data: getPercentage }, httpStatus.OK)
+    return ReS(res, {
+        message: "percentage found",
+        data: getPercentage,
+        ...(page && limit && {
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPreviousPage: page > 1
+            }
+        })
+    }, httpStatus.OK)
 }
 
 export const deletePercentage = async (req: Request, res: Response) => {

@@ -1,13 +1,13 @@
-import { Request, Response } from "express";
-import { isNull, isPhone, isValidUUID, IsValidUUIDV4, ReE, ReS, toAwait } from "../services/util.service";
-import httpStatus from "http-status";
-import { User } from "../models/user.model";
-import { IUser } from "../type/user";
 import bcrypt from "bcryptjs";
+import { Request, Response } from "express";
+import httpStatus from "http-status";
+import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
-import jwt from "jsonwebtoken"
 import { Role } from "../models/role.model";
+import { User } from "../models/user.model";
+import { isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
+import { IUser } from "../type/user";
 
 export const createUserByAdmin = async (req: Request, res: Response) => {
     let body = req.body, err;
@@ -232,15 +232,80 @@ export const getAllUser = async (req: Request, res: Response) => {
             option.role = role
         }
     }
-    [err, getUser] = await toAwait(User.find(option).populate("role").select("-password").select("-isAdmin"));
+
+    const page = req.query.page ? parseInt(req.query.page as string) : null;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
+    const search = (req.query.search as string) || "";
+
+    const searchConditions: any[] = [];
+    if (search) {
+        searchConditions.push(
+            { name: { $regex: search, $options: "i" } },
+            { email: { $regex: search, $options: "i" } },
+            { phone: { $regex: search, $options: "i" } },
+            { id: { $regex: search, $options: "i" } }
+        );
+
+        if (mongoose.Types.ObjectId.isValid(search)) {
+            searchConditions.push({ _id: new mongoose.Types.ObjectId(search) });
+        }
+    }
+
+    if (searchConditions.length > 0) {
+        option.$or = searchConditions;
+    }
+
+    let queryObj = User.find(option).populate("role").select("-password").select("-isAdmin").sort({ createdAt: -1 });
+
+    if (page && limit) {
+        const skip = (page - 1) * limit;
+        queryObj = queryObj.skip(skip).limit(limit);
+    }
+
+    let total;
+    let totalPages = 1;
+
+    if (page && limit) {
+        let count;
+        [err, count] = await toAwait(User.countDocuments(option));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+        total = count as number;
+        totalPages = Math.ceil(total / limit);
+
+        if (page > totalPages) {
+            return ReE(
+                res,
+                { message: `Page no ${page} not available. The last page no is ${totalPages}.` },
+                httpStatus.NOT_FOUND
+            );
+        }
+    }
+
+    [err, getUser] = await toAwait(queryObj);
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getUser = getUser as IUser[]
-    if (getUser.length === 0) {
-        return ReE(res, { message: `user not found!.` }, httpStatus.NOT_FOUND)
-    }
+    
+    // Note: Removed the 404 check for empty array to be consistent with other endpoints
+    // if (getUser.length === 0) {
+    //     return ReE(res, { message: `user not found!.` }, httpStatus.NOT_FOUND)
+    // }
 
-    ReS(res, { message: "user found", data: getUser }, httpStatus.OK)
+    return ReS(res, {
+        message: "user found",
+        data: getUser,
+        ...(page && limit && {
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPreviousPage: page > 1
+            }
+        })
+    }, httpStatus.OK)
 }
 
 
