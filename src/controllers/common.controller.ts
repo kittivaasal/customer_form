@@ -230,21 +230,21 @@ export const createCommonData = async (req: Request, res: Response) => {
 
     checkProject = checkProject as IProject;
 
-    if (checkProject.emiAmount != general.emiAmount) {
-      return ReE(
-        res,
-        { message: `emi amount not match with project emi amount in general project emi amount is ${checkProject.emiAmount}` },
-        httpStatus.BAD_REQUEST
-      )
-    }
+    // if (checkProject.emiAmount != general.emiAmount) {
+    //   return ReE(
+    //     res,
+    //     { message: `emi amount not match with project emi amount in general project emi amount is ${checkProject.emiAmount}` },
+    //     httpStatus.BAD_REQUEST
+    //   )
+    // }
 
-    if (Number(checkProject.duration) !== Number(general.noOfInstallments)) {
-      return ReE(
-        res,
-        { message: `no of installments not match with project duration in general, project duration is ${checkProject.duration}` },
-        httpStatus.BAD_REQUEST
-      )
-    }
+    // if (Number(checkProject.duration) !== Number(general.noOfInstallments)) {
+    //   return ReE(
+    //     res,
+    //     { message: `no of installments not match with project duration in general, project duration is ${checkProject.duration}` },
+    //     httpStatus.BAD_REQUEST
+    //   )
+    // }
 
     if (checkCustomer.cedId) {
       let checkMarketDetail;
@@ -521,21 +521,38 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
 
     getProject = getProject as IProject;
 
-    if (general.noOfInstallments && getProject.duration != general.noOfInstallments) {
-      return ReE(
-        res,
-        { message: "You can't update the no_of_installments directly. When you update the project duration, the no_of_installments is updated automatically" },
-        httpStatus.BAD_REQUEST
-      )
+    let checkBillForCus;
+    [err, checkBillForCus] = await toAwait(Billing.findOne({ customer: customerId }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    
+    if(checkBillForCus){
+      if(general.emiAmount){
+        return ReE(res, {message: "You can't update the emi_amount beacause many billing already created"}, httpStatus.BAD_REQUEST)
+      }
     }
 
-    if (general.emiAmount && getProject.emiAmount != general.emiAmount) {
-      return ReE(
-        res,
-        { message: "You can't update the emi_amount directly. When you update the project emi_amount, the emi_amount is updated automatically" },
-        httpStatus.BAD_REQUEST
-      )
+    if(general.noOfInstallments){
+      let getAllEmi;
+      [err, getAllEmi] = await toAwait(Emi.find({customer: customerId}));
+      if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      
     }
+
+    // if (general.noOfInstallments && getProject.duration != general.noOfInstallments) {
+    //   return ReE(
+    //     res,
+    //     { message: "You can't update the no_of_installments directly. When you update the project duration, the no_of_installments is updated automatically" },
+    //     httpStatus.BAD_REQUEST
+    //   )
+    // }
+
+    // if (general.emiAmount && getProject.emiAmount != general.emiAmount) {
+    //   return ReE(
+    //     res,
+    //     { message: "You can't update the emi_amount directly. When you update the project emi_amount, the emi_amount is updated automatically" },
+    //     httpStatus.BAD_REQUEST
+    //   )
+    // }
   }
 
   if (flat) {

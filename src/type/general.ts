@@ -18,6 +18,7 @@ export interface IGeneral {
     editDeleteReason?: string;
     createdAt?: Date;
     updatedAt?: Date;
+    update: boolean;
 
     oldData?: boolean;
     sSalesNo?: string;	
