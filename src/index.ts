@@ -1,45 +1,32 @@
-import express, { Request, Response } from "express";
-import customerRoutes from "./routes/customer.routes";
-import projectRoutes from "./routes/project.routes";
-import modRoutes from "./routes/mod.routes";
-import lfcRoutes from "./routes/lfc.routes";
-import marketHead from './routes/marketingHead.routes'
-import marketDetail from './routes/marketDetail.routes'
-import mod from './routes/mod.routes'
-import nvt from './routes/nvt.routes'
-import role from './routes/role.routes'
-import menu from './routes/menu.routes'
-import roleMenu from './routes/roleMenu.routes'
-import percentage from './routes/percentage.routes'
-import common from './routes/common.routes'
-import user from './routes/user.routes'
-import logRoutes from './routes/log.routes'
-import mongoose from "mongoose";
-import dotenv from "dotenv";
 import cors from "cors";
+import dotenv from "dotenv";
+import express from "express";
+import mongoose from "mongoose";
+import cron from "node-cron";
 import path from "path";
-import plotBookingFormRoutes from "./routes/plotBookingForm.routes";
-import lifeSacingRoutes from "./routes/lifeSaving.routes";
-import billingRequestRoutes from "./routes/billingRequest.routes"
-import editRequestRoutes from "./routes/editRequest.routes"
-import { IEmi } from "./type/emi";
 import { Emi } from "./models/emi.model";
 import { General } from "./models/general.model";
-import cron from "node-cron";
+import billingRequestRoutes from "./routes/billingRequest.routes";
+import commissionRoute from './routes/commission.routes';
+import common from './routes/common.routes';
+import customerRoutes from "./routes/customer.routes";
+import editRequestRoutes from "./routes/editRequest.routes";
+import lfcRoutes from "./routes/lfc.routes";
+import lifeSacingRoutes from "./routes/lifeSaving.routes";
+import logRoutes from './routes/log.routes';
+import marketDetail from './routes/marketDetail.routes';
+import marketHead from './routes/marketingHead.routes';
+import menu from './routes/menu.routes';
+import { default as mod, default as modRoutes } from "./routes/mod.routes";
+import nvt from './routes/nvt.routes';
+import percentage from './routes/percentage.routes';
+import plotBookingFormRoutes from "./routes/plotBookingForm.routes";
+import projectRoutes from "./routes/project.routes";
+import role from './routes/role.routes';
+import roleMenu from './routes/roleMenu.routes';
+import user from './routes/user.routes';
+import { IEmi } from "./type/emi";
 import { initializeFirebase } from './util/firebaseConfig';
-import { Counter } from "./models/counter.model";
-import { readExcel, transformRow } from "./controllers/common";
-import { Customer } from "./models/customer.model";
-import { Billing } from "./models/billing.model";
-import { MarketingHead } from "./models/marketingHead.model";
-import { MarketDetail } from "./models/marketDetail.model";
-import { Project } from "./models/project.model";
-import fs from "fs";
-import Excel from "exceljs";
-import { excelDateToJSDate } from "./services/util.service";
-import { IBilling } from "./type/billing";
-import { IMarketDetail } from "./type/marketDetail";
-import e from "express";
 
 const app = express();
 app.use(express.json());
@@ -77,6 +64,7 @@ app.use("/api/alliance/customer/form", lifeSacingRoutes);
 app.use("/api/billing/request", billingRequestRoutes);
 app.use("/api/edit/request", editRequestRoutes);
 app.use("/api/logs", logRoutes)
+app.use("/api/commission", commissionRoute)
 
 // app.get("/", async (req: Request, res: Response) => {
 //   try {
