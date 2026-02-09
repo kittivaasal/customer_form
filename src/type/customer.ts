@@ -49,6 +49,7 @@ export interface ICustomer {
   oldData?: boolean
   marketerPercent?: string
   marketerId?: string
+  balanceAmount?: number
 }
 
 

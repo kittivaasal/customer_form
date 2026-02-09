@@ -58,6 +58,11 @@ const customerSchema = new mongoose.Schema({
   },
   batch:{
     type:Number
+  },
+
+  balanceAmount: {
+    type: Number,
+    default: 0
   }
 }, { timestamps: true });
 

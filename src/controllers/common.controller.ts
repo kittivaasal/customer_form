@@ -525,6 +525,12 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     [err, checkBillForCus] = await toAwait(Billing.findOne({ customer: customerId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
+    if(general.emiAmount || general.noOfInstallments){
+      if(!user.isAdmin){
+        return ReE(res, { message: "You don't have permission to update the emi_amount or noOfInstallments " }, httpStatus.BAD_REQUEST)
+      }
+    }
+
     if (checkBillForCus) {
       if (general.emiAmount) {
         return ReE(res, { message: "You can't update the emi_amount beacause many billing already created" }, httpStatus.BAD_REQUEST)
@@ -696,7 +702,6 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
 
               let nextDueDate = new Date("2028-02-29");
               nextDueDate.setMonth(nextDueDate.getMonth() + i);
-              // console.log(nextDueDate, getEmiDate(i + i, lastDueDate), lastDueDate);  
               newEmis.push({
                 customer: getGeneral.customer,
                 general: getGeneral._id,
@@ -1668,7 +1673,8 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       paymentDate,
       balanceAmount,
       billFor,
-      referenceId
+      referenceId,
+      housing = false
     } = body;
 
     amount = Number(amount);

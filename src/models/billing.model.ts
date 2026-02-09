@@ -181,7 +181,10 @@ const BillingSchema: Schema = new Schema<IBilling>(
     push:{
       type:Boolean,
       default:true
-    }
+    },
+    amountPaidForBill:{
+      type:Number
+    },
   },
   { timestamps: true }
 );
