@@ -2710,7 +2710,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
 
   if (status) {
     status = status as string;
-    let validValue = ["paid", "unpaid", "blocked"];
+    let validValue = ["paid", "unpaid", "blocked", "all"];
     status = status.toLowerCase().trim();
     if (!validValue.includes(status)) {
       return ReE(res, { message: `invalid status value in query valid value are (${validValue})` }, httpStatus.BAD_REQUEST)
@@ -2722,6 +2722,8 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
     } else if (status === "blocked") {
       option.status = "blocked"
       emiOption.status = "blocked"
+    } else if (status === "all") {
+
     }
   }
 
@@ -2927,7 +2929,7 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
 
   let getEmi;
   console.log(option)
-  if (status === "unpaid") {
+  if (status === "unpaid" || status === "all") {
     [err, getEmi] = await toAwait(
       Emi.find(emiOption)
         .populate({
