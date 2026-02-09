@@ -80,10 +80,15 @@ export function getEmiSchedule(numberOfEmis: number) {
   return emis;
 }
 
-export function getEmiDate(index: number): Date {
-    const startDate = new Date()
-  const baseDate = new Date(startDate);
-
+export function getEmiDate(index: number, startDateFrom?: Date): Date {
+  let startDate;
+  if(startDateFrom){
+    startDate = new Date(startDateFrom)
+  }else{
+    startDate = new Date()
+  }
+  let baseDate = new Date(startDate);
+  
   const startDay = baseDate.getDate();
   let year = baseDate.getFullYear();
   let month = baseDate.getMonth() + index;
@@ -91,7 +96,7 @@ export function getEmiDate(index: number): Date {
   // normalize year & month
   year += Math.floor(month / 12);
   month = month % 12;
-
+  
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const emiDay = Math.min(startDay, daysInMonth);
 
