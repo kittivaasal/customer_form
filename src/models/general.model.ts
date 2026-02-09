@@ -28,7 +28,7 @@ const GeneralSchema = new Schema(
     },
     percentage: {
       type: Number,
-      required: true,
+      // required: true,
       min: 0,
       max: 100,
     },

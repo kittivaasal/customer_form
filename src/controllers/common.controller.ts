@@ -246,49 +246,49 @@ export const createCommonData = async (req: Request, res: Response) => {
     //   )
     // }
 
-    if (checkCustomer.cedId) {
-      let checkMarketDetail;
-      [err, checkMarketDetail] = await toAwait(MarketDetail.findOne({ _id: checkCustomer.cedId }));
+    // if (checkCustomer.cedId) {
+    //   let checkMarketDetail;
+    //   [err, checkMarketDetail] = await toAwait(MarketDetail.findOne({ _id: checkCustomer.cedId }));
 
-      if (err) {
-        return ReE(
-          res,
-          err,
-          httpStatus.INTERNAL_SERVER_ERROR
-        );
-      }
-      if (!checkMarketDetail) {
-        return ReE(
-          res,
-          { message: "MarketDetail not found inside map with this customer" },
-          httpStatus.BAD_REQUEST
-        );
-      }
-      general.marketerByModel = "MarketDetail";
-      general.marketer = checkCustomer.cedId;
-    } else {
-      let checkMarketingHead;
-      [err, checkMarketingHead] = await toAwait(MarketingHead.findOne({ _id: checkCustomer.ddId }));
+    //   if (err) {
+    //     return ReE(
+    //       res,
+    //       err,
+    //       httpStatus.INTERNAL_SERVER_ERROR
+    //     );
+    //   }
+    //   if (!checkMarketDetail) {
+    //     return ReE(
+    //       res,
+    //       { message: "MarketDetail not found inside map with this customer" },
+    //       httpStatus.BAD_REQUEST
+    //     );
+    //   }
+    //   general.marketerByModel = "MarketDetail";
+    //   general.marketer = checkCustomer.cedId;
+    // } else {
+    //   let checkMarketingHead;
+    //   [err, checkMarketingHead] = await toAwait(MarketingHead.findOne({ _id: checkCustomer.ddId }));
 
-      if (err) {
-        return ReE(
-          res,
-          err,
-          httpStatus.INTERNAL_SERVER_ERROR
-        );
-      }
+    //   if (err) {
+    //     return ReE(
+    //       res,
+    //       err,
+    //       httpStatus.INTERNAL_SERVER_ERROR
+    //     );
+    //   }
 
-      if (!checkMarketingHead) {
-        return ReE(
-          res,
-          { message: "MarketingHead not found inside map with this customer" },
-          httpStatus.BAD_REQUEST
-        );
-      }
+    //   if (!checkMarketingHead) {
+    //     return ReE(
+    //       res,
+    //       { message: "MarketingHead not found inside map with this customer" },
+    //       httpStatus.BAD_REQUEST
+    //     );
+    //   }
 
-      general.marketerByModel = "MarketingHead";
-      general.marketer = checkCustomer.ddId;
-    }
+    //   general.marketerByModel = "MarketingHead";
+    //   general.marketer = checkCustomer.ddId;
+    // }
 
   }
 
@@ -524,18 +524,31 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     let checkBillForCus;
     [err, checkBillForCus] = await toAwait(Billing.findOne({ customer: customerId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    
-    if(checkBillForCus){
-      if(general.emiAmount){
-        return ReE(res, {message: "You can't update the emi_amount beacause many billing already created"}, httpStatus.BAD_REQUEST)
+
+    if (checkBillForCus) {
+      if (general.emiAmount) {
+        return ReE(res, { message: "You can't update the emi_amount beacause many billing already created" }, httpStatus.BAD_REQUEST)
       }
     }
 
-    if(general.noOfInstallments){
-      let getAllEmi;
-      [err, getAllEmi] = await toAwait(Emi.find({customer: customerId}));
-      if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      
+    if (general.noOfInstallments) {
+      if (checkAlreadyExist.noOfInstallments == general.noOfInstallments) {
+        delete general.noOfInstallments
+      }
+      let getAllEmiUnPaid;
+      [err, getAllEmiUnPaid] = await toAwait(Emi.find({ customer: customerId, paidDate: null }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      getAllEmiUnPaid = getAllEmiUnPaid as IEmi[];
+
+      let getPaidEmi;
+      [err, getPaidEmi] = await toAwait(Emi.find({ customer: customerId, paidDate: { $ne: null } }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      getPaidEmi = getPaidEmi as IEmi[];
+
+      if (getPaidEmi.length > general.noOfInstallments) {
+        return ReE(res, { message: `Cannot reduce installments. Customer already paid ${getPaidEmi.length} EMIs` }, httpStatus.BAD_REQUEST)
+      }
+
     }
 
     // if (general.noOfInstallments && getProject.duration != general.noOfInstallments) {
@@ -628,6 +641,88 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
   }
 
   if (general) {
+    let getGeneral;
+    [err, getGeneral] = await toAwait(
+      General.findOne({ _id: general._id })
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getGeneral) return ReE(res, { message: "General not found" }, httpStatus.NOT_FOUND);
+
+    getGeneral = getGeneral as IGeneral;
+    if (general.noOfInstallments) {
+      const oldInstallments = getGeneral.noOfInstallments;
+      const newInstallments = general.noOfInstallments;
+      if(oldInstallments){
+        if (oldInstallments !== newInstallments) {
+          if (oldInstallments > newInstallments) {
+            const deleteCount = oldInstallments - newInstallments;
+
+            let unpaidEmis;
+            [err, unpaidEmis] = await toAwait(
+              Emi.find({
+                customer: getGeneral.customer,
+                paidDate: null
+              }).sort({ emiNo: -1 }) // ✅ using emiNo
+            );
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            unpaidEmis = unpaidEmis as IEmi[];
+            const emisToDelete = unpaidEmis.slice(0, deleteCount);
+            const emiIds = emisToDelete.map((e: any) => e._id);
+
+            if (emiIds.length > 0) {
+              await Emi.deleteMany({ _id: { $in: emiIds } });
+            }
+          }
+          
+          if (oldInstallments < newInstallments) {
+
+            const addCount = newInstallments - oldInstallments;
+
+            let lastEmi;
+            [err, lastEmi] = await toAwait(
+              Emi.findOne({ customer: getGeneral.customer })
+                .sort({ emiNo: -1 })
+            );
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+            lastEmi = lastEmi as IEmi;
+
+            let lastEmiNo = lastEmi?.emiNo || 0;
+            let lastDueDate = lastEmi?.date || new Date();
+
+            const newEmis = [];
+
+            for (let i = 1; i <= addCount; i++) {
+
+              let nextDueDate = new Date("2028-02-29");
+              nextDueDate.setMonth(nextDueDate.getMonth() + i);
+              // console.log(nextDueDate, getEmiDate(i + i, lastDueDate), lastDueDate);  
+              newEmis.push({
+                customer: getGeneral.customer,
+                general: getGeneral._id,
+                emiNo: lastEmiNo + i,
+                emiAmt: getGeneral.emiAmount,
+                date: getEmiDate(i, new Date(lastDueDate)),
+                paidDate: null
+              });
+
+            }
+            await Emi.insertMany(newEmis);
+          }
+
+        }
+      }
+    }
+    if(general.emiAmount){
+      if(getGeneral.emiAmount !== general.emiAmount){
+        let updateAllEmis;
+        [err, updateAllEmis] =await toAwait(Emi.updateMany({ general: getGeneral._id }, { emiAmt: general.emiAmount }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if(!updateAllEmis){
+          errors.push(`error in while updating emis: ${err.message}`);
+        }
+      }
+    }
     let updateGeneral;
     [err, updateGeneral] = await toAwait(
       General.updateOne({ _id: general._id }, general)
@@ -1359,25 +1454,25 @@ export const getByIdBilling = async (req: Request, res: Response) => {
 
   let checkDownLineforCed;
   let cedId = ""
-  if(getBilling.customer.cedId){
-    if(isValidObjectId(getBilling.customer.cedId)){
+  if (getBilling.customer.cedId) {
+    if (isValidObjectId(getBilling.customer.cedId)) {
       cedId = getBilling.customer.cedId
-    }else if(isValidObjectId(getBilling.customer.cedId._id)){
+    } else if (isValidObjectId(getBilling.customer.cedId._id)) {
       cedId = getBilling.customer.cedId._id
     }
     [err, checkDownLineforCed] = await toAwait(
-      MarketDetail.findOne({ headBy : cedId })
+      MarketDetail.findOne({ headBy: cedId })
     )
-    if(err){
+    if (err) {
       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     }
-    if(!checkDownLineforCed){
+    if (!checkDownLineforCed) {
       getBilling.customer.cedId.downLine = false
-    }else{
+    } else {
       getBilling.customer.cedId.downLine = true
     }
-  }else{
-    if(getBilling.customer.ddId){
+  } else {
+    if (getBilling.customer.ddId) {
       getBilling.customer.ddId.downLine = false
     }
   }

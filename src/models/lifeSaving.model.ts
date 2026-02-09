@@ -36,8 +36,8 @@ const LifeSavingSchema: Schema = new Schema(
     introducerName: { type: String, trim: true },
     introducerMobileNo: { type: String, trim: true },
 
-    cedName: { type: String, trim: true },
-    cedMobile: { type: String, trim: true },
+    cedId: {type: mongoose.Schema.Types.ObjectId,ref: "MarketDetail"},
+    ddId: {type: mongoose.Schema.Types.ObjectId,ref: "MarketingHead"},
 
     ddName: { type: String, trim: true },
     ddMobile: { type: String, trim: true },
@@ -45,7 +45,7 @@ const LifeSavingSchema: Schema = new Schema(
     paymentMode: {
       type: String,
       enum: ["cash", "card", "upi"],
-      required: true,
+      // required: true,
     },
 
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
