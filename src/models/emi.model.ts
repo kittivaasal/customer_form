@@ -24,6 +24,10 @@ const EmiSchema = new Schema({
     sSalesNo: { type: String },
     createdDate: { type: Date },
     modifyDate: { type: Date },
+    push:{
+      type:Boolean,
+      default:true
+    }
 },{ timestamps: true });
 
 EmiSchema.index({ customer: 1, general: 1, emiNo: 1 });

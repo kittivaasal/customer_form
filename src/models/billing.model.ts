@@ -177,7 +177,11 @@ const BillingSchema: Schema = new Schema<IBilling>(
     },
     SEBalanceAmt: {
       type: String,
-    }, 
+    },
+    push:{
+      type:Boolean,
+      default:true
+    }
   },
   { timestamps: true }
 );

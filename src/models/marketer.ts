@@ -1,19 +1,25 @@
 import { model, Schema } from "mongoose";
 import { Types } from "mongoose";
+import { Percentage } from "./percentage.model";
 
 const MarketerSchema = new Schema(
   {
     customer: { type: Types.ObjectId, ref: "Customer"},
-    emiNo: { type: Number},
-    paidDate: { type: Date },
-    paidAmt: { type: Number },
-    marketer: { type: String},
-    commPercentage: { type: Number },
-    commAmount: { type: Number },
-    emiId: { type: Types.ObjectId, ref: "Emi" },
-    generalId: { type: Types.ObjectId, ref: "General" },
-    marketerHeadId: { type: Types.ObjectId, ref: "MarketingHead" },
-    percentageId: { type: Types.ObjectId, ref: "Percentage" },
+    emi: { type: Types.ObjectId, ref: "EMI" },
+    bill: { type: Types.ObjectId, ref: "Billing" },
+    marketer:[
+      {
+        marketerId: { type: Types.ObjectId, refPath : "marketer.marketerModel" },
+        marketerModel:{
+          type: String,
+          default: "MarketDetail",
+          enum: [ "MarketDetail", "MarketingHead" ]
+        },
+        Percentage: { type: String },
+        emiAmount: { type: String },
+        commAmount: { type: String },
+      }
+    ],
   },
   { timestamps: true } // adds createdAt and updatedAt
 );

@@ -48,8 +48,17 @@ const customerSchema = new mongoose.Schema({
   oldData: {type:Boolean, default:false},
   marketerPercent: String,
   marketerId: String,
-
-  createdBy: String
+  createdBy: String,
+  push:{
+    type:Boolean,
+    default:true
+  },
+  update:{
+    type:Boolean
+  },
+  batch:{
+    type:Number
+  }
 }, { timestamps: true });
 
 export const Customer = mongoose.model("Customer", customerSchema);

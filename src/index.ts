@@ -38,6 +38,8 @@ import fs from "fs";
 import Excel from "exceljs";
 import { excelDateToJSDate } from "./services/util.service";
 import { IBilling } from "./type/billing";
+import { IMarketDetail } from "./type/marketDetail";
+import e from "express";
 
 const app = express();
 app.use(express.json());
@@ -78,25 +80,64 @@ app.use("/api/logs", logRoutes)
 
 // app.get("/", async (req: Request, res: Response) => {
 //   try {
-//     // 1️⃣ Convert string dates to real Date objects
+    // 1️⃣ Convert string dates to real Date objects
 
-//     let up = await Billing.updateMany(
-//       { emi: { $type: "string" } },
-//       [
-//         {
-//           $set: {
-//             emi: { $toObjectId: "$emi" },
-//             general: { $toObjectId: "$general" },
-//             introducer: { $toObjectId: "$introducer" },
-//           }
-//         }
-//       ]
-//     )
+    // let up = await MarketingHead.updateMany(
+    //   [
+    //     {
+    //       $set: {
+    //         headBy: { $toObjectId: "$headBy" },
+    //       }
+    //     }
+    //   ]
+    // )
 
-//     // let up = await Emi.updateMany(
-//     //   {emiAmt:null},
-//     //   { $rename: { "emiAmount": "emiAmt" } }
-//     // );
+  //   const up = await MarketDetail.updateMany(
+  // { "overAllHeadBy.headBy": { $type: "string" } },
+  // [
+  //   {
+  //     $set: {
+  //       headBy: { $toObjectId: "$headBy" },
+  //       overAllHeadBy: {
+  //         $map: {
+  //           input: "$overAllHeadBy",
+  //           as: "item",
+  //           in: {
+  //             $mergeObjects: [
+  //               "$$item",
+  //               {
+  //                 headBy: {
+  //                   $cond: [
+  //                     { $eq: [{ $type: "$$item.headBy" }, "string"] },
+  //                     { $toObjectId: "$$item.headBy" },
+  //                     "$$item.headBy"
+  //                   ]
+  //                 }
+  //               }
+  //             ]
+  //           }
+  //         }
+  //       }
+  //     }
+  //   }
+  // ],
+  
+  //   );
+// const up = await General.updateMany(
+//   { sSalesNo: { $type: ["int", "long", "double", "decimal"] } },
+//   [
+//     {
+//       $set: {
+//         sSalesNo: { $toString: "$sSalesNo" }
+//       }
+//     }
+//   ]
+// );
+
+    // let up = await Emi.updateMany(
+    //   {emiAmt:null},
+    //   { $rename: { "emiAmount": "emiAmt" } }
+    // );
 
 //     if (up.modifiedCount > 0) {
 //       console.log(`Updated ${up.modifiedCount} EMI customer field rename.`);
@@ -108,6 +149,18 @@ app.use("/api/logs", logRoutes)
 //     console.error("Error updating bills:", error);
 //     res.status(500).json({ success: false, message: "Error updating bills", error });
 //   }
+// });
+
+// app.get("/update/customer", async (req: Request, res: Response) => {
+
+//   try {
+//     // 1️⃣ Convert string dates to real Date objects
+    
+//     if (up.modifiedCount > 0) {
+//       console.log(`Updated ${up.modifiedCount} EMI customer field rename.`);
+//     }
+//     res.json({ success: true, message: "Update operation completed", modifiedCount: up.modifiedCount });
+  
 // });
 
 cron.schedule("02 00 * * *", async () => {
@@ -703,6 +756,327 @@ cron.schedule("02 00 * * *", async () => {
 //   }
 // });
 
+
+// app.get("/customer-count", async (req: Request, res: Response) => {
+//   try {
+//     const excelPath = "./src/uploads/GeneralHousing.xlsx";
+
+//     console.log("🚀 Starting Excel Processing...");
+
+//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(
+//       excelPath,
+//       {
+//         entries: "emit",
+//         worksheets: "emit",
+//         sharedStrings: "cache",
+//         styles: "ignore",
+//         hyperlinks: "ignore",
+//       }
+//     );
+
+//     const BATCH_SIZE = 500;
+//     let bulkOperations: any[] = [];
+//     let processedCount = 0;
+//     let updatedCount = 0;
+//     let matchedCount = 0;
+//     let miss=[]
+
+//     // ✅ THIS IS THE CORRECT WAY
+//     for await (const worksheet of workbook) {
+//       for await (const row of worksheet) {
+//         if (row.number === 1) continue;
+
+//         let id = row.getCell(1).value;
+//         let noOfInstallments = row.getCell(6).value;
+//         let emiAmount = row.getCell(7).value;
+
+//         bulkOperations.push({
+//           updateOne: {
+//             filter: { sSalesNo: id },
+//             update: {
+//               $set: {
+//                 noOfInstallments: noOfInstallments,
+//                 emiAmount: emiAmount,
+//                 update: true
+//               },
+//             },
+//           },
+//         });
+
+//         // console.log({
+//         //   updateOne: {
+//         //     filter: { sSalesNo: id},
+//         //     update: {
+//         //       $set: {
+//         //         noOfInstallments: noOfInstallments,
+//         //         emiAmt: emiAmount,
+//         //         update: true
+//         //       },
+//         //     },
+//         //   },
+//         // })
+//         processedCount++;
+
+//         if (bulkOperations.length >= BATCH_SIZE) {
+//           const result = await General.bulkWrite(bulkOperations);
+//           updatedCount += result.modifiedCount;
+//           matchedCount += result.matchedCount
+//           bulkOperations = [];
+
+//           console.log(
+//             `⚡ Batch Updated -- | Processed: ${processedCount} | Matched count: ${matchedCount} | Updated: ${updatedCount}`
+//           );
+//         }
+//       }
+//     }
+
+//     // Final remaining updates
+//     if (bulkOperations.length > 0) {
+//       const result = await General.bulkWrite(bulkOperations);
+//       updatedCount += result.modifiedCount;
+//     }
+
+//     console.log("🎉 Excel Processing Completed");
+
+//     return res.status(200).json({
+//       success: true,
+//       // miss,
+//       bulkOperations,
+//       processed: processedCount,
+//       updated: updatedCount,
+//     });
+//   } catch (error) {
+//     console.error("❌ Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
+
+// import excelPath from "./uploads/newCustomer.json";
+// console.log(excelPath)
+// app.get("/json/cus", async (req: Request, res: Response) => {
+//   try {
+//     console.log("🚀 Starting Excel Processing...");
+//     let data = excelPath as any[];
+//     let result=[];
+//     let getAllMarketHeads = await MarketingHead.find({})
+//     let marketHeadMap = new Map<string, any>();
+//     for (const item of getAllMarketHeads) {
+//       if (item._id) {
+//         marketHeadMap.set(item._id.toString(), item);
+//       }
+//     }
+//     let markerDetail = await MarketDetail.find({})
+//     let markerDetailMap = new Map<string, any>();
+//     for (const item of markerDetail) {
+//       if (item.id) {
+//         markerDetailMap.set(item._id.toString(), item);
+//       }
+//     }
+
+//     for (let index = 0; index < data.length; index++) {
+//       const element = data[index] as any;
+//       // for (const item of data) {
+//         let ddId = element?.ddId?.toString()
+//         let cedId = element?.cedId?.toString()
+//         let ddObj;
+//         let cedObj;
+
+//         if (ddId) {
+//           let getDdId = marketHeadMap.get(ddId.toString())
+//           ddObj = getDdId
+//         }
+//         if (cedId) {
+//           let getCedId = markerDetailMap.get(cedId.toString())
+//           cedObj = getCedId
+//         }
+//         result.push({...element,ddObj, cedObj})
+//         // console.log("🚀 ~ file: index.ts:429 ~ app.get ~ element:", index+1);
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       data: result,
+//     });
+//   } catch (error) {
+//     console.error("❌ Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// })
+
+// app.get("/cus/get", async (req: Request, res: Response) => {
+//   try {
+//     const data = await Customer.find({oldData:false}).lean();
+//     let ddId:any[]=[]
+//     for (const item of data) {
+//       if(ddId.includes(item.ddId?.toString())) continue
+//       console.log(item.ddId, ddId.includes(item.ddId?.toString()))
+//       ddId.push(item.ddId?.toString())
+//     }
+//     return res.status(200).json({
+//       success: true,
+//       data:ddId,
+//     });
+//   } catch (error) {
+//     console.error("❌ Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// })
+
+// app.get("/general-count", async (req: Request, res: Response) => {
+//   try {
+//     const excelPath = "./src/uploads/CustomerAlliance.xlsx";
+
+//     if (!fs.existsSync(excelPath)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Excel file not found",
+//       });
+//     }
+
+//     console.log("🚀 Starting Excel Processing...");
+
+//     // ✅ Load only required fields
+//     // const marketDetails = await MarketDetail.find(
+//     //   {},
+//     //   { _id: 1, id: 1, overAllHeadBy: 1 }
+//     // ).lean();
+
+//     // const marketDetailMap = new Map<string, any>();
+//     // for (const item of marketDetails) {
+//     //   if (item.id) {
+//     //     marketDetailMap.set(item.id.toString(), item);
+//     //   }
+//     // }
+
+//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(
+//       excelPath,
+//       {
+//         entries: "emit",
+//         worksheets: "emit",
+//         sharedStrings: "cache",
+//         styles: "ignore",
+//         hyperlinks: "ignore",
+//       }
+//     );
+
+//     const BATCH_SIZE = 500;
+//     let bulkOperations: any[] = [];
+//     let processedCount = 0;
+//     let updatedCount = 0;
+//     let isProcessing = false;
+//     let worksheetFinished = false;
+
+//     workbook.on("worksheet",async (worksheet: any) => {
+//       worksheet.on("row", async (row: any) => {
+//         if (row.number === 1) return;
+
+//         let id = row.getCell(1).value;
+//         let noOfInstallments = row.getCell(6).value;
+//         let emiAmount = row.getCell(7).value;
+
+//         bulkOperations.push({
+//           updateOne: {
+//             filter: { sSalesNo: id },
+//             update: {
+//               $set: {
+//                 noOfInstallments: noOfInstallments,
+//                 emiAmount: emiAmount,
+//                 update: true
+//               },
+//             },
+//           },
+//         });
+
+//         processedCount++;
+
+//         // if (bulkOperations.length >= BATCH_SIZE && !isProcessing) {
+//         //   // worksheet.pause(); // ⏸ pause reading
+//         //   isProcessing = true;
+
+//         //   try {
+//         //     const result = await Customer.bulkWrite(bulkOperations);
+//         //     updatedCount += result.modifiedCount;
+//         //     bulkOperations = [];
+
+//         //     console.log(
+//         //       `⚡ Batch Updated | Processed: ${processedCount} | Updated: ${updatedCount}`
+//         //     );
+//         //   } catch (err) {
+//         //     console.error("Bulk write error:", err);
+//         //   }
+
+//         //   isProcessing = false;
+//         //   worksheet.resume(); // ▶ resume reading
+//         // }
+//         if (bulkOperations.length >= BATCH_SIZE) {
+//           const result = await General.bulkWrite(bulkOperations);
+//           updatedCount += result.modifiedCount;
+//           bulkOperations = [];
+
+//           console.log(
+//             `⚡ Batch Updated -- | Processed: ${processedCount} | Updated: ${updatedCount}`
+//           );
+//         }
+//       });
+
+//       if (bulkOperations.length > 0) {
+//         const result = await Customer.bulkWrite(bulkOperations);
+//         updatedCount += result.modifiedCount;
+//       }
+
+//     console.log("🎉 Excel Processing Completed");
+
+//       // worksheet.on("finished", async () => {
+//       //   worksheetFinished = true;
+
+//       //   // Final remaining updates
+//       //   if (bulkOperations.length > 0) {
+//       //     try {
+//       //       const result = await Customer.bulkWrite(bulkOperations);
+//       //       updatedCount += result.modifiedCount;
+//       //     } catch (err) {
+//       //       console.error("Final bulk write error:", err);
+//       //     }
+//       //   }
+
+//       //   console.log("🎉 Excel Processing Completed");
+
+//       //   return res.status(200).json({
+//       //     success: true,
+//       //     processed: processedCount,
+//       //     updated: updatedCount,
+//       //     message: "Customer cedId & ddId updated successfully",
+//       //   });
+//       // });
+//     });
+
+//     workbook.on("error", (err: any) => {
+//       console.error("Excel read error:", err);
+//       return res.status(500).json({
+//         success: false,
+//         message: "Failed to read Excel file",
+//       });
+//     });
+
+//     await workbook.read();
+//   } catch (error) {
+//     console.error("❌ Server Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
+
 // general count upload
 // app.get("/general-count", async (req: Request, res: Response) => {
 //   try {
@@ -943,29 +1317,34 @@ cron.schedule("02 00 * * *", async () => {
 // });
 
 // bill count upload
-// app.get("/bill-count", async (req: Request, res: Response) => {
+// app.get("/marker", async (req: Request, res: Response) => {
 //   try {
 //     console.log("Starting bill count upload...");
 
-//     const excelPath = "./src/uploads/billingHousing.xlsx";
+//     let { levelNo } = req.query
+
+//     if(!levelNo) throw new Error("Level not found")
+
+//     const excelPath = "./src/uploads/MarketerDetailHousing.xlsx";
 //     const outputDir = "./src/uploads/generated";
+//     if(!excelPath) throw new Error("Excel file path not found")
 //     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-//     const jsonPath = path.join(outputDir, `bill-count-${Date.now()}.json`);
+//     const jsonPath = path.join(outputDir, `marketerdetailalliance-${Date.now()}.json`);
 
-//     // Fetch EMIs and customers once
-//     const customers = await Customer.find({}).lean();
-//     const emis = await Emi.find({ oldData: true }).lean();
+//     const marketHead = await MarketingHead.find()
+//     const market = await MarketDetail.find()
 
-//     // Maps for fast lookup
-//     const customerMap = new Map<string, any>();
-//     for (const c of customers) {
-//       if (c.id) customerMap.set(c.id.toString(), c);
+//     const marketHeadMap = new Map<string, any>()
+//     for(let m of marketHead){
+//       if(m.id){
+//         marketHeadMap.set(m.id.toString(), m)
+//       }
 //     }
 
-//     const emiMap = new Map<string, any>();
-//     for (const e of emis) {
-//       if (e.emiNo && e.customer) {
-//         emiMap.set(`${e.emiNo.toString()}|${e.customer.toString()}`, e);
+//     const marketdMap = new Map<string, any>()
+//     for(let m of market){
+//       if(m.id){
+//         marketdMap.set(m.id.toString(), m)
 //       }
 //     }
 
@@ -979,51 +1358,244 @@ cron.schedule("02 00 * * *", async () => {
 //     });
 
 //     workbook.on("worksheet", (worksheet: any) => {
-//       worksheet.on("row", (row: any) => {
-//         // console.log("Processing row:", row.getCell(4).text?.trim());
+//       worksheet.on("row", async (row: any) => {
 //         if (row.number === 1) return;
 
-//         const customerCode = row.getCell(4).text?.trim();
-//         const salesNo = row.getCell(2).value;
+//         // console.log("Processing row:", row.number, row.getCell(2).value);
 
-//         if (!customerCode || !salesNo) return;
+//         let level = row.getCell(1).value;
+//         let id = row.getCell(2).value;
+//         let name = row.getCell(3).value;
+//         // let phone = row.getCell(4).value;
+//         let leaderID = row.getCell(4).value;
+//         let leaderName = row.getCell(5).value;
+//         let status = "active";
+//         // if(leaderID === 1) return;
+//         // if(leaderID !== 3) return;
 
-//         const customer = customerMap.get(customerCode.toString()) || null;
-//         console.log({ customer });
-//         if (!customer) return;
-
-//         const emiKey = `${row.getCell(14).value.toString()}|${customer._id.toString()}`;
-//         const emi = emiMap.get(emiKey) || null;
-
-//         if (row.number === 5) {
-//           console.log({ emiKey, emi });
+//         let headyBy: any = undefined;
+//         let overAllHeadBy: any[] = [];
+//         // console.log("mass", {id:leaderID}, row.number)
+//         // if(level === 2 ){
+//         //   // console.log("mass2", {id:leaderID}, row.number)
+//         //   headyBy= marketHeadMap.get(leaderID.toString()) || null
+//         //   // console.log(headyBy)
+//         //   if(!headyBy) {
+//         //     console.log("mass2", {leaderId:leaderID, name, leaderName,id}, row.number)
+//         //   }
+//         //   overAllHeadBy = [
+//         //     {
+//         //       headBy:headyBy?._id,
+//         //       level:1,
+//         //       headByModel:"MarketingHead"
+//         //     }
+//         //   ]
+//         //   // console.log("mass")
+//         // }
+//         console.log(level , Number(levelNo))
+//         if(level === Number(levelNo)){
+//           let get = marketdMap.get(leaderID?.toString())
+//           // console.log(get,"mass", {id:leaderID}, row.number)
+//           get = get as any
+//           if(!get){
+//             let get2 = marketHeadMap.get(leaderID?.toString())
+//             get2 = get2 as any
+//             headyBy = get2?._id;
+//             overAllHeadBy = [
+//               {
+//                 headBy:get2?._id,
+//                 level:1,
+//                 headByModel:"MarketingHead"
+//               }
+//             ]
+//             // return ;
+//           }else if(get){
+//             headyBy = get._id;
+//             overAllHeadBy =[ 
+//               ...get.overAllHeadBy, 
+//                 {
+//                 headBy:get._id,
+//                 level:get.overAllHeadBy.length+1,
+//                 headByModel:"MarketDetail"
+//               }
+//             ]
+//           }
+//           console.log(overAllHeadBy)
+//         }else{
+//           return;
 //         }
 
-//         // console.log(excelDateToJSDate(row.getCell(10).value), row.getCell(10).value, new Date(row.getCell(10).value) === null );
+//         let p:any ={
+//           id: id.toString(),
+//           name,
+//           // phone: phone.toString(),
+//           level,
+//           leaderID,
+//           leaderName,
+//           status,
+//           oldData:true,
+//           headBy: headyBy?._id,
+//           overAllHeadBy,
+//           mass:true
+//         }
+//         if(overAllHeadBy.length !== Number(levelNo) - 1){
+//           p.levelSkip = true
+//         }
 
-//         bills.push({
-//           general: emi?.general || null,
-//           customer: customer._id,
-//           introducer: customer?.ddId || null,
-//           introducerByModel: "MarketDetail",
-//           customerCode: customerCode,
-//           phone: row.getCell(5).value,
-//           sSalesNo: salesNo,
-//           paymentDate: excelDateToJSDate(row.getCell(10).value),
-//           amountPaid: row.getCell(11).value,
-//           bookingId: row.getCell(12).value,
-//           emiNo: row.getCell(14).value,
-//           modeOfPayment: row.getCell(15).value,
-//           remarks: row.getCell(16).value,
-//           createdBy: row.getCell(17).value,
-//           totalAmount: row.getCell(18).value,
-//           balanceAmount: row.getCell(19).value,
-//           emi: emi?._id || null,
-//           oldData: true,
-//           createdAt: new Date(),
-//           updatedAt: new Date(),
-//           paidDate: emi?.paidDate ? true : false
-//         });
+//         bills.push(p);
+
+
+
+//         if (row.number % 1000 === 0) console.log(`Processed ${row.number} rows`);
+//       });
+//     });
+
+//     workbook.on("end", () => {
+//       fs.writeFileSync(jsonPath, JSON.stringify(bills, null, 2));
+//       console.log("✅ Bill JSON generated:", jsonPath);
+
+//       res.status(200).json({
+//         success: true,
+//         file: jsonPath,
+//         count: bills.length,
+//         data: bills,
+//       });
+//     });
+
+//     workbook.on("error", (err: any) => {
+//       console.error("Excel read error:", err);
+//       res.status(500).json({ success: false, message: "Failed to read Excel file" });
+//     });
+
+//     await workbook.read();
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// app.get("/marker", async (req: Request, res: Response) => {
+//   try {
+//     console.log("Starting bill count upload...");
+
+//     let { levelNo } = req.query
+
+//     if(!levelNo) throw new Error("Level not found")
+
+//     const excelPath = "./src/uploads/MarketerDetailHousing.xlsx";
+//     const outputDir = "./src/uploads/generated";
+//     if(!excelPath) throw new Error("Excel file path not found")
+//     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+//     const jsonPath = path.join(outputDir, `marketerdetailalliance-${Date.now()}.json`);
+
+//     // const marketHead = await MarketingHead.find()
+//     // const market = await MarketDetail.find()
+
+//     // const marketHeadMap = new Map<string, any>()
+//     // for(let m of marketHead){
+//     //   if(m.id){
+//     //     marketHeadMap.set(m.id.toString(), m)
+//     //   }
+//     // }
+
+//     // const marketdMap = new Map<string, any>()
+//     // for(let m of market){
+//     //   if(m.id){
+//     //     marketdMap.set(m.id.toString(), m)
+//     //   }
+//     // }
+
+//     const bills: any[] = [];
+//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
+//       entries: "emit",
+//       worksheets: "emit",
+//       sharedStrings: "cache",
+//       styles: "ignore",
+//       hyperlinks: "ignore",
+//     });
+
+//     workbook.on("worksheet", (worksheet: any) => {
+//       worksheet.on("row", async (row: any) => {
+//         if (row.number === 1) return;
+
+//         // console.log("Processing row:", row.number, row.getCell(2).value);
+
+//         let id = row.getCell(1).value;
+//         let noOfInstallments = row.getCell(6).value;
+//         let emiAmount = row.getCell(7).value;
+
+//         let headyBy: any = undefined;
+//         let overAllHeadBy: any[] = [];
+//         // console.log("mass", {id:leaderID}, row.number)
+//         // if(level === 2 ){
+//         //   // console.log("mass2", {id:leaderID}, row.number)
+//         //   headyBy= marketHeadMap.get(leaderID.toString()) || null
+//         //   // console.log(headyBy)
+//         //   if(!headyBy) {
+//         //     console.log("mass2", {leaderId:leaderID, name, leaderName,id}, row.number)
+//         //   }
+//         //   overAllHeadBy = [
+//         //     {
+//         //       headBy:headyBy?._id,
+//         //       level:1,
+//         //       headByModel:"MarketingHead"
+//         //     }
+//         //   ]
+//         //   // console.log("mass")
+//         // }
+//         console.log(level , Number(levelNo))
+//         if(level === Number(levelNo)){
+//           let get = marketdMap.get(leaderID?.toString())
+//           // console.log(get,"mass", {id:leaderID}, row.number)
+//           get = get as any
+//           if(!get){
+//             let get2 = marketHeadMap.get(leaderID?.toString())
+//             get2 = get2 as any
+//             headyBy = get2?._id;
+//             overAllHeadBy = [
+//               {
+//                 headBy:get2?._id,
+//                 level:1,
+//                 headByModel:"MarketingHead"
+//               }
+//             ]
+//             // return ;
+//           }else if(get){
+//             headyBy = get._id;
+//             overAllHeadBy =[ 
+//               ...get.overAllHeadBy, 
+//                 {
+//                 headBy:get._id,
+//                 level:get.overAllHeadBy.length+1,
+//                 headByModel:"MarketDetail"
+//               }
+//             ]
+//           }
+//           console.log(overAllHeadBy)
+//         }else{
+//           return;
+//         }
+
+//         let p:any ={
+//           id: id.toString(),
+//           name,
+//           // phone: phone.toString(),
+//           level,
+//           leaderID,
+//           leaderName,
+//           status,
+//           oldData:true,
+//           headBy: headyBy?._id,
+//           overAllHeadBy,
+//           mass:true
+//         }
+//         if(overAllHeadBy.length !== Number(levelNo) - 1){
+//           p.levelSkip = true
+//         }
+
+//         bills.push(p);
+
+
 
 //         if (row.number % 1000 === 0) console.log(`Processed ${row.number} rows`);
 //       });

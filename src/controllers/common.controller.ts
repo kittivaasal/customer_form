@@ -230,21 +230,21 @@ export const createCommonData = async (req: Request, res: Response) => {
 
     checkProject = checkProject as IProject;
 
-    if (checkProject.emiAmount != general.emiAmount) {
-      return ReE(
-        res,
-        { message: `emi amount not match with project emi amount in general project emi amount is ${checkProject.emiAmount}` },
-        httpStatus.BAD_REQUEST
-      )
-    }
+    // if (checkProject.emiAmount != general.emiAmount) {
+    //   return ReE(
+    //     res,
+    //     { message: `emi amount not match with project emi amount in general project emi amount is ${checkProject.emiAmount}` },
+    //     httpStatus.BAD_REQUEST
+    //   )
+    // }
 
-    if (Number(checkProject.duration) !== Number(general.noOfInstallments)) {
-      return ReE(
-        res,
-        { message: `no of installments not match with project duration in general, project duration is ${checkProject.duration}` },
-        httpStatus.BAD_REQUEST
-      )
-    }
+    // if (Number(checkProject.duration) !== Number(general.noOfInstallments)) {
+    //   return ReE(
+    //     res,
+    //     { message: `no of installments not match with project duration in general, project duration is ${checkProject.duration}` },
+    //     httpStatus.BAD_REQUEST
+    //   )
+    // }
 
     if (checkCustomer.cedId) {
       let checkMarketDetail;
@@ -521,21 +521,38 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
 
     getProject = getProject as IProject;
 
-    if (general.noOfInstallments && getProject.duration != general.noOfInstallments) {
-      return ReE(
-        res,
-        { message: "You can't update the no_of_installments directly. When you update the project duration, the no_of_installments is updated automatically" },
-        httpStatus.BAD_REQUEST
-      )
+    let checkBillForCus;
+    [err, checkBillForCus] = await toAwait(Billing.findOne({ customer: customerId }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    
+    if(checkBillForCus){
+      if(general.emiAmount){
+        return ReE(res, {message: "You can't update the emi_amount beacause many billing already created"}, httpStatus.BAD_REQUEST)
+      }
     }
 
-    if (general.emiAmount && getProject.emiAmount != general.emiAmount) {
-      return ReE(
-        res,
-        { message: "You can't update the emi_amount directly. When you update the project emi_amount, the emi_amount is updated automatically" },
-        httpStatus.BAD_REQUEST
-      )
+    if(general.noOfInstallments){
+      let getAllEmi;
+      [err, getAllEmi] = await toAwait(Emi.find({customer: customerId}));
+      if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      
     }
+
+    // if (general.noOfInstallments && getProject.duration != general.noOfInstallments) {
+    //   return ReE(
+    //     res,
+    //     { message: "You can't update the no_of_installments directly. When you update the project duration, the no_of_installments is updated automatically" },
+    //     httpStatus.BAD_REQUEST
+    //   )
+    // }
+
+    // if (general.emiAmount && getProject.emiAmount != general.emiAmount) {
+    //   return ReE(
+    //     res,
+    //     { message: "You can't update the emi_amount directly. When you update the project emi_amount, the emi_amount is updated automatically" },
+    //     httpStatus.BAD_REQUEST
+    //   )
+    // }
   }
 
   if (flat) {
@@ -1302,8 +1319,22 @@ export const getByIdBilling = async (req: Request, res: Response) => {
       .populate({
         path: "customer",
         populate: [
-          { path: "cedId" },
-          { path: "ddId" }
+          {
+            path: "ddId",               // populate cedId first
+            populate: {
+              path: "percentageId"       // then populate marketerId inside cedId
+            }
+          },
+          {
+            path: "cedId",
+            populate: [
+              { path: "percentageId" },
+              {
+                path: "overAllHeadBy.headBy",   // populate headBy inside overAllHeadBy array
+                populate: { path: "percentageId" } // populate headBy.percentageId
+              }
+            ]
+          },
         ]
       })
       .populate("createdBy", "-password -fcmToken")
@@ -1316,17 +1347,44 @@ export const getByIdBilling = async (req: Request, res: Response) => {
       httpStatus.NOT_FOUND
     );
   }
-  getBilling = getBilling as any
+
+  getBilling = (getBilling as any).toObject();
+
   let getAllFull, generalId, customerId;
-  if(isValidObjectId(getBilling.general)){
+  if (isValidObjectId(getBilling.general)) {
     generalId = getBilling.general
-  }else if(isValidObjectId(getBilling.general._id)){
+  } else if (isValidObjectId(getBilling.general._id)) {
     generalId = getBilling.general._id
   }
 
-  if(isValidObjectId(getBilling.customer)){
+  let checkDownLineforCed;
+  let cedId = ""
+  if(getBilling.customer.cedId){
+    if(isValidObjectId(getBilling.customer.cedId)){
+      cedId = getBilling.customer.cedId
+    }else if(isValidObjectId(getBilling.customer.cedId._id)){
+      cedId = getBilling.customer.cedId._id
+    }
+    [err, checkDownLineforCed] = await toAwait(
+      MarketDetail.findOne({ headBy : cedId })
+    )
+    if(err){
+      return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+    if(!checkDownLineforCed){
+      getBilling.customer.cedId.downLine = false
+    }else{
+      getBilling.customer.cedId.downLine = true
+    }
+  }else{
+    if(getBilling.customer.ddId){
+      getBilling.customer.ddId.downLine = false
+    }
+  }
+
+  if (isValidObjectId(getBilling.customer)) {
     customerId = getBilling.customer
-  }else if(isValidObjectId(getBilling.customer._id)){
+  } else if (isValidObjectId(getBilling.customer._id)) {
     customerId = getBilling.customer._id
   }
 
@@ -1334,11 +1392,11 @@ export const getByIdBilling = async (req: Request, res: Response) => {
     Emi.find({ general: generalId, customer: customerId }).populate("customer").populate("general")
   )
 
-  if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-  getBilling.fullEmi =getAllFull;
+  getBilling.fullEmi = getAllFull;
 
-  return ReS(res, { data: getBilling , emi : getAllFull  }, httpStatus.OK);
+  return ReS(res, { data: getBilling, emi: getAllFull }, httpStatus.OK);
 };
 
 export const getByIdEmi = async (req: Request, res: Response) => {
@@ -2017,8 +2075,8 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         //   marketer: billing.introducer,
         //   emiId: element._id,
         //   generalId: checkGeneral._id,
-          // marketerHeadId: getMarketer?.headBy?._id || getMarketer?._id,
-          // percentageId: getMarketer?.headBy?.percentageId?._id || getMarketer?.percentageId?._id,
+        // marketerHeadId: getMarketer?.headBy?._id || getMarketer?._id,
+        // percentageId: getMarketer?.headBy?.percentageId?._id || getMarketer?.percentageId?._id,
         // };
         // [err, checkAlreadyExistMarketer] = await toAwait(Marketer.findOne({
         //   marketer: marketerDe.marketer,
@@ -2081,7 +2139,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
 export const updateBilling = async (req: CustomRequest, res: Response) => {
   try {
-    let err, body = req.body, user = req.user,obj:any = {};
+    let err, body = req.body, user = req.user, obj: any = {};
     let fields = ["status", "paymentDate", "modeOfPayment"];
 
     if (!user) return ReE(res, { message: "You are not access this api" }, httpStatus.UNAUTHORIZED);
@@ -2122,7 +2180,7 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
       }
     }
 
-    
+
     if (modeOfPayment) {
       let validValue = ["cash", "card", "online"];
       modeOfPayment = modeOfPayment.toLowerCase();
@@ -2142,38 +2200,38 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
             ? "Card"
             : "Online";
       obj.modeOfPayment = modeOfPayment;
-      if(obj.modeOfPayment !== "Cash"){
-        if(!referenceId){
+      if (obj.modeOfPayment !== "Cash") {
+        if (!referenceId) {
           return ReE(res, { message: `referenceId is required!` }, httpStatus.BAD_REQUEST);
         }
         obj.referenceId = referenceId
-      }else{
+      } else {
         obj.referenceId = null
       }
-      if(obj.modeOfPayment === "Card"){
-        if(!cardNo){
+      if (obj.modeOfPayment === "Card") {
+        if (!cardNo) {
           return ReE(res, { message: `cardNo is required!` }, httpStatus.BAD_REQUEST);
         }
-        if(!cardHolderName){
+        if (!cardHolderName) {
           return ReE(res, { message: `cardHolderName is required!` }, httpStatus.BAD_REQUEST);
         }
         obj.cardNo = cardNo;
         obj.cardHolderName = cardHolderName
-      }else{
+      } else {
         obj.cardNo = null;
         obj.cardHolderName = null
       }
     }
 
-    if(remarks){
+    if (remarks) {
       obj.remarks = remarks
     }
 
-    if(referenceId){
+    if (referenceId) {
       obj.referenceId = referenceId
     }
 
-    if(paymentDate){
+    if (paymentDate) {
       if (!isValidDate(paymentDate as string)) {
         return ReE(res, { message: "Invalid paymentDate format, valid format is (YYYY-MM-DD)!" }, httpStatus.BAD_REQUEST);
       }

@@ -1,18 +1,31 @@
 import mongoose, { Schema } from "mongoose";
 
 const modSchema = new mongoose.Schema({
-  date: {
+  paidDate: {
     type: String
   },
-  siteName: {
-    type: String
+  projectId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Project',
+    required: true
   },
   plotNo: {
     type: String
   },
-  customer: {
+  landCost: {
+    type: Number,
+    default: 0
+  },
+  ratePerSqft: {
+    type: Number,
+    default: 0
+  },
+  referenceId: {
+    type: String
+  },
+  customerId: {
     type: Schema.Types.ObjectId,
-    ref: 'Customer',
+    ref: 'ModCustomer',
     required: true
   },
   introducerName: {
@@ -33,12 +46,13 @@ const modSchema = new mongoose.Schema({
   EDPhone: {
     type: String
   },
-  amount: {
-    type: Number
+  totalAmount: {
+    type: Number,
+    default: 0
   },
-  status: {
-    type: String,
-    default: "active"
+  paidAmount: {
+    type: Number,
+    default: 0
   },
 }, { timestamps: true });
 

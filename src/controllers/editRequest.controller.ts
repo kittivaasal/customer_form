@@ -171,7 +171,7 @@ export const getAllEditRequests = async (req: CustomRequest, res: Response) => {
   let err;
 
   // Get query params
-  const { date, export: isExport } = req.query;
+  const { date, export: isExport, page, limit, search } = req.query;
 
   // Build filter object
   const filter: any = {};
@@ -202,12 +202,88 @@ export const getAllEditRequests = async (req: CustomRequest, res: Response) => {
     };
   }
 
+  // Search Logic
+  if (search) {
+    const searchString = search as string;
+    const searchConditions: any[] = [];
+
+    // 1. Search in EditRequest fields (status, targetModel)
+    searchConditions.push(
+      { status: { $regex: searchString, $options: "i" } },
+      { targetModel: { $regex: searchString, $options: "i" } },
+      { deletedTableName: { $regex: searchString, $options: "i" } },
+      { createrTableName: { $regex: searchString, $options: "i" } }
+    );
+
+    if (mongoose.Types.ObjectId.isValid(searchString)) {
+      searchConditions.push(
+        { _id: new mongoose.Types.ObjectId(searchString) },
+        { targetId: new mongoose.Types.ObjectId(searchString) }
+      );
+    }
+
+    // 2. Search in User fields (editedBy)
+    // We assume 'editedBy' is a reference to User model
+    // We need to import User model if not already imported, but we can usage mongoose.model('User') to avoid circular deps if needed
+    // However, User type is imported, so model likely available.
+    // Let's use the pattern from billingRequest.controller.ts
+    const User = mongoose.model("User");
+    let users;
+    [err, users] = await toAwait(User.find({
+      $or: [
+        { name: { $regex: searchString, $options: "i" } },
+        { email: { $regex: searchString, $options: "i" } },
+        { phone: { $regex: searchString, $options: "i" } }
+      ]
+    }).select('_id'));
+
+    if (users && (users as any[]).length > 0) {
+       const userIds = (users as any[]).map(u => u._id);
+       searchConditions.push({ editedBy: { $in: userIds } });
+    }
+
+    if (searchConditions.length > 0) {
+        if (filter.$or) {
+            filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
+            delete filter.$or;
+        } else {
+            filter.$or = searchConditions;
+        }
+    }
+  }
+
+  let pageNo = Number(page);
+  let limitNo = Number(limit);
+
+  pageNo = pageNo < 1 ? 1 : pageNo;
+  // limitNo = limitNo > 100 ? 100 : limitNo; // safety cap mechanism if needed
+  const skip = (pageNo - 1) * limitNo;
+
+  let totalCount;
+  [err, totalCount] = await toAwait(EditRequest.countDocuments(filter));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  totalCount = totalCount as number;
+
+
   // Fetch edit requests with filter
   let editRequests: IEditRequest[];
   let _result: unknown;
-  [err, _result] = await toAwait(
-    EditRequest.find(filter).sort({ createdAt: -1 })
-  );
+  
+  let queryObj = EditRequest.find(filter).sort({ createdAt: -1 });
+  
+  // Apply pagination only if page and limit are provided (and not exporting, usually exports want all, but user asked for pagination with search, export usually ignores pagination or takes all matching filter)
+  // If isExport is true, we might want ALL matching data, so we might skip pagination.
+  // The original code handled export by returning all data (or filtered data).
+  // Request said "search pagination with backward compatibility". 
+  // Standard practice: if export=true, ignore pagination? checking original code...
+  // Original code: "Fetch edit requests with filter... if isExport... return ReS"
+  // So if export is present, it returns everything.
+  
+  if (page && limit && isExport !== "true") {
+      queryObj = queryObj.skip(skip).limit(limitNo);
+  }
+
+  [err, _result] = await toAwait(queryObj);
   editRequests = _result as IEditRequest[];
 
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -226,12 +302,25 @@ export const getAllEditRequests = async (req: CustomRequest, res: Response) => {
       );
     }
 
-    // Return empty array for normal requests too (not 404)
+    // Return empty array for normal requests too (not 404) - consistent with user request?
+    // Original code: "Return empty array for normal requests too (not 404)"
+    // Wait, original code comments say "not 404" but it returns status OK.
+    
     return ReS(
       res,
       {
         message: "No edit requests found",
         data: [],
+        ...(page && limit && {
+            pagination: {
+                page: pageNo,
+                limit: limitNo,
+                totalRecords: totalCount, // 0
+                totalPages: 0,
+                hasNextPage: false,
+                hasPreviousPage: false
+            }
+        })
       },
       httpStatus.OK
     );
@@ -287,6 +376,21 @@ export const getAllEditRequests = async (req: CustomRequest, res: Response) => {
       {
         message: "Edit requests retrieved successfully (filtered)",
         data: filteredRequests,
+        ...(page && limit && {
+            pagination: {
+                page: pageNo,
+                limit: limitNo,
+                totalRecords: totalCount, // Note: This totalCount is for the UNFILTERED query. Pagination calculations might be slightly off if filtering happens post-query. 
+                // But typically post-query filtering breaks pagination. 
+                // However, since we can't easily filter changes inside the find query, this is the best we can do without aggregation.
+                // Or we accept that 'totalRecords' reflects the DB count, but data returned is less.
+                // In standard list views, filtering permissions usually happens at DB level or we accept it.
+                // Given the constraints, I will keep totalRecords as DB count match.
+                totalPages: Math.ceil(totalCount / limitNo),
+                hasNextPage: pageNo < Math.ceil(totalCount / limitNo),
+                hasPreviousPage: pageNo > 1
+            }
+        })
       },
       httpStatus.OK
     );
@@ -300,7 +404,7 @@ export const getAllEditRequests = async (req: CustomRequest, res: Response) => {
       {
         message: "Edit requests exported successfully",
         data: editRequests,
-        totalCount: editRequests.length,
+        totalCount: editRequests.length, // Matching what was fetched (which is all if export=true)
       },
       httpStatus.OK
     );
@@ -311,6 +415,16 @@ export const getAllEditRequests = async (req: CustomRequest, res: Response) => {
     {
       message: "Edit requests retrieved successfully",
       data: editRequests,
+      ...(page && limit && {
+          pagination: {
+                page: pageNo,
+                limit: limitNo,
+                totalRecords: totalCount,
+                totalPages: Math.ceil(totalCount / limitNo),
+                hasNextPage: pageNo < Math.ceil(totalCount / limitNo),
+                hasPreviousPage: pageNo > 1
+          }
+      })
     },
     httpStatus.OK
   );

@@ -14,6 +14,10 @@ const marketingHeadSchema = new mongoose.Schema({
         type: String
     },
     oldData:{type:Boolean,default:false},
+    push:{
+      type:Boolean,
+      default:true
+    }
 }, { timestamps: true });
 
 export const MarketingHead = mongoose.model("MarketingHead", marketingHeadSchema);

@@ -1,10 +1,11 @@
-import httpStatus from "http-status"
-import { isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service"
-import { Request, Response } from "express"
+import { Request, Response } from "express";
+import httpStatus from "http-status";
+import { Customer } from "../models/customer.model";
 import plotBookingFormModel from "../models/plotBookingForm.model";
+import { isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
 import { IPlotBookingForm } from "../type/plotBookingForm";
 import { toLowerCaseObj } from "./common";
-import { Customer } from "../models/customer.model";
+import mongoose from "mongoose";
 
 export const createPlotBookingForm = async (req: Request, res: Response) => {
     let err;
@@ -75,16 +76,63 @@ export const createPlotBookingForm = async (req: Request, res: Response) => {
 
 export const getAllPlotBookingForms = async (req: Request, res: Response) => {
 
-    let err;
+    let err, getAll;
+    let { page = "1", limit = "10", search } = req.query;
 
-    let plotBookingForm;
-    [err, plotBookingForm] = await toAwait(plotBookingFormModel.find().sort({ createdAt: -1 }));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    plotBookingForm = plotBookingForm as IPlotBookingForm[]
-    if (plotBookingForm.length == 0) {
-        return ReE(res, { message: `No plotBookingForm found!.` }, httpStatus.INTERNAL_SERVER_ERROR)
+    let filter: any = {};
+
+    if (search) {
+        const searchString = search as string;
+        const searchConditions: any[] = [
+            { nameOfCustomer: { $regex: searchString, $options: "i" } },
+            { mobileNo: { $regex: searchString, $options: "i" } },
+            { email: { $regex: searchString, $options: "i" } },
+            { plotNo: { $regex: searchString, $options: "i" } },
+            { referenceId: { $regex: searchString, $options: "i" } },
+            { scheme: { $regex: searchString, $options: "i" } }
+        ];
+
+        if (mongoose.Types.ObjectId.isValid(searchString)) {
+            searchConditions.push({ _id: new mongoose.Types.ObjectId(searchString) });
+        }
+
+        if (filter.$or) {
+            filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
+            delete filter.$or;
+        } else {
+            filter.$or = searchConditions;
+        }
     }
 
-    return ReS(res, { message: "plotBookingForm fetched", data: plotBookingForm }, httpStatus.OK)
+    let count;
+    [err, count] = await toAwait(plotBookingFormModel.countDocuments(filter));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    let pagination: any = {};
+
+    if (page && limit) {
+        let pageNum = parseInt(page as string) || 1;
+        let limitNum = parseInt(limit as string) || 10;
+        let skip = (pageNum - 1) * limitNum;
+        let lastPageNo = Math.ceil((count as number) / limitNum);
+
+        [err, getAll] = await toAwait(plotBookingFormModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limitNum));
+
+        pagination = {
+            totalItems: count,
+            currentPage: pageNum,
+            totalPages: lastPageNo,
+            pageSize: limitNum,
+            hasNextPage: pageNum < lastPageNo,
+            hasPrevPage: pageNum > 1
+        };
+
+    } else {
+        [err, getAll] = await toAwait(plotBookingFormModel.find(filter).sort({ createdAt: -1 }));
+    }
+
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    return ReS(res, { message: "plotBookingForm fetched", data: getAll, pagination }, httpStatus.OK)
 
 }
