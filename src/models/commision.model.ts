@@ -1,4 +1,4 @@
-import { model, Schema } from "mongoose";
+import { Schema, model } from "mongoose";
 
 /* ================================
    TypeScript Interfaces
@@ -6,11 +6,12 @@ import { model, Schema } from "mongoose";
 
 /** Marketer commission entry */
 export interface IMarketerCommission {
+  name: string;
   marketerId: string;
   marketerModel: "MarketingHead" | "MarketDetail";
   percentage: string;   // "1%"
-  emiAmount: string;    // "1300"
-  commAmount: string;   // "13"
+  emiAmount: string;    // "1000"
+  commAmount: string;   // "10"
 }
 
 /** EMI embedded object */
@@ -32,8 +33,10 @@ export interface IEmiInfo {
 }
 
 /** Main document */
-export interface ICustomerEmi {
+export interface IAllianceCommission {
   customer: string;
+  name: string;          // customer name
+  customerCode: string;
   bill: string;
   emi: IEmiInfo;
   marketer: IMarketerCommission[];
@@ -46,6 +49,11 @@ export interface ICustomerEmi {
 /** Marketer sub-schema */
 const marketerSchema = new Schema<IMarketerCommission>(
   {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     marketerId: {
       type: String,
       required: true,
@@ -137,11 +145,22 @@ const emiSchema = new Schema<IEmiInfo>(
    Main Schema
 ================================ */
 
-const customerEmiSchema = new Schema<ICustomerEmi>(
+const allianceCommissionSchema = new Schema<IAllianceCommission>(
   {
     customer: {
       type: String,
       required: true,
+      index: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    customerCode: {
+      type: String,
+      required: true,
+      trim: true,
     },
     bill: {
       type: String,
@@ -158,7 +177,7 @@ const customerEmiSchema = new Schema<ICustomerEmi>(
   },
   {
     timestamps: true,
-    collection: "alliancecommission", // 👈 explicit collection name
+    collection: "alliancecommission",
   }
 );
 
@@ -166,7 +185,7 @@ const customerEmiSchema = new Schema<ICustomerEmi>(
    Model Export
 ================================ */
 
-export const CustomerEmiModel = model<ICustomerEmi>(
+export const CustomerEmiModel = model<IAllianceCommission>(
   "AllianceCommission",
-  customerEmiSchema
+  allianceCommissionSchema
 );

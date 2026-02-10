@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
 import { Types } from "mongoose";
-import { CustomerEmiModel } from "../models/commision.model";
+import {CustomerEmiModel } from "../models/commision.model";
 
 /**
  * GET /api/commission/customer/:customerId
+ * Fetch commissions by customer and populate marketer details
  */
 export const getCommissionByCustomer = async (
   req: Request,
@@ -12,7 +13,7 @@ export const getCommissionByCustomer = async (
   try {
     const { customerId } = req.params;
 
-    // 1️⃣ Validate ObjectId
+    // 1️⃣ Validate customerId
     if (!Types.ObjectId.isValid(customerId)) {
       return res.status(400).json({
         success: false,
@@ -21,13 +22,13 @@ export const getCommissionByCustomer = async (
     }
 
     // 2️⃣ Aggregation pipeline
-    const commissions = await CustomerEmiModel.find({ customer: customerId})
+    const commissions = await CustomerEmiModel.find({ customer: customerId })
 
     // 3️⃣ Response
     return res.status(200).json({
       success: true,
       count: commissions.length,
-      data: commissions,    
+      data: commissions,
     });
   } catch (error) {
     console.error("Get commission by customer error:", error);
