@@ -61,6 +61,19 @@ const BillingRequestSchema: Schema = new Schema<IBillingRequest>(
             },
             billFor:{
                 type: String
+            },
+            customerBalanceAmount: {
+                type: Number
+            },
+            housing: {
+                type: Boolean
+            },
+            enteredAmount: {
+                type: Number
+            },
+            parciallyPaid: {
+                type: Boolean,
+                default: false
             }
         },
         reason: {

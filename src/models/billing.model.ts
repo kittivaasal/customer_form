@@ -37,6 +37,10 @@ const BillingSchema: Schema = new Schema<IBilling>(
       type: Number,
     //   required: true,
     },
+    enteredAmount: {
+      type: Number,
+      default: 0
+    },
     modeOfPayment: {
       type: String,
       // enum: ["Cash", "Card", "Online"],
@@ -185,6 +189,12 @@ const BillingSchema: Schema = new Schema<IBilling>(
     amountPaidForBill:{
       type:Number
     },
+    emiCover:[
+      {
+        type:Schema.Types.ObjectId,
+        ref:'Emi'
+      }
+    ]
   },
   { timestamps: true }
 );

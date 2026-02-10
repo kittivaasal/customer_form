@@ -16,6 +16,7 @@ import CustomRequest from "../type/customRequest";
 import { IEmi } from "../type/emi";
 import { IGeneral } from "../type/general";
 import { IUser } from "../type/user";
+import { get } from "http";
 
 
 export const approvedBillingRequest = async (req: CustomRequest, res: Response) => {
@@ -59,29 +60,38 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
     getBillingRequest = getBillingRequest as any;
 
-    
+
     if (getBillingRequest.requestFor === "create") {
-      if (getBillingRequest.status === "approved") {
+
+      if (getBillingRequest.status === "approved" ) {
         return ReE(res, { message: "billing request already approved" }, httpStatus.BAD_REQUEST);
       }
 
-      let oldData = getBillingRequest.emi[0].oldData;
+      if (getBillingRequest.status === "rejected") {
+        return ReE(res, { message: "billing request already in rejected status" }, httpStatus.BAD_REQUEST);
+      }
+
+      let oldData = getBillingRequest.emi[0]?.oldData;
 
       let checkCustomer;
       let checkGeneral;
-      //replace oldData
-      // if (oldData) {
-      let generalId = (getBillingRequest.emi[0].general && (getBillingRequest.emi[0].general as any)._id) ? (getBillingRequest.emi[0].general as any)._id : getBillingRequest.emi[0].general;
-      let customerId = (getBillingRequest.emi[0].customer && (getBillingRequest.emi[0].customer as any)._id) ? (getBillingRequest.emi[0].customer as any)._id : getBillingRequest.emi[0].customer;
+      let customerId;
+
+      if(getBillingRequest?.customerId){
+        customerId = getBillingRequest.customerId
+      }else{
+        customerId = (getBillingRequest.emi[0]?.customer && (getBillingRequest.emi[0]?.customer as any)._id) ? (getBillingRequest.emi[0].customer as any)._id : getBillingRequest.emi[0]?.customer;
+      }
       
+
       let getCustomer;
       [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       if (!getCustomer) return ReE(res, { message: "Customer not found" }, httpStatus.NOT_FOUND);
       checkCustomer = getCustomer as ICustomer;
-      
+
       let getGeneral;
-      [err, getGeneral] = await toAwait(General.findOne({ _id: generalId }));
+      [err, getGeneral] = await toAwait(General.findOne({ customer: checkCustomer._id }));
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       if (!getGeneral) return ReE(res, { message: "General info not found" }, httpStatus.NOT_FOUND);
       checkGeneral = getGeneral as IGeneral;
@@ -89,6 +99,80 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
       if (getBillingRequest.requestFor === "create" && status === "approved") {
 
         let readyForBill = getBillingRequest.emi as IEmi[];
+
+        if (getBillingRequest.billingDetails?.housing && getBillingRequest.billingDetails?.parciallyPaid === true) {
+
+          let amount = Number(getBillingRequest.billingDetails.enteredAmount) + Number(checkCustomer.balanceAmount)
+          if ((checkGeneral.emiAmount ?? 0) > amount) {
+            
+            let createBill;
+            [err, createBill] = await toAwait(
+              Billing.create({
+                paymentDate: new Date(getBillingRequest?.billingDetails?.paymentDate || new Date()),
+                transactionType: "EMI Receipt",
+                introducer: checkCustomer?.ddId,
+                introducerByModel: "MarketDetail",
+                mobileNo: checkCustomer?.phone,
+                customer: checkCustomer._id,
+                general: checkGeneral._id,
+                status: getBillingRequest.billingDetails.status,
+                saleType: getBillingRequest.billingDetails.saleType,
+                modeOfPayment: getBillingRequest.billingDetails.modeOfPayment,
+                cardNo: getBillingRequest.billingDetails.cardNo,
+                cardHolderName: getBillingRequest.billingDetails.cardHolderName,
+                remarks: getBillingRequest.billingDetails.remarks,
+                referenceId: getBillingRequest.billingDetails.referenceId,
+                customerName: checkCustomer?.name,
+                oldData : oldData ? oldData : checkCustomer?.oldData,
+                billFor: getBillingRequest.billingDetails.billFor,
+                customerCode: checkCustomer.id,
+                createdBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
+                enteredAmount: getBillingRequest.billingDetails.enteredAmount,
+              })
+            );
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+            if (!createBill) {
+              return ReE(
+                res,
+                { message: "billing not created" },
+                httpStatus.INTERNAL_SERVER_ERROR
+              );
+            }
+
+            let updateCustomer;
+            [err, updateCustomer] = await toAwait(
+              Customer.updateOne({ _id: customerId }, { $inc: { balanceAmount: Number(getBillingRequest.billingDetails.enteredAmount) } })
+            );
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            if (!updateCustomer) {
+              return ReE(
+                res,
+                { message: "customer not updated" },
+                httpStatus.INTERNAL_SERVER_ERROR
+              );
+            }
+
+            let updateBillRequest;
+            [err, updateBillRequest] = await toAwait(
+              BillingRequest.updateOne(
+                { _id: getBillingRequest._id },
+                { $set: { status: "approved" } }
+              )
+            )
+
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            if (!updateBillRequest) {
+              return ReE(
+                res,
+                { message: "billing request not updated" },
+                httpStatus.INTERNAL_SERVER_ERROR
+              );
+            }
+
+            return ReS(res, { message: "billing approved successfully" }, httpStatus.OK);
+          }
+        }
 
         for (let i = 0; i < readyForBill.length; i++) {
           let element = readyForBill[i];
@@ -114,7 +198,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             balanceAmount = totalAmount - (total + element.emiAmt);
           }
 
-          let createBill = {
+          let createBill: any = {
             emiNo: element.emiNo,
             amountPaid: element.emiAmt,
             paymentDate: new Date(getBillingRequest?.billingDetails?.paymentDate || new Date()),
@@ -131,68 +215,84 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             cardHolderName: getBillingRequest.billingDetails.cardHolderName,
             remarks: getBillingRequest.billingDetails.remarks,
             referenceId: getBillingRequest.billingDetails.referenceId,
-            balanceAmount: balanceAmount,
+            balanceAmount: isNaN(balanceAmount) ? 0 : balanceAmount,
             customerName: checkCustomer?.name,
             emi: element?._id,
             oldData,
             billFor: getBillingRequest.billingDetails.billFor,
             customerCode: checkCustomer.id,
-            createdBy: getBillingRequest?.userId || getBillingRequest?.userId?._id
+            createdBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
+            enteredAmount: getBillingRequest.billingDetails.enteredAmount
           };
 
           let getMarketer;
           //remove olddata
           // if (!checkCustomer.oldData) {
-            // [err, getMarketer] = await toAwait(
-            //   MarketDetail.findOne({ _id: checkCustomer.ddId }).populate({
-            //     path: "headBy",
-            //     populate: [
-            //       { path: "percentageId" }
-            //     ]
-            //   })
-            // );
-            // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            // if (!getMarketer) {
-            //   let checkMarketerHead;
-            //   [err, checkMarketerHead] = await toAwait(
-            //     MarketingHead.findOne({ _id: checkCustomer.cedId }).populate("percentageId")
-            //   );
+          // [err, getMarketer] = await toAwait(
+          //   MarketDetail.findOne({ _id: checkCustomer.ddId }).populate({
+          //     path: "headBy",
+          //     populate: [
+          //       { path: "percentageId" }
+          //     ]
+          //   })
+          // );
+          // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+          // if (!getMarketer) {
+          //   let checkMarketerHead;
+          //   [err, checkMarketerHead] = await toAwait(
+          //     MarketingHead.findOne({ _id: checkCustomer.cedId }).populate("percentageId")
+          //   );
 
-            //   if (err) {
-            //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            //   }
+          //   if (err) {
+          //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+          //   }
 
-            //   if (!checkMarketerHead && !getMarketer) {
-            //     return ReE(res, { message: "In general inside marketer not in marketer head or marketer table not found" }, httpStatus.BAD_REQUEST);
-            //   }
-            //   if (checkMarketerHead) {
-            //     getMarketer = checkMarketerHead
-            //   }
+          //   if (!checkMarketerHead && !getMarketer) {
+          //     return ReE(res, { message: "In general inside marketer not in marketer head or marketer table not found" }, httpStatus.BAD_REQUEST);
+          //   }
+          //   if (checkMarketerHead) {
+          //     getMarketer = checkMarketerHead
+          //   }
 
-            // }
           // }
+          // }
+
+          if (getBillingRequest?.billingDetails?.housing) {
+            if (i === 0) {
+              createBill.emiCover = readyForBill.map((emi) => emi._id)
+              let updateEmis;
+              [err, updateEmis] = await toAwait(
+                Emi.updateMany(
+                  { _id: { $in: createBill.emiCover } },
+                  { $set: { paidDate: new Date(createBill.paymentDate) } }
+                )
+              )
+
+              if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+              if (!updateEmis) {
+                return ReE(res, { message: "Failed to update emis" }, httpStatus.INTERNAL_SERVER_ERROR);
+              }
+
+            } else {
+              continue;
+            }
+          }
 
           let checkAlreadyExist;
-          //remove old data
-          // if (!oldData) {
-          //   [err, checkAlreadyExist] = await toAwait(Billing.findOne({
-          //     emiNo: element.emiNo, customer: checkCustomer._id
-          //   }));
-          // } else {
-            [err, checkAlreadyExist] = await toAwait(Billing.findOne({
-              emiNo: element.emiNo,
-              customerCode: checkCustomer.id,
-            }));
-          // }
+          [err, checkAlreadyExist] = await toAwait(Billing.findOne({
+            emiNo: element.emiNo,
+            customerCode: checkCustomer.id,
+          }));
 
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-          if (checkAlreadyExist) {
+          if (checkAlreadyExist && !getBillingRequest.billingDetails.housing) {
             checkAlreadyExist = checkAlreadyExist as IBilling | any
             let updateEmiPaid;
             [err, updateEmiPaid] = await toAwait(
               Emi.updateOne(
                 { _id: checkAlreadyExist?.emi },
-                { $set: { paidDate: checkAlreadyExist?.paymentDate , paidAmt: checkAlreadyExist.amountPaid} }
+                { $set: { paidDate: checkAlreadyExist?.paymentDate, paidAmt: checkAlreadyExist.amountPaid } }
               )
             )
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -201,17 +301,17 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
             getEmi = getEmi as IEmi
             if (getEmi?.paidDate) {
-              if(i === readyForBill.length - 1){
+              if (i === readyForBill.length - 1) {
                 return ReS(res, { message: `billing already exist for this emi no ${readyForBill.map(element => element.emiNo)} for this customer, please try again!` }, httpStatus.BAD_REQUEST);
               }
-              // return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
             }
-            // return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
           } else {
 
             let billing;
-            [err, billing] = await toAwait(Billing.create(createBill));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            if (i === 0) {
+              [err, billing] = await toAwait(Billing.create(createBill));
+              if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            }
 
             billing = billing as IBilling;
             getMarketer = getMarketer as any;
@@ -220,64 +320,79 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             let checkAlreadyExistMarketer
             //replace oldData
             // if (!checkCustomer.oldData) {
-              // let marketerDe: any = {
-              //   customer: checkCustomer._id,
-              //   emiNo: element?.emiNo,
-              //   paidDate: billing.paymentDate,
-              //   paidAmt: billing.amountPaid,
-              //   marketer: checkCustomer?.ddId || checkCustomer?.cedId,
-              //   emiId: element._id,
-              //   generalId: checkGeneral._id,
-              //   marketerHeadId: checkCustomer?.cedId,
-              //   percentageId: getMarketer?.headBy?.percentageId?._id || getMarketer?.percentageId?._id,
-              // };
-              // [err, checkAlreadyExistMarketer] = await toAwait(Marketer.findOne({
-              //   marketer: marketerDe.marketer,
-              //   emiId: marketerDe.emiId,
-              //   general: marketerDe.general,
-              // }));
+            // let marketerDe: any = {
+            //   customer: checkCustomer._id,
+            //   emiNo: element?.emiNo,
+            //   paidDate: billing.paymentDate,
+            //   paidAmt: billing.amountPaid,
+            //   marketer: checkCustomer?.ddId || checkCustomer?.cedId,
+            //   emiId: element._id,
+            //   generalId: checkGeneral._id,
+            //   marketerHeadId: checkCustomer?.cedId,
+            //   percentageId: getMarketer?.headBy?.percentageId?._id || getMarketer?.percentageId?._id,
+            // };
+            // [err, checkAlreadyExistMarketer] = await toAwait(Marketer.findOne({
+            //   marketer: marketerDe.marketer,
+            //   emiId: marketerDe.emiId,
+            //   general: marketerDe.general,
+            // }));
 
-              // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-              // if (!checkAlreadyExistMarketer) {
-              //   if (getMarketer?.headBy?.percentageId?.rate?.rate) {
-              //     let percent = Number(
-              //       getMarketer?.headBy?.percentageId?.replace("%", "")
-              //     );
-              //     let correctPercent = billing.amountPaid * (percent / 100);
-              //     marketerDe.commPercentage = percent;
-              //     marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
-              //   }
-              //   if (getMarketer?.percentageId?.rate) {
-              //     let percent = Number(
-              //       getMarketer?.percentageId?.rate?.replace("%", "")
-              //     );
-              //     let correctPercent = billing.amountPaid * (percent / 100);
-              //     marketerDe.commPercentage = percent;
-              //     marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
-              //   }
+            // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            // if (!checkAlreadyExistMarketer) {
+            //   if (getMarketer?.headBy?.percentageId?.rate?.rate) {
+            //     let percent = Number(
+            //       getMarketer?.headBy?.percentageId?.replace("%", "")
+            //     );
+            //     let correctPercent = billing.amountPaid * (percent / 100);
+            //     marketerDe.commPercentage = percent;
+            //     marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
+            //   }
+            //   if (getMarketer?.percentageId?.rate) {
+            //     let percent = Number(
+            //       getMarketer?.percentageId?.rate?.replace("%", "")
+            //     );
+            //     let correctPercent = billing.amountPaid * (percent / 100);
+            //     marketerDe.commPercentage = percent;
+            //     marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
+            //   }
 
-              //   let marketer;
-              //   [err, marketer] = await toAwait(Marketer.create(marketerDe));
-              //   if (err) {
-              //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-              //   }
-              // }
+            //   let marketer;
+            //   [err, marketer] = await toAwait(Marketer.create(marketerDe));
+            //   if (err) {
+            //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            //   }
+            // }
             // }
 
             let updateEmi;
-            [err, updateEmi] = await toAwait(
-              Emi.findOneAndUpdate(
-                { _id: element._id },
-                { paidDate: billing.paymentDate, paidAmt: billing.amountPaid },
-                { new: true }
-              )
-            );
-            if (err) {
-              return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            if (!getBillingRequest.billingDetails.housing) {
+              [err, updateEmi] = await toAwait(
+                Emi.findOneAndUpdate(
+                  { _id: element._id },
+                  { paidDate: billing.paymentDate, paidAmt: billing.amountPaid },
+                  { new: true }
+                )
+              );
+              if (err) {
+                return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+              }
             }
 
           }
 
+        }
+
+        let updateCustomer;
+        [err, updateCustomer] = await toAwait(
+          Customer.updateOne({ _id: customerId }, { $set: { balanceAmount: Number(getBillingRequest.billingDetails?.customerBalanceAmount) } })
+        );
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!updateCustomer) {
+          return ReE(
+            res,
+            { message: "customer not updated" },
+            httpStatus.INTERNAL_SERVER_ERROR
+          );
         }
 
       }
@@ -317,7 +432,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
       approvedTime = expiry.toDate(); // time included
       approvedHours = hours;
 
-      if(expiry.isBefore(moment())){
+      if (expiry.isBefore(moment())) {
         return ReE(
           res,
           { message: "Validity time must be in future" },
@@ -416,7 +531,7 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
     // 2. Search in Customer fields (find matching customers first)
     // We assume BillingRequest has a customerId field as per model, or we can look up via aggregation if needed.
     // Based on model: customerId: { type: Schema.Types.ObjectId, ref: "Customer" }
-    
+
     let customers;
     [err, customers] = await toAwait(Customer.find({
       $or: [
@@ -428,12 +543,12 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
     }).select('_id'));
 
     if (customers && (customers as any[]).length > 0) {
-       const customerIds = (customers as any[]).map(c => c._id);
-       searchConditions.push({ customerId: { $in: customerIds } });
-       
-       // Also check 'emi' -> 'customer' if customerId is not reliably populated on BillingRequest (fallback)
-       // But 'find' with 'in' on nested arrays via another collection is hard in a simple query.
-       // We'll rely on 'customerId' being present on BillingRequest as per schema.
+      const customerIds = (customers as any[]).map(c => c._id);
+      searchConditions.push({ customerId: { $in: customerIds } });
+
+      // Also check 'emi' -> 'customer' if customerId is not reliably populated on BillingRequest (fallback)
+      // But 'find' with 'in' on nested arrays via another collection is hard in a simple query.
+      // We'll rely on 'customerId' being present on BillingRequest as per schema.
     }
 
     // 3. Search in User fields (find matching users)
@@ -447,17 +562,17 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
     }).select('_id'));
 
     if (users && (users as any[]).length > 0) {
-       const userIds = (users as any[]).map(u => u._id);
-       searchConditions.push({ userId: { $in: userIds } });
+      const userIds = (users as any[]).map(u => u._id);
+      searchConditions.push({ userId: { $in: userIds } });
     }
 
-    if(searchConditions.length > 0) {
-        if(option.$or) {
-            option.$and = [{ $or: option.$or }, { $or: searchConditions }];
-            delete option.$or;
-        } else {
-            option.$or = searchConditions;
-        }
+    if (searchConditions.length > 0) {
+      if (option.$or) {
+        option.$and = [{ $or: option.$or }, { $or: searchConditions }];
+        delete option.$or;
+      } else {
+        option.$or = searchConditions;
+      }
     }
   }
 
@@ -475,23 +590,23 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
   totalCount = totalCount as number;
-  
+
   // Handle pagination only if page and limit are provided (backward compatibility logic mostly implies 
   // if not provided, usually return all, but here code had defaults or logic. 
   // The original code calculated skip/limit but didn't enforce if page/limit undefined? 
   // Actually page/limit were 'undefined' -> Number(undefined) is NaN.
   // We should handle that.
-  
+
   let queryObj = BillingRequest.find(option).sort({ createdAt: -1 }).populate({
-        path: "emi",
-        populate: [
-          { path: "general" },
-          { path: "customer" }
-        ]
-      }).populate("userId").populate("approvedBy").populate("customerId"); // Added populate customerId
+    path: "emi",
+    populate: [
+      { path: "general" },
+      { path: "customer" }
+    ]
+  }).populate("userId").populate("approvedBy").populate("customerId"); // Added populate customerId
 
   if (page && limit) {
-      queryObj = queryObj.skip(skip).limit(limitNo);
+    queryObj = queryObj.skip(skip).limit(limitNo);
   }
 
   [err, getBillingRequest] = await toAwait(queryObj);
@@ -501,7 +616,7 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
   // if (!getBillingRequest) {
   //   return ReE(res, { message: "billing request not found!" }, httpStatus.NOT_FOUND);
   // }
-  
+
   getBillingRequest = getBillingRequest as IBillingRequest[];
 
   return ReS(
@@ -511,12 +626,12 @@ export const getAllBillingRequest = async (req: CustomRequest, res: Response) =>
       data: getBillingRequest,
       ...(page && limit && {
         pagination: {
-            page: pageNo,
-            limit: limitNo,
-            totalRecords: totalCount,
-            totalPages: Math.ceil(totalCount / limitNo),
-            hasNextPage: pageNo < Math.ceil(totalCount / limitNo),
-            hasPreviousPage: pageNo > 1
+          page: pageNo,
+          limit: limitNo,
+          totalRecords: totalCount,
+          totalPages: Math.ceil(totalCount / limitNo),
+          hasNextPage: pageNo < Math.ceil(totalCount / limitNo),
+          hasPreviousPage: pageNo > 1
         }
       })
     },

@@ -526,8 +526,8 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     [err, checkBillForCus] = await toAwait(Billing.findOne({ customer: customerId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-    if(general.emiAmount || general.noOfInstallments){
-      if(!user.isAdmin){
+    if (general.emiAmount || general.noOfInstallments) {
+      if (!user.isAdmin) {
         return ReE(res, { message: "You don't have permission to update the emi_amount or noOfInstallments " }, httpStatus.BAD_REQUEST)
       }
     }
@@ -659,7 +659,7 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     if (general.noOfInstallments) {
       const oldInstallments = getGeneral.noOfInstallments;
       const newInstallments = general.noOfInstallments;
-      if(oldInstallments){
+      if (oldInstallments) {
         if (oldInstallments !== newInstallments) {
           if (oldInstallments > newInstallments) {
             const deleteCount = oldInstallments - newInstallments;
@@ -680,7 +680,7 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
               await Emi.deleteMany({ _id: { $in: emiIds } });
             }
           }
-          
+
           if (oldInstallments < newInstallments) {
 
             const addCount = newInstallments - oldInstallments;
@@ -719,12 +719,12 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
         }
       }
     }
-    if(general.emiAmount){
-      if(getGeneral.emiAmount !== general.emiAmount){
+    if (general.emiAmount) {
+      if (getGeneral.emiAmount !== general.emiAmount) {
         let updateAllEmis;
-        [err, updateAllEmis] =await toAwait(Emi.updateMany({ general: getGeneral._id }, { emiAmt: general.emiAmount }));
+        [err, updateAllEmis] = await toAwait(Emi.updateMany({ general: getGeneral._id }, { emiAmt: general.emiAmount }));
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        if(!updateAllEmis){
+        if (!updateAllEmis) {
           errors.push(`error in while updating emis: ${err.message}`);
         }
       }
@@ -1679,6 +1679,14 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     } = body;
 
     amount = Number(amount);
+    let customerBalanceAmount = 0;
+    const enteredAmount = amount;
+
+    if(housing) {
+      if(housing !== true){
+        return ReE(res, { message: "Invalid housing value, valid value is true in boolean" }, httpStatus.BAD_REQUEST);
+      }
+    }
 
     if (!customerId) {
       return ReE(
@@ -1770,12 +1778,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
     let checkGeneral;
     [err, checkGeneral] = await toAwait(
-      General.findOne({
-        $or: [
-          { customer: customerId },
-          { supplierCode: checkCustomer.id },
-        ]
-      })
+      General.findOne({ customer: customerId })
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!checkGeneral) {
@@ -1874,7 +1877,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       [err, checkBillingRequestForCustomer] = await toAwait(
         BillingRequest.findOne({ requestFor: "create", customerId: customerId, status: "pending" })
       );
-      console.log(checkBillingRequestForCustomer);
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       if (checkBillingRequestForCustomer) {
         return ReE(
@@ -1887,7 +1889,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       let getAllEmiPast;
       //replace oldData
       [err, getAllEmiPast] = await toAwait(
-        Emi.find({ general: checkGeneral._id, customer: customerId, paidDate: { $eq: null } }).sort({ emiNo: 1 })
+        Emi.find({ general: checkGeneral._id, customer: customerId, paidDate: null }).sort({ emiNo: 1 })
       );
 
       if (err) {
@@ -1932,19 +1934,126 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         );
       }
 
+
+      if (housing) {
+        amount += Number(checkCustomer.balanceAmount)
+        if (getAllEmiPast[0].emiAmt > amount) {
+          let createBill;
+          if(!user.isAdmin){
+            [err, checkBillingRequestForCustomer] = await toAwait(
+              BillingRequest.findOne({ requestFor: "create", customerId: customerId, status: "pending" })
+            );
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            if (checkBillingRequestForCustomer) {
+              return ReE(
+                res,
+                { message: "billing request already pending for this customer" },
+                httpStatus.BAD_REQUEST
+              );
+            }
+
+            let createBillingRequest
+            [err, createBillingRequest] = await toAwait(
+              BillingRequest.create({
+                status: "pending",
+                userId: user._id,
+                message: `Billing parcially paid creation Request from  ${user.name} for ${readyForBill.length} EMIs`,
+                requestFor: "create",
+                customerId: customerId,
+                emi: readyForBill.map((emi) => emi._id),
+                billingDetails: {
+                  saleType: saleType,
+                  modeOfPayment,
+                  paymentDate,
+                  cardHolderName,
+                  remarks,
+                  cardNo,
+                  referenceId,
+                  billFor,
+                  customerBalanceAmount: customerBalanceAmount,
+                  housing,
+                  enteredAmount,
+                  parciallyPaid: true
+                },
+              })
+            );
+
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            if (!createBillingRequest) {
+              return ReE(
+                res,
+                { message: "billing request not created" },
+                httpStatus.INTERNAL_SERVER_ERROR
+              );
+            }
+
+            return ReS(res, { message: "billing request created successfully" }, httpStatus.OK);
+          }
+          [err, createBill] = await toAwait(
+            Billing.create({
+              // amountPaid: enteredAmount,
+              paymentDate: new Date(paymentDate),
+              transactionType: "EMI Receipt",
+              saleType,
+              introducer: checkCustomer?.cedId || checkCustomer?.ddId,
+              introducerByModel: checkCustomer?.cedId ? "MarketDetail" : "MarketingHead",
+              status,
+              modeOfPayment,
+              referenceId,
+              mobileNo: checkCustomer.phone,
+              cardNo,
+              customer: customerId,
+              general: checkGeneral._id,
+              cardHolderName,
+              remarks,
+              customerName: checkCustomer.name,
+              oldData: checkCustomer.oldData,
+              customerCode: checkCustomer.id,
+              billFor,
+              createdBy: user._id,
+              enteredAmount,
+            })
+          );
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+          if (!createBill) {
+            return ReE(
+              res,
+              { message: "billing not created" },
+              httpStatus.INTERNAL_SERVER_ERROR
+            );
+          }
+
+          let updateCustomer;
+          [err, updateCustomer] = await toAwait(
+            Customer.updateOne({ _id: customerId }, { $inc: { balanceAmount: Number(enteredAmount) } })
+          );
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+          if (!updateCustomer) {
+            return ReE(
+              res,
+              { message: "customer not updated" },
+              httpStatus.INTERNAL_SERVER_ERROR
+            );
+          }
+
+          return ReS(res, { message: "billing created successfully" }, httpStatus.OK);
+        }
+      }
+
       let unPaidTotal = getAllEmiPast.reduce((acc, curr) => acc + curr.emiAmt, 0);
       unPaidTotal = unPaidTotal as number;
 
-      console.log("unPaidTotal", getAllEmiPast[0]);
+      if (!housing) {
+        let validAmount = validateEmiPayment(amount, getAllEmiPast[0].emiAmt, unPaidTotal);
 
-      let validAmount = validateEmiPayment(amount, getAllEmiPast[0].emiAmt, unPaidTotal);
-
-      if (validAmount.valid === false) {
-        return ReE(
-          res,
-          { message: validAmount.message },
-          httpStatus.BAD_REQUEST
-        );
+        if (validAmount.valid === false) {
+          return ReE(
+            res,
+            { message: validAmount.message },
+            httpStatus.BAD_REQUEST
+          );
+        }
       }
 
       let noOfEmiPay = amount / getAllEmiPast[0].emiAmt;
@@ -1952,6 +2061,11 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       noOfEmiPay = Math.floor(noOfEmiPay);
 
       readyForBill = getAllEmiPast.slice(0, noOfEmiPay);
+
+      if (housing) {
+        customerBalanceAmount = Number(amount) - (getAllEmiPast[0].emiAmt * noOfEmiPay)
+        amount = getAllEmiPast[0].emiAmt * noOfEmiPay
+      }
 
     }
 
@@ -1999,7 +2113,11 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               remarks,
               cardNo,
               referenceId,
-              billFor
+              billFor,
+              customerBalanceAmount: customerBalanceAmount,
+              housing,
+              enteredAmount,
+              parciallyPaid : false
             },
           })
         );
@@ -2055,21 +2173,19 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       let totalAmount = checkGeneral.emiAmount! * checkGeneral.noOfInstallments!;
       if (getAllBill.length === 0) {
         balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
-        console.log("balanceAmount", balanceAmount, totalAmount, amount);
       } else {
         let total = getAllBill.reduce((acc, curr) => acc + curr.amountPaid, 0);
         balanceAmount = totalAmount - (total + amount);
-        console.log("balanceAmount", balanceAmount, totalAmount, total, amount);
       }
 
-      let createBill = {
+      let createBill: any = {
         emiNo: element.emiNo,
         amountPaid: amount,
         paymentDate: new Date(paymentDate),
         transactionType: "EMI Receipt",
         saleType,
-        introducer: checkCustomer?.ddId || checkCustomer?.cedId,
-        introducerByModel: checkCustomer?.ddId ? "MarketDetail" : "MarketingHead",
+        introducer: checkCustomer?.cedId || checkCustomer?.ddId,
+        introducerByModel: checkCustomer?.cedId ? "MarketDetail" : "MarketingHead",
         status,
         modeOfPayment,
         referenceId,
@@ -2085,57 +2201,41 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         oldData: checkCustomer.oldData,
         customerCode: checkCustomer.id,
         billFor,
-        createdBy: user._id
+        createdBy: user._id,
+        enteredAmount
       };
 
-      // let getMarketer;
-      //replace oldData
-      // if (!checkCustomer.oldData) {
-      // [err, getMarketer] = await toAwait(
-      //   MarketDetail.findOne({ _id: checkCustomer.ddId }).populate({
-      //     path: "headBy",
-      //     populate: [
-      //       { path: "percentageId" }
-      //     ]
-      //   })
-      // );
-      // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      // if (!getMarketer) {
-      //   let checkMarketerHead;
-      //   [err, checkMarketerHead] = await toAwait(
-      //     MarketingHead.findOne({ _id: checkCustomer.cedId }).populate("percentageId")
-      //   );
+      if (housing) {
+        if (i === 0) {
+          createBill.emiCover = readyForBill.map((emi) => emi._id)
+          let updateEmis;
+          [err, updateEmis] = await toAwait(
+            Emi.updateMany(
+              { _id: { $in: createBill.emiCover } },
+              { $set: { paidDate: new Date(paymentDate) } }
+            )
+          )
 
-      //   if (err) {
-      //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      //   }
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-      //   if (!checkMarketerHead && !getMarketer) {
-      //     return ReE(res, { message: "In general inside marketer not in marketer head or marketer table not found" }, httpStatus.BAD_REQUEST);
-      //   }
-      //   if (checkMarketerHead) {
-      //     getMarketer = checkMarketerHead
-      //   }
-      // }
+          if (!updateEmis) {
+            return ReE(res, { message: "Failed to update emis" }, httpStatus.INTERNAL_SERVER_ERROR);
+          }
 
-      // }
+        } else {
+          continue;
+        }
+      }
 
       let checkAlreadyExist;
-      //replace oldData
-      // if (!checkCustomer.oldData) {
-      //   [err, checkAlreadyExist] = await toAwait(Billing.findOne({
-      //     emiNo: element.emiNo, customer: customerId
-      //   }));
-      // } else {
       [err, checkAlreadyExist] = await toAwait(Billing.findOne({
         emiNo: element.emiNo,
-        customerCode: checkCustomer.id,
+        customer: customerId
       }));
-      // }
 
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-      if (checkAlreadyExist) {
+      if (checkAlreadyExist && !housing) {
         checkAlreadyExist = checkAlreadyExist as IBilling
         let updateEmiPaid;
         [err, updateEmiPaid] = await toAwait(
@@ -2157,7 +2257,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         }
         // return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
       } else {
-
+        console.log("mass")
         let billing;
         [err, billing] = await toAwait(Billing.create(createBill));
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2213,21 +2313,37 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         // }
         // }
 
-        let updateEmi;
-        [err, updateEmi] = await toAwait(
-          Emi.findOneAndUpdate(
-            { _id: element._id },
-            { paidDate: billing.paymentDate, paidAmt: billing.amountPaid },
-            { new: true }
-          )
-        );
-        if (err) {
-          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if(!housing){
+          let updateEmi;
+          [err, updateEmi] = await toAwait(
+            Emi.findOneAndUpdate(
+              { _id: element._id },
+              { paidDate: billing.paymentDate, paidAmt: billing.amountPaid },
+              { new: true }
+            )
+          );
+          if (err) {
+            return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+          }
         }
 
       }
 
     }
+
+    let updateCustomerBalance;
+    [err, updateCustomerBalance] = await toAwait(
+      Customer.findOneAndUpdate(
+        { _id: customerId },
+        { $set: { balanceAmount: customerBalanceAmount } },
+        { new: true }
+      )
+    );
+
+    if (err) {
+      return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+
 
     return ReS(
       res,

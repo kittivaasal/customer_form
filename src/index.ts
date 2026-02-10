@@ -123,27 +123,26 @@ app.use("/api/billing/request", billingRequestRoutes);
 app.use("/api/edit/request", editRequestRoutes);
 app.use("/api/logs", logRoutes)
 
-// app.get("/", async (req: Request, res: Response) => {
-//   try { 
-//     let up = await General.updateMany(
-//       { customer: { $type: "string" } },
-//       [
-//         {
-//           $set: {
-//             customer: { $toObjectId: "$customer" },
-//             project: { $toObjectId: "$project" },
-//             marketer : { $toObjectId: "$marketer" }
-//           }
-//         }
-//       ]
-//     );
-//     res.json({ success: true, message: "Update operation completed", modifiedCount: up.modifiedCount });
+app.get("/", async (req: Request, res: Response) => {
+  try { 
+    let up = await Emi.updateMany(
+      { general: { $type: "string" } },
+      [
+        {
+          $set: {
+            customer: { $toObjectId: "$customer" },
+            general: { $toObjectId: "$general" }
+          }
+        }
+      ]
+    );
+    res.json({ success: true, message: "Update operation completed", modifiedCount: up.modifiedCount });
 
-//   } catch (error) {
-//     console.error("Error updating bills:", error);
-//     res.status(500).json({ success: false, message: "Error updating bills", error });
-//   }
-// });
+  } catch (error) {
+    console.error("Error updating bills:", error);
+    res.status(500).json({ success: false, message: "Error updating bills", error });
+  }
+});
 
 // app.get("/update/customer", async (req: Request, res: Response) => {
 

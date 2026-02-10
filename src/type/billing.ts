@@ -45,7 +45,7 @@ export interface IBilling extends Document {
     totalAmount?: string;
     totalPaid?: string;
     totalBalance?: string;
-
+    enteredAmount?: number;
     TType?: string;
     product?: string;
     EMIDate?: string;
@@ -53,4 +53,5 @@ export interface IBilling extends Document {
     SEBalanceAmt?: string;
     push?: boolean
     amountPaidForBill: number
+    emiCover:mongoose.Types.ObjectId[]
 }

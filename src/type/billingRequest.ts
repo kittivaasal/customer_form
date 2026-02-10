@@ -26,5 +26,9 @@ export interface IBillingRequest {
         cardNo?: string
         referenceId?: String
         billFor?: string
+        customerBalanceAmount?: number
+        housing: boolean,
+        enteredAmount?: number
+        parciallyPaid?: boolean
     },
 }
