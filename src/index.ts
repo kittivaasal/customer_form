@@ -1849,163 +1849,21 @@ app.get("/bill-count", async (req: Request, res: Response) => {
 });
 
 
-app.get("/bulk/emi/paid",async(req,res)=>{
-  try{
-    let data=  [
-      {
-"updateOne": {
-"filter": {
-"_id": "6980256513e04af60c170d5d"
-},
-"update": {
-"$set": {
-"paidDate": "2026-01-30T02:25:05.120Z",
-"update": true
-}
-}
-}
-},
-{
-"updateOne": {
-"filter": {
-"_id": "6980256413e04af60c16f202"
-},
-"update": {
-"$set": {
-"paidDate": "2026-01-30T02:25:05.120Z",
-"update": true
-}
-}
-}
-},
-{
-"updateOne": {
-"filter": {
-"_id": "6980256413e04af60c16f971"
-},
-"update": {
-"$set": {
-"paidDate": "2026-01-30T02:25:05.120Z",
-"update": true
-}
-}
-}
-},
-{
-"updateOne": {
-"filter": {
-"_id": "6980256b13e04af60c17adef"
-},
-"update": {
-"$set": {
-"paidDate": "2026-01-30T02:25:05.120Z",
-"update": true
-}
-}
-}
-},
-{
-"updateOne": {
-"filter": {
-"_id": "6980256b13e04af60c17ae66"
-},
-"update": {
-"$set": {
-"paidDate": "2026-01-30T02:25:05.120Z",
-"update": true
-}
-}
-}
-},
-{
-"updateOne": {
-"filter": {
-"_id": "6980255d13e04af60c161dc0"
-},
-"update": {
-"$set": {
-"paidDate": "2026-01-30T02:25:05.120Z",
-"update": true
-}
-}
-}
-},
-{
-"updateOne": {
-"filter": {
-"_id": "6980256913e04af60c178f79"
-},
-"update": {
-"$set": {
-"paidDate": "2026-01-30T02:25:05.120Z",
-"update": true
-}
-}
-}
-},
-{
-"updateOne": {
-"filter": {
-"_id": "6980256a13e04af60c179375"
-},
-"update": {
-"$set": {
-"paidDate": "2026-01-30T02:25:05.120Z",
-"update": true
-}
-}
-}
-},
-{
-"updateOne": {
-"filter": {
-"_id": "6980256b13e04af60c17c0aa"
-},
-"update": {
-"$set": {
-"paidDate": "2026-01-30T02:25:05.120Z",
-"update": true
-}
-}
-}
-},
-{
-"updateOne": {
-"filter": {
-"_id": "6980256b13e04af60c17c0e6"
-},
-"update": {
-"$set": {
-"paidDate": "2026-01-30T02:25:05.120Z",
-"update": true
-}
-}
-}
-},
-{
-"updateOne": {
-"filter": {
-"_id": "6980256513e04af60c170f54"
-},
-"update": {
-"$set": {
-"paidDate": "2026-01-30T02:25:05.120Z",
-"update": true
-}
-}
-}
-}
-]
-  let update = await Emi.bulkWrite(data)
+// app.get("/bulk/emi/paid",async(req,res)=>{
+//   try{
+//     let data=  [
+      
+// ]
+//   let update = await Emi.bulkWrite(data)
 
-  console.log(update)
+//   console.log(update)
 
-  res.json("update")
+//   res.json("update")
   
-}catch(err){
-    res.json(err)
+// }catch(err){
+//     res.json(err)
 
-  }
-})
+//   }
+// })
 
 app.listen(port, () => console.log("Server running on port " + port));
