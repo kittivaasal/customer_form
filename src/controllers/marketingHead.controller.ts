@@ -53,12 +53,12 @@ export const createMarketingHead = async (req: Request, res: Response) => {
         if (!isPhone(phone)) {
             return ReE(res, { message: `Invalid phone number!.` }, httpStatus.BAD_REQUEST)
         }
-        let findPhone;
-        [err, findPhone] = await toAwait(MarketingHead.findOne({ phone: phone }))
-        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        if (findPhone) {
-            return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
-        }
+        // let findPhone;
+        // [err, findPhone] = await toAwait(MarketingHead.findOne({ phone: phone }))
+        // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        // if (findPhone) {
+        //     return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
+        // }
     }
     let findExist;
     [err, findExist] = await toAwait(MarketingHead.findOne(body));
@@ -168,12 +168,12 @@ export const updateMarketingHead = async (req: CustomRequest, res: Response) => 
         if (!isPhone(updateFields.phone)) {
             return ReE(res, { message: `Invalid phone number!.` }, httpStatus.BAD_REQUEST)
         }
-        let findPhone;
-        [err, findPhone] = await toAwait(MarketingHead.findOne({ phone: updateFields.phone, _id: { $ne: _id } }));
-        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        if (findPhone) {
-            return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
-        }
+        // let findPhone;
+        // [err, findPhone] = await toAwait(MarketingHead.findOne({ phone: updateFields.phone, _id: { $ne: _id } }));
+        // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        // if (findPhone) {
+        //     return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
+        // }
     }
 
     if (updateFields.percentageId) {

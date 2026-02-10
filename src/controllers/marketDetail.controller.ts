@@ -28,12 +28,12 @@ export const createMarketDetail = async (req: Request, res: Response) => {
     if (!isPhone(phone)) {
       return ReE(res, { message: `Invalid phone number!.` }, httpStatus.BAD_REQUEST)
     }
-    let findPhone;
-    [err, findPhone] = await toAwait(MarketDetail.findOne({ phone: phone }))
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (findPhone) {
-      return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
-    }
+    // let findPhone;
+    // [err, findPhone] = await toAwait(MarketDetail.findOne({ phone: phone }))
+    // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    // if (findPhone) {
+    //   return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
+    // }
   }
 
   let checkPer;
@@ -228,11 +228,11 @@ export const updateMarketDetail = async (req: CustomRequest, res: Response) => {
       return ReE(res, { message: `Invalid phone number!.` }, httpStatus.BAD_REQUEST)
     }
     let findPhone;
-    [err, findPhone] = await toAwait(MarketDetail.findOne({ phone: updateFields.phone, _id: { $ne: _id } }));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (findPhone) {
-      return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
-    }
+    // [err, findPhone] = await toAwait(MarketDetail.findOne({ phone: updateFields.phone, _id: { $ne: _id } }));
+    // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    // if (findPhone) {
+    //   return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
+    // }
   }
 
   if (user.isAdmin === false) {

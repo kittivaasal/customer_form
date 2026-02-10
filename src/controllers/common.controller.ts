@@ -2579,11 +2579,12 @@ export const getAllDataBasedOnGeneral = async (req: Request, res: Response) => {
 
       [err, objMarketer] = await toAwait(
         Marketer.find({ generalId: general._id })
-          .populate("customer")
-          .populate("generalId")
-          .populate("emiId")
-          .populate("marketerHeadId")
-          .populate("percentageId").sort({ createdAt: -1 })
+          // .populate("customer")
+          // .populate("generalId")
+          // .populate("emiId")
+          // .populate("marketerHeadId")
+          // .populate("percentageId")
+          .sort({ createdAt: -1 })
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
