@@ -40,6 +40,7 @@ import { excelDateToJSDate, ReS } from "./services/util.service";
 import { IBilling } from "./type/billing";
 import { IMarketDetail } from "./type/marketDetail";
 import e from "express";
+import commissionRoutes from "./routes/commission.routes";
 
 const app = express();
 app.use(express.json());
@@ -122,6 +123,7 @@ app.use("/api/alliance/customer/form", lifeSacingRoutes);
 app.use("/api/billing/request", billingRequestRoutes);
 app.use("/api/edit/request", editRequestRoutes);
 app.use("/api/logs", logRoutes)
+app.use("/api/commission", commissionRoutes)
 
 app.get("/", async (req: Request, res: Response) => {
   try { 
