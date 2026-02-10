@@ -369,12 +369,25 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
   }
 
   let queryTo = MarketDetail.find(option)
+    // .populate({
+    //   path: "headBy",
+    //   populate: [
+    //     { path: "percentageId" }
+    //   ]
+    // })
     .populate({
-      path: "headBy",
-      populate: [
-        { path: "percentageId" }
-      ]
-    })
+        path: "headBy",
+        populate: {
+          path: "percentageId",
+        },
+      })
+      .populate({
+        path: "percentageId",
+      })
+    .populate("headBy")
+      .populate({
+        path: "overAllHeadBy.headBy", 
+      })
     .sort({ createdAt: -1 });
 
   if (page && limit) {

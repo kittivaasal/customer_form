@@ -41,6 +41,7 @@ import { Project } from "../models/project.model";
 import { IProject } from "../type/project";
 import { get } from "http";
 import { sendPushNotificationToSuperAdmin } from "./common";
+import { CustomerEmiModel } from "../models/commision.model";
 
 export const uploadImages = async (req: Request, res: Response) => {
   try {
@@ -2578,7 +2579,7 @@ export const getAllDataBasedOnGeneral = async (req: Request, res: Response) => {
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
       [err, objMarketer] = await toAwait(
-        Marketer.find({ generalId: general._id })
+        CustomerEmiModel.find({ customer: customerId })
           // .populate("customer")
           // .populate("generalId")
           // .populate("emiId")

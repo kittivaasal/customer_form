@@ -58,50 +58,50 @@ mongoose.connect(db).then(() => {
 
 initializeFirebase();
 
-app.get("/bill/duplicate", async (req: Request, res: Response) => {
+// app.get("/bill/duplicate", async (req: Request, res: Response) => {
 
-  try {
-    let update;
-    let {  deleteBill } = req.query
-    const duplicates = await Billing.aggregate([
-      {
-        $group: {
-          _id: {
-            emiNo: "$emiNo",
-            emi: "$emi",
-            customer: "$customer"
-          },
-          ids: { $push: "$_id" },
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $match: { count: { $gt: 1 } }
-      }
-    ]);
+//   try {
+//     let update;
+//     let {  deleteBill } = req.query
+//     const duplicates = await Billing.aggregate([
+//       {
+//         $group: {
+//           _id: {
+//             emiNo: "$emiNo",
+//             emi: "$emi",
+//             customer: "$customer"
+//           },
+//           ids: { $push: "$_id" },
+//           count: { $sum: 1 }
+//         }
+//       },
+//       {
+//         $match: { count: { $gt: 1 } }
+//       }
+//     ]);
 
 
-    if(deleteBill == "true"){
+//     if(deleteBill == "true"){
 
-      for (const doc of duplicates) {
-        // keep first id, remove rest
-        const idsToDelete = doc.ids.slice(1);
+//       for (const doc of duplicates) {
+//         // keep first id, remove rest
+//         const idsToDelete = doc.ids.slice(1);
   
-        await Billing.deleteMany({
-          _id: { $in: idsToDelete }
-        });
-      }
-    }
+//         await Billing.deleteMany({
+//           _id: { $in: idsToDelete }
+//         });
+//       }
+//     }
 
-    console.log("Duplicates removed successfully");
+//     console.log("Duplicates removed successfully");
     
-    ReS(res, { data: duplicates }, 200)
+//     ReS(res, { data: duplicates }, 200)
 
-  } catch (error) {
+//   } catch (error) {
 
-  }
+//   }
 
-})
+// })
 
 app.use("/api/customer", customerRoutes);
 app.use("/api/project", projectRoutes);
@@ -124,70 +124,19 @@ app.use("/api/edit/request", editRequestRoutes);
 app.use("/api/logs", logRoutes)
 
 // app.get("/", async (req: Request, res: Response) => {
-//   try {
-// 1️⃣ Convert string dates to real Date objects
-
-// let up = await MarketingHead.updateMany(
-//   [
-//     {
-//       $set: {
-//         headBy: { $toObjectId: "$headBy" },
-//       }
-//     }
-//   ]
-// )
-
-//   const up = await MarketDetail.updateMany(
-// { "overAllHeadBy.headBy": { $type: "string" } },
-// [
-//   {
-//     $set: {
-//       headBy: { $toObjectId: "$headBy" },
-//       overAllHeadBy: {
-//         $map: {
-//           input: "$overAllHeadBy",
-//           as: "item",
-//           in: {
-//             $mergeObjects: [
-//               "$$item",
-//               {
-//                 headBy: {
-//                   $cond: [
-//                     { $eq: [{ $type: "$$item.headBy" }, "string"] },
-//                     { $toObjectId: "$$item.headBy" },
-//                     "$$item.headBy"
-//                   ]
-//                 }
-//               }
-//             ]
+//   try { 
+//     let up = await General.updateMany(
+//       { customer: { $type: "string" } },
+//       [
+//         {
+//           $set: {
+//             customer: { $toObjectId: "$customer" },
+//             project: { $toObjectId: "$project" },
+//             marketer : { $toObjectId: "$marketer" }
 //           }
 //         }
-//       }
-//     }
-//   }
-// ],
-
-//   );
-// const up = await General.updateMany(
-//   { sSalesNo: { $type: ["int", "long", "double", "decimal"] } },
-//   [
-//     {
-//       $set: {
-//         sSalesNo: { $toString: "$sSalesNo" }
-//       }
-//     }
-//   ]
-// );
-
-// let up = await Emi.updateMany(
-//   {emiAmt:null},
-//   { $rename: { "emiAmount": "emiAmt" } }
-// );
-
-//     if (up.modifiedCount > 0) {
-//       console.log(`Updated ${up.modifiedCount} EMI customer field rename.`);
-//     }
-
+//       ]
+//     );
 //     res.json({ success: true, message: "Update operation completed", modifiedCount: up.modifiedCount });
 
 //   } catch (error) {
@@ -1671,182 +1620,182 @@ cron.schedule("02 00 * * *", async () => {
 // });
 
 // bill count upload
-app.get("/bill-count", async (req: Request, res: Response) => {
-  try {
-    console.log("Starting bill count upload...");
+// app.get("/bill-count", async (req: Request, res: Response) => {
+//   try {
+//     console.log("Starting bill count upload...");
 
-    const excelPath = "./src/uploads/billingAlliance.xlsx";
-    const outputDir = "./src/uploads/generated";
-    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-    const jsonPath = path.join(outputDir, `bill-count-${Date.now()}.json`);
+//     const excelPath = "./src/uploads/billingAlliance.xlsx";
+//     const outputDir = "./src/uploads/generated";
+//     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+//     const jsonPath = path.join(outputDir, `bill-count-${Date.now()}.json`);
 
-    // Fetch EMIs and customers once
-    const customers = await Customer.find({}).lean();
-    const emis = await Emi.find({ oldData: true }).lean();
+//     // Fetch EMIs and customers once
+//     const customers = await Customer.find({}).lean();
+//     const emis = await Emi.find({ oldData: true }).lean();
 
-    // Maps for fast lookup
-    const customerMap = new Map<string, any>();
-    for (const c of customers) {
-      if (c.id) customerMap.set(c.id.toString(), c);
-    }
+//     // Maps for fast lookup
+//     const customerMap = new Map<string, any>();
+//     for (const c of customers) {
+//       if (c.id) customerMap.set(c.id.toString(), c);
+//     }
 
-    const emiMap = new Map<string, any>();
-    for (const e of emis) {
-      if (e.emiNo && e.customer) {
-        emiMap.set(`${e.emiNo.toString()}|${e.customer.toString()}`, e);
-      }
-    }
+//     const emiMap = new Map<string, any>();
+//     for (const e of emis) {
+//       if (e.emiNo && e.customer) {
+//         emiMap.set(`${e.emiNo.toString()}|${e.customer.toString()}`, e);
+//       }
+//     }
 
-    const bills: any[] = [];
-    let emi :any[] = [];
-    let bulkOperations: any[] = [];
-    const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
-      entries: "emit",
-      worksheets: "emit",
-      sharedStrings: "cache",
-      styles: "ignore",
-      hyperlinks: "ignore",
-    });
+//     const bills: any[] = [];
+//     let emi :any[] = [];
+//     let bulkOperations: any[] = [];
+//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
+//       entries: "emit",
+//       worksheets: "emit",
+//       sharedStrings: "cache",
+//       styles: "ignore",
+//       hyperlinks: "ignore",
+//     });
 
-    workbook.on("worksheet", (worksheet: any) => {
-      worksheet.on("row", (row: any) => {
-        // console.log("Processing row:", row.getCell(4).text?.trim());
-        if (row.number === 1) return;
+//     workbook.on("worksheet", (worksheet: any) => {
+//       worksheet.on("row", (row: any) => {
+//         // console.log("Processing row:", row.getCell(4).text?.trim());
+//         if (row.number === 1) return;
 
-        const customerCode = row.getCell(4).text?.trim();
-        const salesNo = row.getCell(2).value;
+//         const customerCode = row.getCell(4).text?.trim();
+//         const salesNo = row.getCell(2).value;
 
-        if (!customerCode || !salesNo) return;
+//         if (!customerCode || !salesNo) return;
 
-        const customer = customerMap.get(customerCode.toString()) || null;
-        console.log({ customer });
-        if (!customer) return;
+//         const customer = customerMap.get(customerCode.toString()) || null;
+//         console.log({ customer });
+//         if (!customer) return;
 
-        const emiKey = `${row.getCell(14).value.toString()}|${customer._id.toString()}`;
-        const emi = emiMap.get(emiKey) || null;
+//         const emiKey = `${row.getCell(14).value.toString()}|${customer._id.toString()}`;
+//         const emi = emiMap.get(emiKey) || null;
 
-        if (row.number === 5) {
-          console.log({ emiKey, emi });
-        }
+//         if (row.number === 5) {
+//           console.log({ emiKey, emi });
+//         }
 
-        // console.log(excelDateToJSDate(row.getCell(10).value), row.getCell(10).value, new Date(row.getCell(10).value) === null );
-        let payDate =  typeof row.getCell(10).value  === "string" ?   row.getCell(10).value : excelDateToJSDate(row.getCell(10).value) 
-        bills.push({
-          general: emi?.general || null,
-          customer: customer._id,
-          introducer: customer?.ddId || null,
-          introducerByModel: "MarketDetail",
-          customerCode: customerCode,
-          phone: row.getCell(5).value,
-          sSalesNo: salesNo,
-          paymentDate: payDate ,
-          amountPaid: row.getCell(11).value,
-          bookingId: row.getCell(12).value,
-          emiNo: row.getCell(14).value,
-          modeOfPayment: row.getCell(15).value,
-          remarks: row.getCell(16).value,
-          createdBy: row.getCell(17).value,
-          totalAmount: row.getCell(18).value,
-          balanceAmount: row.getCell(19).value,
-          emi: emi?._id || null,
-          oldData: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          paidDate: emi?.paidDate ? true : false
-        });
-        // emi.push({
-        //   updateOne: {
-        //     filter: { _id: emi?._id },
-        //     update: {
-        //       $set: {
-        //         paidDate:excelDateToJSDate(row.getCell(10).value),
-        //         update: true
-        //       },
-        //     },
-        //   },
-        // });
+//         // console.log(excelDateToJSDate(row.getCell(10).value), row.getCell(10).value, new Date(row.getCell(10).value) === null );
+//         let payDate =  typeof row.getCell(10).value  === "string" ?   row.getCell(10).value : excelDateToJSDate(row.getCell(10).value) 
+//         bills.push({
+//           general: emi?.general || null,
+//           customer: customer._id,
+//           introducer: customer?.ddId || null,
+//           introducerByModel: "MarketDetail",
+//           customerCode: customerCode,
+//           phone: row.getCell(5).value,
+//           sSalesNo: salesNo,
+//           paymentDate: payDate ,
+//           amountPaid: row.getCell(11).value,
+//           bookingId: row.getCell(12).value,
+//           emiNo: row.getCell(14).value,
+//           modeOfPayment: row.getCell(15).value,
+//           remarks: row.getCell(16).value,
+//           createdBy: row.getCell(17).value,
+//           totalAmount: row.getCell(18).value,
+//           balanceAmount: row.getCell(19).value,
+//           emi: emi?._id || null,
+//           oldData: true,
+//           createdAt: new Date(),
+//           updatedAt: new Date(),
+//           paidDate: emi?.paidDate ? true : false
+//         });
+//         // emi.push({
+//         //   updateOne: {
+//         //     filter: { _id: emi?._id },
+//         //     update: {
+//         //       $set: {
+//         //         paidDate:excelDateToJSDate(row.getCell(10).value),
+//         //         update: true
+//         //       },
+//         //     },
+//         //   },
+//         // });
 
-        console.log( typeof row.getCell(10).value  === "string" ?  row.getCell(10).value: excelDateToJSDate(row.getCell(10).value) )
+//         console.log( typeof row.getCell(10).value  === "string" ?  row.getCell(10).value: excelDateToJSDate(row.getCell(10).value) )
 
-        bulkOperations.push({
-          updateOne: {
-            filter: { _id: emi?._id },
-            update: {
-              $set: {
-                paidDate:new Date(payDate) ,
-                update: true
-              },
-            },
-          },
-        })
+//         bulkOperations.push({
+//           updateOne: {
+//             filter: { _id: emi?._id },
+//             update: {
+//               $set: {
+//                 paidDate:new Date(payDate) ,
+//                 update: true
+//               },
+//             },
+//           },
+//         })
 
-        if (row.number % 1000 === 0) console.log(`Processed ${row.number} rows`);
-      });
-    });
+//         if (row.number % 1000 === 0) console.log(`Processed ${row.number} rows`);
+//       });
+//     });
 
-    // workbook.on("end", () => {
-    //   fs.writeFileSync(jsonPath, JSON.stringify(bills, null, 2));
-    //   console.log("✅ Bill JSON generated:", jsonPath);
+//     // workbook.on("end", () => {
+//     //   fs.writeFileSync(jsonPath, JSON.stringify(bills, null, 2));
+//     //   console.log("✅ Bill JSON generated:", jsonPath);
 
-    //   res.status(200).json({
-    //     success: true,
-    //     file: jsonPath,
-    //     count: bills.length,
-    //     data: bulkOperations,
-    //   });
-    // });
+//     //   res.status(200).json({
+//     //     success: true,
+//     //     file: jsonPath,
+//     //     count: bills.length,
+//     //     data: bulkOperations,
+//     //   });
+//     // });
 
-    // workbook.on("error", (err: any) => {
-    //   console.error("Excel read error:", err);
-    //   res.status(500).json({ success: false, message: "Failed to read Excel file" });
-    // });
+//     // workbook.on("error", (err: any) => {
+//     //   console.error("Excel read error:", err);
+//     //   res.status(500).json({ success: false, message: "Failed to read Excel file" });
+//     // });
 
-    workbook.on("finished", async () => {
-        try {
-          console.log("📦 Starting Bulk Update...");
-          const BATCH_SIZE = 1000;
+//     workbook.on("finished", async () => {
+//         try {
+//           console.log("📦 Starting Bulk Update...");
+//           const BATCH_SIZE = 1000;
 
-          for (let i = 0; i < bulkOperations.length; i += BATCH_SIZE) {
-            const batch = bulkOperations.slice(i, i + BATCH_SIZE);
-            await Emi.bulkWrite(batch, { ordered: false });
-            console.log(`✅ Updated ${i + batch.length}`);
-          }
+//           for (let i = 0; i < bulkOperations.length; i += BATCH_SIZE) {
+//             const batch = bulkOperations.slice(i, i + BATCH_SIZE);
+//             await Emi.bulkWrite(batch, { ordered: false });
+//             console.log(`✅ Updated ${i + batch.length}`);
+//           }
 
-          fs.writeFileSync(jsonPath, JSON.stringify(bills, null, 2));
+//           fs.writeFileSync(jsonPath, JSON.stringify(bills, null, 2));
 
-          console.log("🎉 Completed Successfully");
+//           console.log("🎉 Completed Successfully");
 
-          res.status(200).json({
-            success: true,
-            totalBills: bills.length,
-            data: bulkOperations,
-            file: jsonPath
-          });
+//           res.status(200).json({
+//             success: true,
+//             totalBills: bills.length,
+//             data: bulkOperations,
+//             file: jsonPath
+//           });
 
-        } catch (error) {
-          console.error("Bulk write error:", error);
-          res.status(500).json({
-            success: false,
-            message: "Bulk write failed"
-          });
-        }
-      });
-    // });
+//         } catch (error) {
+//           console.error("Bulk write error:", error);
+//           res.status(500).json({
+//             success: false,
+//             message: "Bulk write failed"
+//           });
+//         }
+//       });
+//     // });
 
-    workbook.on("error", (err: any) => {
-      console.error("Excel error:", err);
-      res.status(500).json({
-        success: false,
-        message: "Excel read failed"
-      });
-    });
+//     workbook.on("error", (err: any) => {
+//       console.error("Excel error:", err);
+//       res.status(500).json({
+//         success: false,
+//         message: "Excel read failed"
+//       });
+//     });
 
-    await workbook.read();
-  } catch (err) {
-    console.error("Server error:", err);
-    res.status(500).json({ success: false, message: "Internal server error" });
-  }
-});
+//     await workbook.read();
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
 
 
 // app.get("/bulk/emi/paid",async(req,res)=>{

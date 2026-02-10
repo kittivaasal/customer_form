@@ -9,7 +9,7 @@ const MarketDetailSchema: Schema = new Schema(
         headByModel: { 
             type: String,
             required: true,
-            default: "MarketingHead",
+            default: "MarketDetail",
             enum: ["MarketingHead", "MarketDetail"]
         },
         phone: { type: String },
@@ -22,7 +22,7 @@ const MarketDetailSchema: Schema = new Schema(
         percentageId: {type: Schema.Types.ObjectId, ref: 'Percentage' },
         overAllHeadBy: [
             {
-                headBy: { type: Schema.Types.ObjectId, refPath: "overAllHeadBy.headByModel" },
+                headBy: { type: Schema.Types.ObjectId, refPath: "headByModel" },
                 headByModel: { 
                     type: String,
                     default: "MarketingHead",
