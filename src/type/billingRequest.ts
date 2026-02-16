@@ -17,6 +17,7 @@ export interface IBillingRequest {
     emi: [],
     createBill:[],
     reason?: string,
+    billId?: mongoose.Types.ObjectId,
     billingDetails?: {
         saleType?: string
         modeOfPayment?: string

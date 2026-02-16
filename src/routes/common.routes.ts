@@ -4,7 +4,7 @@ import path from "path";
 import { Request } from "express";
 import express from "express";
 import fs from "fs";
-import { checkEmi, createBilling, createCommonData, getAllBilling, getAllBillingReport, getAllDataBasedOnGeneral, getAllDetailsByCustomerId, getAllEmi, getAllFlat, getAllGeneral, getAllMarketer, getAllPlot, getByIdBilling, getByIdEmi, getByIdFlat, getByIdGeneral, getByIdMarketer, getByIdPlot, getDataBasedOnGeneralById, storeFcmToken, updateBilling, UpdateCommonData, uploadImages } from "../controllers/common.controller";
+import { checkEmi, createBilling, deleteBilling, createCommonData, getAllBilling, getAllBillingReport, getAllDataBasedOnGeneral, getAllDetailsByCustomerId, getAllEmi, getAllFlat, getAllGeneral, getAllMarketer, getAllPlot, getByIdBilling, getByIdEmi, getByIdFlat, getByIdGeneral, getByIdMarketer, getByIdPlot, getDataBasedOnGeneralById, storeFcmToken, updateBilling, UpdateCommonData, uploadImages } from "../controllers/common.controller";
 import verifyToken from "../middleware/verfiyToken";
 import isAdmin from "../middleware/admin";
 
@@ -26,6 +26,7 @@ router.get("/flat/get/:id", getByIdFlat)
 router.get("/billing/get/all", getAllBilling)
 router.get("/billing/get/all/report", verifyToken, getAllBillingReport)
 router.get("/billing/get/:id", getByIdBilling)
+router.delete("/billing/delete",[verifyToken,isAdmin(true)], deleteBilling)
 router.get("/emi/get/all", getAllEmi)
 router.get("/emi/get/:id", getByIdEmi)
 router.get("/marketer/get/all", getAllMarketer)

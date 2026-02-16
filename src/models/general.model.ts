@@ -89,6 +89,9 @@ const GeneralSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
+    totalAmount: {
+      type: Number,
+    },
   },
 
   { timestamps: true }

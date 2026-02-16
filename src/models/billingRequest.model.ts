@@ -91,6 +91,10 @@ const BillingRequestSchema: Schema = new Schema<IBillingRequest>(
         excelToDate: {
             type: Date
         },
+        billId : {
+            type: Schema.Types.ObjectId,
+            ref: "Billing"
+        }
     },
     { timestamps: true }
 );

@@ -158,7 +158,11 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
           if(getBillingRequest.billingDetails?.enteredAmount){
             am=getBillingRequest.billingDetails.enteredAmount
           }else{
-            am= createBill.enteredAmount || createBill.amountPaid
+            if(createBill?.enteredAmount){
+              am=createBill?.enteredAmount
+            }else{
+              am=createBill?.amountPaid
+            }
           }
 
           let getCommission = await convertCommissionToMarketer(checkCustomer, am)
@@ -320,7 +324,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
           
             let am=0;
 
-            if (getBillingRequest.billingDetails.housing) {
+            if (getBillingRequest.billingDetails?.housing) {
               am = getBillingRequest.billingDetails.enteredAmount;
             }else{
               am = billing.amountPaid
@@ -329,7 +333,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             let getCommission = await convertCommissionToMarketer(checkCustomer, am)
     
             if (!getCommission.success) return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
-    
+
             let createCommission;
             [err, createCommission] = await toAwait(
               CustomerEmiModel.create({
@@ -433,6 +437,16 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
         );
       }
 
+    }
+
+    if (status === "rejected") {
+      approvedDate = null;
+      approvedTime = null;
+      approvedHours = null;
+    }
+
+    if(getBillingRequest.requestFor === "delete" && status === "approved"){
+      
     }
 
     let updateRequest;

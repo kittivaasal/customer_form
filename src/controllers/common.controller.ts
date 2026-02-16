@@ -42,6 +42,7 @@ import { IProject } from "../type/project";
 import { get } from "http";
 import { sendPushNotificationToSuperAdmin } from "./common";
 import { CustomerEmiModel } from "../models/commision.model";
+import to from "await-to-js";
 
 export const uploadImages = async (req: Request, res: Response) => {
   try {
@@ -1395,109 +1396,144 @@ export const getByIdGeneral = async (req: Request, res: Response) => {
 };
 
 export const getByIdBilling = async (req: Request, res: Response) => {
-  let getBilling;
-  let { id } = req.params;
-  let err;
-  if (!mongoose.isValidObjectId(id)) {
-    return ReE(
-      res,
-      { message: "invalid id passed in params" },
-      httpStatus.BAD_REQUEST
-    );
-  }
-  [err, getBilling] = await toAwait(
-    Billing.findById(id)
-      //-----
-      .populate({
-        path: "general",
-        populate: [
-          { path: "project" }
-        ]
-      })
-      //------
-      .populate("introducer")
-      .populate("emi")
-      .populate({
-        path: "customer",
-        populate: [
-          {
-            path: "ddId",               // populate cedId first
-            populate: {
-              path: "percentageId"       // then populate marketerId inside cedId
-            }
-          },
-          {
-            path: "cedId",
-            populate: [
-              { path: "percentageId" },
-              {
-                path: "overAllHeadBy.headBy",   // populate headBy inside overAllHeadBy array
-                populate: { path: "percentageId" } // populate headBy.percentageId
+  try {
+    let getBilling;
+    let { id } = req.params;
+    let err;
+    if (!mongoose.isValidObjectId(id)) {
+      return ReE(
+        res,
+        { message: "invalid id passed in params" },
+        httpStatus.BAD_REQUEST
+      );
+    }
+    [err, getBilling] = await toAwait(
+      Billing.findById(id)
+        //-----
+        .populate({
+          path: "general",
+          populate: [
+            { path: "project" }
+          ]
+        })
+        //------
+        .populate("introducer")
+        .populate("emi")
+        .populate({
+          path: "customer",
+          populate: [
+            {
+              path: "ddId",               // populate cedId first
+              populate: {
+                path: "percentageId"       // then populate marketerId inside cedId
               }
-            ]
-          },
-        ]
-      })
-      .populate("createdBy", "-password -fcmToken")
-  );
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  if (!getBilling) {
-    return ReE(
-      res,
-      { message: "billing not found given id" },
-      httpStatus.NOT_FOUND
+            },
+            {
+              path: "cedId",
+              populate: [
+                { path: "percentageId" },
+                {
+                  path: "overAllHeadBy.headBy",   // populate headBy inside overAllHeadBy array
+                  populate: { path: "percentageId" } // populate headBy.percentageId
+                }
+              ]
+            },
+          ]
+        })
+        .populate("createdBy", "-password -fcmToken")
     );
-  }
-
-  getBilling = (getBilling as any).toObject();
-
-  let getAllFull, generalId, customerId;
-  if (isValidObjectId(getBilling.general)) {
-    generalId = getBilling.general
-  } else if (isValidObjectId(getBilling.general._id)) {
-    generalId = getBilling.general._id
-  }
-
-  let checkDownLineforCed;
-  let cedId = ""
-  if (getBilling.customer.cedId) {
-    if (isValidObjectId(getBilling.customer.cedId)) {
-      cedId = getBilling.customer.cedId
-    } else if (isValidObjectId(getBilling.customer.cedId._id)) {
-      cedId = getBilling.customer.cedId._id
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getBilling) {
+      return ReE(
+        res,
+        { message: "billing not found given id" },
+        httpStatus.NOT_FOUND
+      );
     }
-    [err, checkDownLineforCed] = await toAwait(
-      MarketDetail.findOne({ headBy: cedId })
-    )
-    if (err) {
-      return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    getBilling = (getBilling as any).toObject();
+
+    let getAllFull, generalId, customerId;
+    if (isValidObjectId(getBilling.general)) {
+      generalId = getBilling.general
+    } else if (isValidObjectId(getBilling.general._id)) {
+      generalId = getBilling.general._id
     }
-    if (!checkDownLineforCed) {
-      getBilling.customer.cedId.downLine = false
+
+    let checkDownLineforCed;
+    let cedId = ""
+    if (getBilling.customer.cedId) {
+      if (isValidObjectId(getBilling.customer.cedId)) {
+        cedId = getBilling.customer.cedId
+      } else if (isValidObjectId(getBilling.customer.cedId._id)) {
+        cedId = getBilling.customer.cedId._id
+      }
+      [err, checkDownLineforCed] = await toAwait(
+        MarketDetail.findOne({ headBy: cedId })
+      )
+      if (err) {
+        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      }
+      if (!checkDownLineforCed) {
+        getBilling.customer.cedId.downLine = false
+      } else {
+        getBilling.customer.cedId.downLine = true
+      }
     } else {
-      getBilling.customer.cedId.downLine = true
+      if (getBilling.customer.ddId) {
+        getBilling.customer.ddId.downLine = false
+      }
     }
-  } else {
-    if (getBilling.customer.ddId) {
-      getBilling.customer.ddId.downLine = false
+
+    if (isValidObjectId(getBilling.customer)) {
+      customerId = getBilling.customer
+    } else if (isValidObjectId(getBilling.customer._id)) {
+      customerId = getBilling.customer._id
     }
+
+    [err, getAllFull] = await toAwait(
+      Emi.find({ general: generalId, customer: customerId }).populate("customer").populate("general")
+    )
+
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    getBilling.fullEmi = getAllFull;
+
+    let totalAmount = 0;
+    if(getBilling.general){
+      if(getBilling.general?.totalAmount){
+        totalAmount = getBilling.general.totalAmount
+      }else{
+        if(getBilling.general?.emiAmount && getBilling.general?.noOfInstallments){
+          totalAmount = Number(getBilling.general.emiAmount) * Number(getBilling.general.noOfInstallments)
+        }
+      }
+    }
+
+    let getAllPaid;
+    [err, getAllPaid] = await toAwait(
+      Billing.find({ general: generalId, customer: customerId }).populate("customer").populate("general")
+    )
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    getAllPaid = getAllPaid as IBilling[]
+
+    let totalPaid = getAllPaid.reduce((total, current) => total + Number(current?.enteredAmount === 0 ? current?.amountPaid : current?.enteredAmount), 0);
+    let totalunPaid = totalAmount - totalPaid
+    let totalPrevPaid = totalPaid - Number(getBilling.enteredAmount === 0 ? getBilling.amountPaid : getBilling.enteredAmount)
+
+    let billData = {
+      totalAmount: totalAmount,
+      totalPaid: totalPaid,
+      totalunPaid: totalunPaid,
+      totalPreviouslyPaid: totalPrevPaid
+    }
+
+    return ReS(res, { data: getBilling, emi: getAllFull,billData  }, httpStatus.OK);
+
+  } catch (error) {
+    return ReE(res, error, httpStatus.INTERNAL_SERVER_ERROR);
   }
-
-  if (isValidObjectId(getBilling.customer)) {
-    customerId = getBilling.customer
-  } else if (isValidObjectId(getBilling.customer._id)) {
-    customerId = getBilling.customer._id
-  }
-
-  [err, getAllFull] = await toAwait(
-    Emi.find({ general: generalId, customer: customerId }).populate("customer").populate("general")
-  )
-
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-
-  getBilling.fullEmi = getAllFull;
-
-  return ReS(res, { data: getBilling, emi: getAllFull }, httpStatus.OK);
 };
 
 export const getByIdEmi = async (req: Request, res: Response) => {
@@ -2491,6 +2527,93 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
   } catch (error) {
     return ReE(res, error, httpStatus.INTERNAL_SERVER_ERROR);
   }
+}
+
+export const deleteBilling = async (req: CustomRequest, res: Response) => {
+  let err, { _id } = req.body, user = req.user as IUser;
+  if (!_id) {
+    return ReE(res, { message: `billing _id is required!` }, httpStatus.BAD_REQUEST);
+  }
+  if (!mongoose.isValidObjectId(_id)) {
+    return ReE(res, { message: `Invalid billing id!` }, httpStatus.BAD_REQUEST);
+  }
+
+  let getBilling;
+  [err, getBilling] = await toAwait(Billing.findOne({ _id: _id }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (!getBilling) {
+    return ReE(
+      res,
+      { message: "billing not found given id" },
+      httpStatus.NOT_FOUND
+    );
+  }
+
+  getBilling = getBilling as IBilling
+
+  let checkBillRequest;
+  [err, checkBillRequest] = await toAwait(BillingRequest.findOne({ customerId: getBilling.customer, requestFor: "create", status: "pending" }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (checkBillRequest) {
+    return ReE(res, { message: "create bill request already pending for this customer!" }, httpStatus.BAD_REQUEST);
+  }
+
+  if(!user.isAdmin){
+    let createBillingRequest;
+    [err, createBillingRequest] = await toAwait(BillingRequest.create({
+      customerId: getBilling.customer,
+      requestFor: "delete",
+      status: "pending",
+      createdBy: user._id,
+      billId: getBilling._id
+    }))
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!createBillingRequest) {
+      return ReE(res, { message: "billing request not created!" }, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+    return ReS(res, { message: "billing delete request created successfully!" }, httpStatus.OK);
+  }
+
+  let updateEmi;
+  if(getBilling.emi){
+    [err, updateEmi] = await toAwait(
+      Emi.findOneAndUpdate(
+        { _id: getBilling.emi },
+        { $set: { paidAmt: 0, paidDate: null } },
+        { new: true }
+      )
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!updateEmi) {
+      return ReE(res, { message: "emi not found inside in billing" }, httpStatus.NOT_FOUND);
+    }
+  }
+  if(getBilling.emiCover.length > 0){
+    [err, updateEmi] = await toAwait(
+      Emi.updateMany(
+        { _id: { $in: getBilling.emiCover } },
+        { $set: { paidAmt: 0, paidDate: null } },
+        { new: true }
+      )
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!updateEmi) {
+      return ReE(res, { message: "cover emi not found inside in billing" }, httpStatus.NOT_FOUND);
+    }
+  }
+
+  let deleteBilling;
+  [err, deleteBilling] = await toAwait(
+    Billing.findOneAndDelete({ _id: _id })
+  );
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+  return ReS(
+    res,
+    { message: "billing deleted successfully!" },
+    httpStatus.OK
+  );
+
 }
 
 export const getAllDetailsByCustomerId = async (

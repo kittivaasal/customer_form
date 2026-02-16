@@ -774,102 +774,89 @@ cron.schedule("02 00 * * *", async () => {
 // });
 
 
-// app.get("/customer-count", async (req: Request, res: Response) => {
-//   try {
-//     const excelPath = "./src/uploads/GeneralHousing.xlsx";
+app.get("/customer-count", async (req: Request, res: Response) => {
+  try {
+    const excelPath = "./src/uploads/estimateHousing.xlsx";
 
-//     console.log("🚀 Starting Excel Processing...");
+    console.log("🚀 Starting Excel Processing...");
 
-//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(
-//       excelPath,
-//       {
-//         entries: "emit",
-//         worksheets: "emit",
-//         sharedStrings: "cache",
-//         styles: "ignore",
-//         hyperlinks: "ignore",
-//       }
-//     );
+    const workbook = new (Excel.stream.xlsx as any).WorkbookReader(
+      excelPath,
+      {
+        entries: "emit",
+        worksheets: "emit",
+        sharedStrings: "cache",
+        styles: "ignore",
+        hyperlinks: "ignore",
+      }
+    );
 
-//     const BATCH_SIZE = 500;
-//     let bulkOperations: any[] = [];
-//     let processedCount = 0;
-//     let updatedCount = 0;
-//     let matchedCount = 0;
-//     let miss=[]
+    const BATCH_SIZE = 500;
+    let bulkOperations: any[] = [];
+    let processedCount = 0;
+    let updatedCount = 0;
+    let matchedCount = 0;
+    let miss=[]
 
-//     // ✅ THIS IS THE CORRECT WAY
-//     for await (const worksheet of workbook) {
-//       for await (const row of worksheet) {
-//         if (row.number === 1) continue;
+    // ✅ THIS IS THE CORRECT WAY
+    for await (const worksheet of workbook) {
+      for await (const row of worksheet) {
+        if (row.number === 1) continue;
 
-//         let id = row.getCell(1).value;
-//         let noOfInstallments = row.getCell(6).value;
-//         let emiAmount = row.getCell(7).value;
+        let id = row.getCell(2).value;
+        let total = row.getCell(3).value;
 
-//         bulkOperations.push({
-//           updateOne: {
-//             filter: { sSalesNo: id },
-//             update: {
-//               $set: {
-//                 noOfInstallments: noOfInstallments,
-//                 emiAmount: emiAmount,
-//                 update: true
-//               },
-//             },
-//           },
-//         });
+        bulkOperations.push({
+          updateOne: {
+            filter: { supplierCode: id },
+            update: {
+              $set: {
+                totalAmount:total,
+                update: true
+              },
+            },
+          },
+        });
 
-//         // console.log({
-//         //   updateOne: {
-//         //     filter: { sSalesNo: id},
-//         //     update: {
-//         //       $set: {
-//         //         noOfInstallments: noOfInstallments,
-//         //         emiAmt: emiAmount,
-//         //         update: true
-//         //       },
-//         //     },
-//         //   },
-//         // })
-//         processedCount++;
+        processedCount++;
 
-//         if (bulkOperations.length >= BATCH_SIZE) {
-//           const result = await General.bulkWrite(bulkOperations);
-//           updatedCount += result.modifiedCount;
-//           matchedCount += result.matchedCount
-//           bulkOperations = [];
+        if (bulkOperations.length >= BATCH_SIZE) {
+          const result = await General.bulkWrite(bulkOperations);
+          updatedCount += result.modifiedCount;
+          matchedCount += result.matchedCount
+          bulkOperations = [];
 
-//           console.log(
-//             `⚡ Batch Updated -- | Processed: ${processedCount} | Matched count: ${matchedCount} | Updated: ${updatedCount}`
-//           );
-//         }
-//       }
-//     }
+          console.log(
+            `⚡ Batch Updated -- | Processed: ${processedCount} | Matched count: ${matchedCount} | Updated: ${updatedCount}`
+          );
+        }
+      }
+    }
 
-//     // Final remaining updates
-//     if (bulkOperations.length > 0) {
-//       const result = await General.bulkWrite(bulkOperations);
-//       updatedCount += result.modifiedCount;
-//     }
+    // Final remaining updates
+    if (bulkOperations.length > 0) {
+      const result = await General.bulkWrite(bulkOperations);
+      updatedCount += result.modifiedCount;
+      console.log(`⚡ Final Batch Updated -- | Processed: ${processedCount} | Matched count: ${matchedCount} | Updated: ${updatedCount}`);
+    }
 
-//     console.log("🎉 Excel Processing Completed");
+    console.log("🎉 Excel Processing Completed");
 
-//     return res.status(200).json({
-//       success: true,
-//       // miss,
-//       bulkOperations,
-//       processed: processedCount,
-//       updated: updatedCount,
-//     });
-//   } catch (error) {
-//     console.error("❌ Error:", error);
-//     return res.status(500).json({
-//       success: false,
-//       message: "Internal server error",
-//     });
-//   }
-// });
+    return res.status(200).json({
+      success: true,
+      // miss,
+      bulkOperations,
+      processed: processedCount,
+      updated: updatedCount,
+    });
+  } catch (error) {
+    console.error("❌ Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
 
 // import excelPath from "./uploads/newCustomer.json";
 // console.log(excelPath)
