@@ -7,7 +7,7 @@ import { Schema, model } from "mongoose";
 /** Marketer commission entry */
 export interface IMarketerCommission {
   name: string;
-  marketerId: string;
+  marketerId: Schema.Types.ObjectId;
   marketerModel: "MarketingHead" | "MarketDetail";
   percentage: string;   // "1%"
   emiAmount: string;    // "1000"
@@ -34,10 +34,11 @@ export interface IEmiInfo {
 
 /** Main document */
 export interface IAllianceCommission {
-  customer: string;
+  customer: Schema.Types.ObjectId;
   name: string;          // customer name
   customerCode: string;
-  bill: string;
+  bill: Schema.Types.ObjectId;
+  emiId:Schema.Types.ObjectId;
   emi: IEmiInfo;
   marketer: IMarketerCommission[];
 }
@@ -51,11 +52,12 @@ const marketerSchema = new Schema<IMarketerCommission>(
   {
     name: {
       type: String,
-      required: true,
+      // required: true,
       trim: true,
     },
     marketerId: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      refPath: "marketer.marketerModel",
       required: true,
     },
     marketerModel: {
@@ -148,7 +150,8 @@ const emiSchema = new Schema<IEmiInfo>(
 const allianceCommissionSchema = new Schema<IAllianceCommission>(
   {
     customer: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "Customer",
       required: true,
       index: true,
     },
@@ -163,12 +166,17 @@ const allianceCommissionSchema = new Schema<IAllianceCommission>(
       trim: true,
     },
     bill: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "Billing",
       required: true,
     },
     emi: {
       type: emiSchema,
-      required: true,
+      // required: true,
+    },
+    emiId: {
+      type: Schema.Types.ObjectId,
+      ref: "Emi"
     },
     marketer: {
       type: [marketerSchema],

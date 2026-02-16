@@ -17,6 +17,8 @@ import { IEmi } from "../type/emi";
 import { IGeneral } from "../type/general";
 import { IUser } from "../type/user";
 import { get } from "http";
+import { convertCommissionToMarketer } from "./common.controller";
+import { CustomerEmiModel } from "../models/commision.model";
 
 
 export const approvedBillingRequest = async (req: CustomRequest, res: Response) => {
@@ -102,76 +104,104 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
         if (getBillingRequest.billingDetails?.housing && getBillingRequest.billingDetails?.parciallyPaid === true) {
 
-          let amount = Number(getBillingRequest.billingDetails.enteredAmount) + Number(checkCustomer.balanceAmount)
-          if ((checkGeneral.emiAmount ?? 0) > amount) {
-            
-            let createBill;
-            [err, createBill] = await toAwait(
-              Billing.create({
-                paymentDate: new Date(getBillingRequest?.billingDetails?.paymentDate || new Date()),
-                transactionType: "EMI Receipt",
-                introducer: checkCustomer?.ddId,
-                introducerByModel: "MarketDetail",
-                mobileNo: checkCustomer?.phone,
-                customer: checkCustomer._id,
-                general: checkGeneral._id,
-                status: getBillingRequest.billingDetails.status,
-                saleType: getBillingRequest.billingDetails.saleType,
-                modeOfPayment: getBillingRequest.billingDetails.modeOfPayment,
-                cardNo: getBillingRequest.billingDetails.cardNo,
-                cardHolderName: getBillingRequest.billingDetails.cardHolderName,
-                remarks: getBillingRequest.billingDetails.remarks,
-                referenceId: getBillingRequest.billingDetails.referenceId,
-                customerName: checkCustomer?.name,
-                oldData : oldData ? oldData : checkCustomer?.oldData,
-                billFor: getBillingRequest.billingDetails.billFor,
-                customerCode: checkCustomer.id,
-                createdBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
-                enteredAmount: getBillingRequest.billingDetails.enteredAmount,
-              })
+          let createBill;
+          [err, createBill] = await toAwait(
+            Billing.create({
+              paymentDate: new Date(getBillingRequest?.billingDetails?.paymentDate || new Date()),
+              transactionType: "EMI Receipt",
+              introducer: checkCustomer?.ddId,
+              introducerByModel: "MarketDetail",
+              mobileNo: checkCustomer?.phone,
+              customer: checkCustomer._id,
+              general: checkGeneral._id,
+              status: getBillingRequest.billingDetails.status,
+              saleType: getBillingRequest.billingDetails.saleType,
+              modeOfPayment: getBillingRequest.billingDetails.modeOfPayment,
+              cardNo: getBillingRequest.billingDetails.cardNo,
+              cardHolderName: getBillingRequest.billingDetails.cardHolderName,
+              remarks: getBillingRequest.billingDetails.remarks,
+              referenceId: getBillingRequest.billingDetails.referenceId,
+              customerName: checkCustomer?.name,
+              oldData : oldData ? oldData : checkCustomer?.oldData,
+              billFor: getBillingRequest.billingDetails.billFor,
+              customerCode: checkCustomer.id,
+              createdBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
+              enteredAmount: getBillingRequest.billingDetails.enteredAmount,
+            })
+          );
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+          if (!createBill) {
+            return ReE(
+              res,
+              { message: "billing not created" },
+              httpStatus.INTERNAL_SERVER_ERROR
             );
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-
-            if (!createBill) {
-              return ReE(
-                res,
-                { message: "billing not created" },
-                httpStatus.INTERNAL_SERVER_ERROR
-              );
-            }
-
-            let updateCustomer;
-            [err, updateCustomer] = await toAwait(
-              Customer.updateOne({ _id: customerId }, { $inc: { balanceAmount: Number(getBillingRequest.billingDetails.enteredAmount) } })
-            );
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            if (!updateCustomer) {
-              return ReE(
-                res,
-                { message: "customer not updated" },
-                httpStatus.INTERNAL_SERVER_ERROR
-              );
-            }
-
-            let updateBillRequest;
-            [err, updateBillRequest] = await toAwait(
-              BillingRequest.updateOne(
-                { _id: getBillingRequest._id },
-                { $set: { status: "approved" } }
-              )
-            )
-
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            if (!updateBillRequest) {
-              return ReE(
-                res,
-                { message: "billing request not updated" },
-                httpStatus.INTERNAL_SERVER_ERROR
-              );
-            }
-
-            return ReS(res, { message: "billing approved successfully" }, httpStatus.OK);
           }
+
+          createBill = createBill as IBilling;
+
+          let updateCustomer;
+          [err, updateCustomer] = await toAwait(
+            Customer.updateOne({ _id: customerId }, { $inc: { balanceAmount: Number(getBillingRequest.billingDetails.enteredAmount) } })
+          );
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+          if (!updateCustomer) {
+            return ReE(
+              res,
+              { message: "customer not updated" },
+              httpStatus.INTERNAL_SERVER_ERROR
+            );
+          }
+
+          let am=0
+          if(getBillingRequest.billingDetails?.enteredAmount){
+            am=getBillingRequest.billingDetails.enteredAmount
+          }else{
+            am= createBill.enteredAmount || createBill.amountPaid
+          }
+
+          let getCommission = await convertCommissionToMarketer(checkCustomer, am)
+  
+          if (!getCommission.success) return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
+  
+          let createCommission;
+          [err, createCommission] = await toAwait(
+            CustomerEmiModel.create({
+              bill: createBill?._id,
+              customer: customerId,
+              emiId:  null,
+              amount: am,
+              marketer: getCommission.data
+            })
+          );
+  
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+          if (!createCommission) {
+            return ReE(res,{ message: "commission not created" },httpStatus.INTERNAL_SERVER_ERROR);
+          }
+
+          let updateBillRequest;
+          [err, updateBillRequest] = await toAwait(
+            BillingRequest.updateOne(
+              { _id: getBillingRequest._id },
+              { $set: { status: "approved" } }
+            )
+          )
+
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+          if (!updateBillRequest) {
+            return ReE(
+              res,
+              { message: "billing request not updated" },
+              httpStatus.INTERNAL_SERVER_ERROR
+            );
+          }
+
+          return ReS(res, { message: "billing approved successfully" }, httpStatus.OK);
+          
         }
 
         for (let i = 0; i < readyForBill.length; i++) {
@@ -226,36 +256,6 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
           };
 
           let getMarketer;
-          //remove olddata
-          // if (!checkCustomer.oldData) {
-          // [err, getMarketer] = await toAwait(
-          //   MarketDetail.findOne({ _id: checkCustomer.ddId }).populate({
-          //     path: "headBy",
-          //     populate: [
-          //       { path: "percentageId" }
-          //     ]
-          //   })
-          // );
-          // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-          // if (!getMarketer) {
-          //   let checkMarketerHead;
-          //   [err, checkMarketerHead] = await toAwait(
-          //     MarketingHead.findOne({ _id: checkCustomer.cedId }).populate("percentageId")
-          //   );
-
-          //   if (err) {
-          //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-          //   }
-
-          //   if (!checkMarketerHead && !getMarketer) {
-          //     return ReE(res, { message: "In general inside marketer not in marketer head or marketer table not found" }, httpStatus.BAD_REQUEST);
-          //   }
-          //   if (checkMarketerHead) {
-          //     getMarketer = checkMarketerHead
-          //   }
-
-          // }
-          // }
 
           if (getBillingRequest?.billingDetails?.housing) {
             if (i === 0) {
@@ -308,63 +308,47 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
           } else {
 
             let billing;
-            if (i === 0) {
-              [err, billing] = await toAwait(Billing.create(createBill));
-              if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            if (i !== 0 && getBillingRequest.billingDetails.housing) {
+              continue;
             }
+
+            [err, billing] = await toAwait(Billing.create(createBill));
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
             billing = billing as IBilling;
             getMarketer = getMarketer as any;
+          
+            let am=0;
 
+            if (getBillingRequest.billingDetails.housing) {
+              am = getBillingRequest.billingDetails.enteredAmount;
+            }else{
+              am = billing.amountPaid
+            }
 
-            let checkAlreadyExistMarketer
-            //replace oldData
-            // if (!checkCustomer.oldData) {
-            // let marketerDe: any = {
-            //   customer: checkCustomer._id,
-            //   emiNo: element?.emiNo,
-            //   paidDate: billing.paymentDate,
-            //   paidAmt: billing.amountPaid,
-            //   marketer: checkCustomer?.ddId || checkCustomer?.cedId,
-            //   emiId: element._id,
-            //   generalId: checkGeneral._id,
-            //   marketerHeadId: checkCustomer?.cedId,
-            //   percentageId: getMarketer?.headBy?.percentageId?._id || getMarketer?.percentageId?._id,
-            // };
-            // [err, checkAlreadyExistMarketer] = await toAwait(Marketer.findOne({
-            //   marketer: marketerDe.marketer,
-            //   emiId: marketerDe.emiId,
-            //   general: marketerDe.general,
-            // }));
+            let getCommission = await convertCommissionToMarketer(checkCustomer, am)
+    
+            if (!getCommission.success) return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
+    
+            let createCommission;
+            [err, createCommission] = await toAwait(
+              CustomerEmiModel.create({
+                bill: createBill?._id,
+                customer: customerId,
+                emiId:  null,
+                amount: am,
+                marketer: getCommission.data
+              })
+            );
+    
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-            // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            // if (!checkAlreadyExistMarketer) {
-            //   if (getMarketer?.headBy?.percentageId?.rate?.rate) {
-            //     let percent = Number(
-            //       getMarketer?.headBy?.percentageId?.replace("%", "")
-            //     );
-            //     let correctPercent = billing.amountPaid * (percent / 100);
-            //     marketerDe.commPercentage = percent;
-            //     marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
-            //   }
-            //   if (getMarketer?.percentageId?.rate) {
-            //     let percent = Number(
-            //       getMarketer?.percentageId?.rate?.replace("%", "")
-            //     );
-            //     let correctPercent = billing.amountPaid * (percent / 100);
-            //     marketerDe.commPercentage = percent;
-            //     marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
-            //   }
-
-            //   let marketer;
-            //   [err, marketer] = await toAwait(Marketer.create(marketerDe));
-            //   if (err) {
-            //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            //   }
-            // }
-            // }
+            if (!createCommission) {
+              return ReE(res,{ message: "commission not created" },httpStatus.INTERNAL_SERVER_ERROR);
+            }
 
             let updateEmi;
+
             if (!getBillingRequest.billingDetails.housing) {
               [err, updateEmi] = await toAwait(
                 Emi.findOneAndUpdate(
@@ -377,7 +361,6 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                 return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
               }
             }
-
           }
 
         }

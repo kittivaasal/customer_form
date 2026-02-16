@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
 const projectSchema = new mongoose.Schema({
   projectName: {
@@ -56,6 +56,10 @@ const projectSchema = new mongoose.Schema({
   push:{
     type:Boolean,
     default:true
+  },
+  createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
   }
 }, { timestamps: true });
 

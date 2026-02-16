@@ -13,8 +13,8 @@ import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
 
-export const createMarketingHead = async (req: Request, res: Response) => {
-    let body = req.body, err;
+export const createMarketingHead = async (req: CustomRequest, res: Response) => {
+    let body = req.body, err, user = req.user as IUser;
     let { name, email, gender, age, phone, address, status, percentageId } = body;
     let fields = ["name", "email", "gender", "age", "phone", "address", "status", "percentageId"];
     let inVaildFields = fields.filter(x => isNull(body[x]));
@@ -88,6 +88,7 @@ export const createMarketingHead = async (req: Request, res: Response) => {
     }
 
     body.id = count.toString().padStart(4, '0');
+    body.createdBy = user._id;
 
     let marketing_head;
     [err, marketing_head] = await toAwait(MarketingHead.create(body));

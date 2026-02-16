@@ -5,7 +5,7 @@ import { getMarketingHeadEstimates } from "../controllers/gerMarketingHeadEstima
 import isAdmin from "../middleware/admin";
 const router = express.Router();
 
-router.post("/create", createMarketingHead);
+router.post("/create", verifyToken, createMarketingHead);
 router.put("/update", verifyToken , updateMarketingHead);
 router.get("/get/all", getAllMarketingHead);
 router.get("/get/:id", getByIdMarketingHead);

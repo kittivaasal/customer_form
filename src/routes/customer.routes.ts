@@ -4,7 +4,7 @@ import verifyToken from "../middleware/verfiyToken";
 import isAdmin from "../middleware/admin";
 const router = express.Router();
 
-router.post("/create", createCustomer);
+router.post("/create", verifyToken,createCustomer);
 router.put("/update",verifyToken, updateCustomer);
 router.get("/get/all", getAllCustomer);
 router.get("/get/:id", getByIdCustomer);

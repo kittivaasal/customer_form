@@ -19,8 +19,8 @@ import { General } from "../models/general.model";
 import { IGeneral } from "../type/general";
 import { Emi } from "../models/emi.model";
 
-export const createCustomer = async (req: Request, res: Response) => {
-  let body = req.body, err;
+export const createCustomer = async (req: CustomRequest, res: Response) => {
+  let body = req.body, err, user = req.user as IUser;
   let { introducerId, marketerDetailId, ddId, cedId, email, phone, projectId } = body;
 
   //let check if any one present ddId, cedId if not throw error
@@ -124,8 +124,6 @@ export const createCustomer = async (req: Request, res: Response) => {
       count = getCustomerCounter.seq + 1;
     }
 
-    
-    console.log(projectData?.shortName, id,"kkkk")
     let updateCustomerCounter;
     [err, updateCustomerCounter] = await toAwait(
       Counter.updateOne({ name: "customerid" }, { $set: { seq: count } })
@@ -133,6 +131,8 @@ export const createCustomer = async (req: Request, res: Response) => {
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     body.id = id + count.toString().padStart(4, '0');
   }
+
+  body.createdBy = user._id;
 
   let customer;
   [err, customer] = await toAwait(Customer.create(body));

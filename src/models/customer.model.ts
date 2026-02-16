@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
 const customerSchema = new mongoose.Schema({
   id: String,
@@ -48,7 +48,6 @@ const customerSchema = new mongoose.Schema({
   oldData: {type:Boolean, default:false},
   marketerPercent: String,
   marketerId: String,
-  createdBy: String,
   push:{
     type:Boolean,
     default:true
@@ -59,7 +58,10 @@ const customerSchema = new mongoose.Schema({
   batch:{
     type:Number
   },
-
+  createdBy: {
+    type: Schema.Types.ObjectId || String,
+    ref: "User",
+  },
   balanceAmount: {
     type: Number,
     default: 0

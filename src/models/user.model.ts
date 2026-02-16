@@ -28,6 +28,10 @@ const userSchema = new mongoose.Schema({
   isAdmin:{
     type:Boolean,
     default:false
+  },
+  createdBy: {
+    type: Schema.Types.ObjectId,
+    ref: "User"
   }
 }, { timestamps: true });
 

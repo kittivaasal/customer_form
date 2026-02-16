@@ -41,6 +41,7 @@ import { IBilling } from "./type/billing";
 import { IMarketDetail } from "./type/marketDetail";
 import e from "express";
 import commissionRoutes from "./routes/commission.routes";
+import { convertCommissionToMarketer } from "./controllers/common.controller";
 
 const app = express();
 app.use(express.json());
@@ -127,18 +128,39 @@ app.use("/api/commission", commissionRoutes)
 
 app.get("/", async (req: Request, res: Response) => {
   try { 
-    let up = await Emi.updateMany(
-      { general: { $type: "string" } },
-      [
-        {
-          $set: {
-            customer: { $toObjectId: "$customer" },
-            general: { $toObjectId: "$general" }
-          }
-        }
-      ]
-    );
-    res.json({ success: true, message: "Update operation completed", modifiedCount: up.modifiedCount });
+    // let up = await Emi.updateMany(
+    //   { general: { $type: "string" } },
+    //   [
+    //     {
+    //       $set: {
+    //         customer: { $toObjectId: "$customer" },
+    //         general: { $toObjectId: "$general" }
+    //       }
+    //     }
+    //   ]
+
+    let obj={
+id:"LSS-18-34100",
+
+phone:"9790712942",
+
+gender:"Female",
+
+name:"AMULU.D",
+
+projectId:"69747a3cbb00c980bfaf88af",
+
+cedId:"69873ad8501d2fd4dd18b149",
+
+ddId:"6986e3ec501d2fd4dd18b07a",
+
+generalId:"6978be374120691ba915b05d",
+
+  }
+    // );
+    let data = await convertCommissionToMarketer(obj,1000)
+    console.log(data)
+    res.json({ success: true, message: "Update operation completed", data });
 
   } catch (error) {
     console.error("Error updating bills:", error);

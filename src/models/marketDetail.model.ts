@@ -34,6 +34,10 @@ const MarketDetailSchema: Schema = new Schema(
         push:{
             type:Boolean,
             default:true
+        },
+        createdBy: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
         }
     },
     {

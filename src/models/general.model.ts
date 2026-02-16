@@ -84,7 +84,11 @@ const GeneralSchema = new Schema(
     push:{
       type:Boolean,
       default:true
-    }
+    },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
   },
 
   { timestamps: true }

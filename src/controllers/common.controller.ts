@@ -1682,8 +1682,8 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     let customerBalanceAmount = 0;
     const enteredAmount = amount;
 
-    if(housing) {
-      if(housing !== true){
+    if (housing) {
+      if (housing !== true) {
         return ReE(res, { message: "Invalid housing value, valid value is true in boolean" }, httpStatus.BAD_REQUEST);
       }
     }
@@ -1800,22 +1800,11 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     if (billFor === "current") {
       //replace oldData
       let getAllBill;
-      // if (checkCustomer.oldData) {
-      //   [err, getAllBill] = await toAwait(
-      //     Billing.find({
-      //       $or: [
-      //         { customer: customerId },
-      //         { customerCode: checkCustomer.id, oldData: true },
-      //       ]
-      //     })
-      //   );
-      // } else {
       [err, getAllBill] = await toAwait(
         Billing.find({
           general: checkGeneral._id, customer: customerId
         })
       );
-      // }
       if (err) {
         return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       }
@@ -1900,24 +1889,12 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
       if (getAllEmiPast.length === 0) {
         let getEmi;
-        //replace oldData
-        // if (checkCustomer.oldData) {
-        //   [err, getEmi] = await toAwait(
-        //     Emi.findOne({
-        //       $or: [
-        //         { customer: customerId },
-        //         { supplierCode: checkCustomer.id, oldData: true },
-        //       ]
-        //     })
-        //   )
-        // } else {
         [err, getEmi] = await toAwait(
           Emi.findOne({
             general: checkGeneral._id,
             customer: customerId,
           })
         )
-        // }
 
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
         if (!getEmi) {
@@ -1939,7 +1916,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         amount += Number(checkCustomer.balanceAmount)
         if (getAllEmiPast[0].emiAmt > amount) {
           let createBill;
-          if(!user.isAdmin){
+          if (!user.isAdmin) {
             [err, checkBillingRequestForCustomer] = await toAwait(
               BillingRequest.findOne({ requestFor: "create", customerId: customerId, status: "pending" })
             );
@@ -1987,6 +1964,26 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               );
             }
 
+            // let createCommission;
+            // [err, createCommission] = await toAwait(
+            //   CustomerEmiModel.create({
+            //     bill: createBillingRequest?._id,
+            //     customer: customerId,
+            //     emi: readyForBill.map((emi) => emi._id),
+            //     amount: enteredAmount
+
+            //   })
+            // );
+
+            // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            // if (!createCommission) {
+            //   return ReE(
+            //     res,
+            //     { message: "commission request not created" },
+            //     httpStatus.INTERNAL_SERVER_ERROR
+            //   );
+            // }
+
             return ReS(res, { message: "billing request created successfully" }, httpStatus.OK);
           }
           [err, createBill] = await toAwait(
@@ -2033,6 +2030,33 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
             return ReE(
               res,
               { message: "customer not updated" },
+              httpStatus.INTERNAL_SERVER_ERROR
+            );
+          }
+
+          createBill = createBill as IBilling
+
+          let getCommission = await convertCommissionToMarketer(checkCustomer, enteredAmount)
+
+          if (!getCommission.success) return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
+
+          let createCommission;
+          [err, createCommission] = await toAwait(
+            CustomerEmiModel.create({
+              bill: createBill?._id,
+              customer: customerId,
+              emiId: null,
+              amount: enteredAmount,
+              marketer: getCommission.data
+            })
+          );
+
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+          if (!createCommission) {
+            return ReE(
+              res,
+              { message: "commission not created" },
               httpStatus.INTERNAL_SERVER_ERROR
             );
           }
@@ -2117,7 +2141,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               customerBalanceAmount: customerBalanceAmount,
               housing,
               enteredAmount,
-              parciallyPaid : false
+              parciallyPaid: false
             },
           })
         );
@@ -2257,63 +2281,41 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         }
         // return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
       } else {
-        console.log("mass")
+
+        if(i !== 0 && housing) continue
+
         let billing;
         [err, billing] = await toAwait(Billing.create(createBill));
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
         billing = billing as IBilling;
 
-        // getMarketer = getMarketer as any;
+        let getCommission = await convertCommissionToMarketer(checkCustomer, !housing ? amount : enteredAmount)
 
-        // let checkAlreadyExistMarketer
-        //replace oldData
-        // if (!checkCustomer.oldData) {
-        // let marketerDe: any = {
-        //   customer: customerId,
-        //   emiNo: element?.emiNo,
-        //   paidDate: billing.paymentDate,
-        //   paidAmt: billing.amountPaid,
-        //   marketer: billing.introducer,
-        //   emiId: element._id,
-        //   generalId: checkGeneral._id,
-        // marketerHeadId: getMarketer?.headBy?._id || getMarketer?._id,
-        // percentageId: getMarketer?.headBy?.percentageId?._id || getMarketer?.percentageId?._id,
-        // };
-        // [err, checkAlreadyExistMarketer] = await toAwait(Marketer.findOne({
-        //   marketer: marketerDe.marketer,
-        //   emiId: marketerDe.emiId,
-        //   general: marketerDe.general,
-        // }));
+        if (!getCommission.success) return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
 
-        // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        // if (!checkAlreadyExistMarketer) {
-        //   if (getMarketer?.headBy?.percentageId?.rate) {
-        //     let percent = Number(
-        //       getMarketer?.headBy?.percentageId?.rate?.replace("%", "")
-        //     );
-        //     let correctPercent = billing.amountPaid * (percent / 100);
-        //     marketerDe.commPercentage = percent;
-        //     marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
-        //   }
-        //   if (getMarketer?.percentageId?.rate) {
-        //     let percent = Number(
-        //       getMarketer?.percentageId?.rate?.replace("%", "")
-        //     );
-        //     let correctPercent = billing.amountPaid * (percent / 100);
-        //     marketerDe.commPercentage = percent;
-        //     marketerDe.commAmount = isNaN(correctPercent) ? 0 : correctPercent;
-        //   }
+        let createCommission;
+        [err, createCommission] = await toAwait(
+          CustomerEmiModel.create({
+            bill: createBill?._id,
+            customer: customerId,
+            emiId: element?._id ? element._id : null,
+            amount: !housing ? amount : enteredAmount,
+            marketer: getCommission.data
+          })
+        );
 
-        //   let marketer;
-        //   [err, marketer] = await toAwait(Marketer.create(marketerDe));
-        //   if (err) {
-        //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        //   }
-        // }
-        // }
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-        if(!housing){
+        if (!createCommission) {
+          return ReE(
+            res,
+            { message: "commission not created" },
+            httpStatus.INTERNAL_SERVER_ERROR
+          );
+        }
+
+        if (!housing) {
           let updateEmi;
           [err, updateEmi] = await toAwait(
             Emi.findOneAndUpdate(
@@ -2795,15 +2797,15 @@ export const getDataBasedOnGeneralById = async (
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-    [err, objMarketer] = await toAwait(
-      Marketer.find({ generalId: general._id })
-        .populate("customer")
-        .populate("generalId")
-        .populate("emiId")
-        .populate("marketerHeadId")
-        .populate("percentageId")
-    );
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    // [err, objMarketer] = await toAwait(
+    //   Marketer.find({ generalId: general._id })
+    //     .populate("customer")
+    //     .populate("generalId")
+    //     .populate("emiId")
+    //     .populate("marketerHeadId")
+    //     .populate("percentageId")
+    // );
+    // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
     [err, objEmi] = await toAwait(
       Emi.find({ general: general._id })
@@ -3234,3 +3236,104 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
   return ReS(res, { billing: getBilling, emi: getEmi }, httpStatus.OK);
 
 };
+
+export const convertCommissionToMarketer = async (customer: ICustomer | any, emiAmount: number) => {
+
+  try {
+    let getHead, commision: any[] = [];
+    if (customer.ddId) {
+      getHead = await MarketingHead.findOne({ _id: customer.ddId }).populate("percentageId")
+
+      if (!getHead) {
+        return {
+          success: false,
+          message: "Customer inside dd id id not found",
+          data: null
+        }
+      }
+
+      getHead = getHead as any
+      let comm: any = {
+        marketerId: getHead._id,
+        marketerModel: "MarketingHead",
+        emiAmount: emiAmount,
+      }
+      if (!customer.cedId) {
+        comm.commAmount = emiAmount * (Number(getHead.percentageId.rate.split("%")[0]) / 100)
+        comm.percentage= getHead.percentageId.rate
+      }else{
+        comm.commAmount = emiAmount * (1 / 100)
+        comm.percentage= "1%"
+      }
+      commision.push(comm)
+    }
+
+    let getMarketer;
+    if (customer.cedId) {
+      getMarketer = await MarketDetail.findOne({ _id: customer.cedId }).populate(
+        "overAllHeadBy"
+      ).populate({
+        path: "overAllHeadBy",
+        populate: [
+          {
+            path: "headBy",
+            populate: { path: "percentageId" }
+          }
+        ]
+      }).populate("percentageId")
+      if (!getMarketer) {
+        return {
+          success: false,
+          message: "Customer inside ced id id not found",
+          data: null
+        }
+      }
+      getMarketer = getMarketer as any
+
+      // console.log(getMarketer.overAllHeadBy)
+
+      for (let index = 0; index < getMarketer.overAllHeadBy.length; index++) {
+        const element = getMarketer.overAllHeadBy[index];
+
+        if(index === 0){
+          continue;
+        }
+
+        let comm: any = {
+          marketerId: element.headBy._id,
+          marketerModel: "MarketDetail",
+          emiAmount: emiAmount,
+          commAmount : emiAmount * (Number(1) / 100),
+          percentage : "1%"
+        }
+        // console.log(comm,index)
+        commision.push(comm)
+      }
+    }
+
+    let comm:any={
+      marketerId: getMarketer._id,
+      marketerModel: "MarketDetail",
+      emiAmount: emiAmount,
+    }
+    console.log(getMarketer.percentageId)
+    if(getMarketer.percentageId?.rate){
+      if(!isNaN(emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100))){
+        comm.commAmount = emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100)
+        comm.percentage= getMarketer.percentageId.rate
+      }
+    }
+    commision.push(comm)
+    return {
+      success: true,
+      message: "Commission found",
+      data: commision 
+    }
+  } catch (error:any) {
+    return {
+      success: false,
+      message: error?.message,
+      data: null
+    }
+  }
+}

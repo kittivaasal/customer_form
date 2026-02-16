@@ -14,8 +14,8 @@ import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
 
-export const createMarketDetail = async (req: Request, res: Response) => {
-  let body = req.body, err, getFrom;
+export const createMarketDetail = async (req: CustomRequest, res: Response) => {
+  let body = req.body, err, getFrom, user = req.user as IUser;
   let { headBy, phone, address, status, name, percentageId } = body;
   let fields = ["headBy", "phone", "address", "status", "name", "percentageId"];
   let inVaildFields = fields.filter(x => isNull(body[x]));
@@ -107,6 +107,8 @@ export const createMarketDetail = async (req: Request, res: Response) => {
       }
     ]
   }
+
+  body.createdBy = user._id;  
 
   let marketDetail;
   [err, marketDetail] = await toAwait(MarketDetail.create(body));
