@@ -1504,7 +1504,9 @@ export const getByIdBilling = async (req: Request, res: Response) => {
       if(getBilling.general?.totalAmount){
         totalAmount = getBilling.general.totalAmount
       }else{
-        if(getBilling.general?.emiAmount && getBilling.general?.noOfInstallments){
+        if(getBilling?.totalAmount){
+          totalAmount = getBilling.totalAmount
+        }else if(getBilling.general?.emiAmount && getBilling.general?.noOfInstallments){
           totalAmount = Number(getBilling.general.emiAmount) * Number(getBilling.general.noOfInstallments)
         }
       }
