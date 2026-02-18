@@ -81,26 +81,24 @@ export function getEmiSchedule(numberOfEmis: number) {
 }
 
 export function getEmiDate(index: number, startDateFrom?: Date): Date {
-  let startDate;
-  if(startDateFrom){
-    startDate = new Date(startDateFrom)
-  }else{
-    startDate = new Date()
-  }
-  let baseDate = new Date(startDate);
-  
-  const startDay = baseDate.getDate();
-  let year = baseDate.getFullYear();
-  let month = baseDate.getMonth() + index;
+  const base = startDateFrom ? new Date(startDateFrom) : new Date();
 
-  // normalize year & month
+  // Use UTC to avoid timezone shifting
+  const startDay = base.getUTCDate();
+  let year = base.getUTCFullYear();
+  let month = base.getUTCMonth() + index;
+
+  // Normalize month & year
   year += Math.floor(month / 12);
   month = month % 12;
-  
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const emiDay = Math.min(startDay, daysInMonth);
 
-  return new Date(year, month, emiDay);
+  // Get last day of target month
+  const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+
+  // EMI day logic
+  const emiDay = Math.min(startDay, lastDayOfMonth);
+
+  return new Date(Date.UTC(year, month, emiDay));
 }
 
 export const isEmail = (email_id: string) => {

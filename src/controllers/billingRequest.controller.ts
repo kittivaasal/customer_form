@@ -306,7 +306,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             getEmi = getEmi as IEmi
             if (getEmi?.paidDate) {
               if (i === readyForBill.length - 1) {
-                return ReS(res, { message: `billing already exist for this emi no ${readyForBill.map(element => element.emiNo)} for this customer, please try again!` }, httpStatus.BAD_REQUEST);
+                return ReS(res, { message: `billing already exist for this emi no ${readyForBill.map(element => element.emiNo)} for this customer, so please rejected this request!` }, httpStatus.BAD_REQUEST);
               }
             }
           } else {
@@ -337,9 +337,9 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             let createCommission;
             [err, createCommission] = await toAwait(
               CustomerEmiModel.create({
-                bill: createBill?._id,
+                bill: billing?._id,
                 customer: customerId,
-                emiId:  null,
+                emiId:  element?._id,
                 amount: am,
                 marketer: getCommission.data
               })

@@ -126,47 +126,31 @@ app.use("/api/edit/request", editRequestRoutes);
 app.use("/api/logs", logRoutes)
 app.use("/api/commission", commissionRoutes)
 
-app.get("/", async (req: Request, res: Response) => {
-  try { 
-    // let up = await Emi.updateMany(
-    //   { general: { $type: "string" } },
-    //   [
-    //     {
-    //       $set: {
-    //         customer: { $toObjectId: "$customer" },
-    //         general: { $toObjectId: "$general" }
-    //       }
-    //     }
-    //   ]
+// app.get("/", async (req: Request, res: Response) => {
+//   try { 
+//     let up = await Emi.updateMany(
+//       {
+//         paidDate: { $ne: null },
+//         $or: [
+//           { paidAmt: 0 },
+//           { paidAmt: null }
+//         ]
+//       },
+//       [
+//     {
+//       $set: {
+//         paidAmt: "$emiAmt"
+//       }
+//     }
+//   ]
+//     );
+//     res.json({ success: true, message: "Update operation completed", modifiedCount: up.modifiedCount });
 
-    let obj={
-id:"LSS-18-34100",
-
-phone:"9790712942",
-
-gender:"Female",
-
-name:"AMULU.D",
-
-projectId:"69747a3cbb00c980bfaf88af",
-
-cedId:"69873ad8501d2fd4dd18b149",
-
-ddId:"6986e3ec501d2fd4dd18b07a",
-
-generalId:"6978be374120691ba915b05d",
-
-  }
-    // );
-    let data = await convertCommissionToMarketer(obj,1000)
-    console.log(data)
-    res.json({ success: true, message: "Update operation completed", data });
-
-  } catch (error) {
-    console.error("Error updating bills:", error);
-    res.status(500).json({ success: false, message: "Error updating bills", error });
-  }
-});
+//   } catch (error) {
+//     console.error("Error updating bills:", error);
+//     res.status(500).json({ success: false, message: "Error updating bills", error });
+//   }
+// });
 
 // app.get("/update/customer", async (req: Request, res: Response) => {
 
@@ -774,89 +758,89 @@ cron.schedule("02 00 * * *", async () => {
 // });
 
 
-app.get("/customer-count", async (req: Request, res: Response) => {
-  try {
-    const excelPath = "./src/uploads/estimateHousing.xlsx";
+// app.get("/customer-count", async (req: Request, res: Response) => {
+//   try {
+//     const excelPath = "./src/uploads/estimateHousing.xlsx";
 
-    console.log("🚀 Starting Excel Processing...");
+//     console.log("🚀 Starting Excel Processing...");
 
-    const workbook = new (Excel.stream.xlsx as any).WorkbookReader(
-      excelPath,
-      {
-        entries: "emit",
-        worksheets: "emit",
-        sharedStrings: "cache",
-        styles: "ignore",
-        hyperlinks: "ignore",
-      }
-    );
+//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(
+//       excelPath,
+//       {
+//         entries: "emit",
+//         worksheets: "emit",
+//         sharedStrings: "cache",
+//         styles: "ignore",
+//         hyperlinks: "ignore",
+//       }
+//     );
 
-    const BATCH_SIZE = 500;
-    let bulkOperations: any[] = [];
-    let processedCount = 0;
-    let updatedCount = 0;
-    let matchedCount = 0;
-    let miss=[]
+//     const BATCH_SIZE = 500;
+//     let bulkOperations: any[] = [];
+//     let processedCount = 0;
+//     let updatedCount = 0;
+//     let matchedCount = 0;
+//     let miss=[]
 
-    // ✅ THIS IS THE CORRECT WAY
-    for await (const worksheet of workbook) {
-      for await (const row of worksheet) {
-        if (row.number === 1) continue;
+//     // ✅ THIS IS THE CORRECT WAY
+//     for await (const worksheet of workbook) {
+//       for await (const row of worksheet) {
+//         if (row.number === 1) continue;
 
-        let id = row.getCell(2).value;
-        let total = row.getCell(3).value;
+//         let id = row.getCell(2).value;
+//         let total = row.getCell(3).value;
 
-        bulkOperations.push({
-          updateOne: {
-            filter: { supplierCode: id },
-            update: {
-              $set: {
-                totalAmount:total,
-                update: true
-              },
-            },
-          },
-        });
+//         bulkOperations.push({
+//           updateOne: {
+//             filter: { supplierCode: id },
+//             update: {
+//               $set: {
+//                 totalAmount:total,
+//                 update: true
+//               },
+//             },
+//           },
+//         });
 
-        processedCount++;
+//         processedCount++;
 
-        if (bulkOperations.length >= BATCH_SIZE) {
-          const result = await General.bulkWrite(bulkOperations);
-          updatedCount += result.modifiedCount;
-          matchedCount += result.matchedCount
-          bulkOperations = [];
+//         if (bulkOperations.length >= BATCH_SIZE) {
+//           const result = await General.bulkWrite(bulkOperations);
+//           updatedCount += result.modifiedCount;
+//           matchedCount += result.matchedCount
+//           bulkOperations = [];
 
-          console.log(
-            `⚡ Batch Updated -- | Processed: ${processedCount} | Matched count: ${matchedCount} | Updated: ${updatedCount}`
-          );
-        }
-      }
-    }
+//           console.log(
+//             `⚡ Batch Updated -- | Processed: ${processedCount} | Matched count: ${matchedCount} | Updated: ${updatedCount}`
+//           );
+//         }
+//       }
+//     }
 
-    // Final remaining updates
-    if (bulkOperations.length > 0) {
-      const result = await General.bulkWrite(bulkOperations);
-      updatedCount += result.modifiedCount;
-      console.log(`⚡ Final Batch Updated -- | Processed: ${processedCount} | Matched count: ${matchedCount} | Updated: ${updatedCount}`);
-    }
+//     // Final remaining updates
+//     if (bulkOperations.length > 0) {
+//       const result = await General.bulkWrite(bulkOperations);
+//       updatedCount += result.modifiedCount;
+//       console.log(`⚡ Final Batch Updated -- | Processed: ${processedCount} | Matched count: ${matchedCount} | Updated: ${updatedCount}`);
+//     }
 
-    console.log("🎉 Excel Processing Completed");
+//     console.log("🎉 Excel Processing Completed");
 
-    return res.status(200).json({
-      success: true,
-      // miss,
-      bulkOperations,
-      processed: processedCount,
-      updated: updatedCount,
-    });
-  } catch (error) {
-    console.error("❌ Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-    });
-  }
-});
+//     return res.status(200).json({
+//       success: true,
+//       // miss,
+//       bulkOperations,
+//       processed: processedCount,
+//       updated: updatedCount,
+//     });
+//   } catch (error) {
+//     console.error("❌ Error:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
 
 // import excelPath from "./uploads/newCustomer.json";
 // console.log(excelPath)
@@ -1634,10 +1618,10 @@ app.get("/customer-count", async (req: Request, res: Response) => {
 //   try {
 //     console.log("Starting bill count upload...");
 
-//     const excelPath = "./src/uploads/billingAlliance.xlsx";
+//     const excelPath = "./src/uploads/AllianceBilling-09.xlsx";
 //     const outputDir = "./src/uploads/generated";
 //     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-//     const jsonPath = path.join(outputDir, `bill-count-${Date.now()}.json`);
+//     const jsonPath = path.join(outputDir, `bill-count-hou${Date.now()}.json`);
 
 //     // Fetch EMIs and customers once
 //     const customers = await Customer.find({}).lean();
@@ -1667,13 +1651,16 @@ app.get("/customer-count", async (req: Request, res: Response) => {
 //       hyperlinks: "ignore",
 //     });
 
+//     console.log("🚀 mass Excel Processing...");
+
 //     workbook.on("worksheet", (worksheet: any) => {
 //       worksheet.on("row", (row: any) => {
-//         // console.log("Processing row:", row.getCell(4).text?.trim());
 //         if (row.number === 1) return;
 
 //         const customerCode = row.getCell(4).text?.trim();
 //         const salesNo = row.getCell(2).value;
+
+//         console.log({ customerCode, salesNo });
 
 //         if (!customerCode || !salesNo) return;
 
@@ -1733,6 +1720,7 @@ app.get("/customer-count", async (req: Request, res: Response) => {
 //             update: {
 //               $set: {
 //                 paidDate:new Date(payDate) ,
+//                 paidAmt: row.getCell(11).value,
 //                 update: true
 //               },
 //             },
@@ -1767,8 +1755,8 @@ app.get("/customer-count", async (req: Request, res: Response) => {
 
 //           for (let i = 0; i < bulkOperations.length; i += BATCH_SIZE) {
 //             const batch = bulkOperations.slice(i, i + BATCH_SIZE);
-//             await Emi.bulkWrite(batch, { ordered: false });
-//             console.log(`✅ Updated ${i + batch.length}`);
+//             let update = await Emi.bulkWrite(batch, { ordered: false });
+//             console.log(`✅ Updated ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
 //           }
 
 //           fs.writeFileSync(jsonPath, JSON.stringify(bills, null, 2));

@@ -157,13 +157,13 @@ const allianceCommissionSchema = new Schema<IAllianceCommission>(
     },
     name: {
       type: String,
-      required: true,
+      // required: true,
       trim: true,
     },
     customerCode: {
       type: String,
-      required: true,
-      trim: true,
+      // required: true,
+      // trim: true,
     },
     bill: {
       type: Schema.Types.ObjectId,

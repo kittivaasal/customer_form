@@ -292,7 +292,22 @@ export const createCommonData = async (req: Request, res: Response) => {
     //   general.marketer = checkCustomer.ddId;
     // }
 
+    // if(!general.startDate){
+    //   return ReE(
+    //     res,
+    //     { message: "start date is required in general" },
+    //     httpStatus.BAD_REQUEST
+    //   );
+    // }
+  
+    if(general.startDate){
+      if (!isValidDate(general.startDate)) {
+        return ReE(res, { message: "Invalid date format for dateFrom valid format is (YYYY-MM-DD)!" }, httpStatus.BAD_REQUEST);
+      }
+    }
+
   }
+
 
   let checkAlreadyExist = await General.findOne({
     customer: customerId,
@@ -334,10 +349,15 @@ export const createCommonData = async (req: Request, res: Response) => {
 
   if (createGeneral.noOfInstallments) {
     let id = createGeneral._id;
+    let date = new Date();
+    if(general.startDate){
+      date = new Date(general.startDate)
+    }
+    
     for (let index = 0; index < general.noOfInstallments; index++) {
       let emi = {
         customer: customerId,
-        date: getEmiDate(index),
+        date: getEmiDate(index, date),
         emiNo: index + 1,
         emiAmt: general.emiAmount,
         general: id,
@@ -982,8 +1002,6 @@ export const getAllBilling = async (req: Request, res: Response) => {
       option.$or.push({ customer: new mongoose.Types.ObjectId(search as string) });
     }
 
-
-    console.log(option)
   }
 
   // Get total count for pagination
@@ -1743,7 +1761,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     if (!billForValues.includes(billFor)) {
       return ReE(res, { message: "Invalid billFor values valid value are " + billForValues }, httpStatus.BAD_REQUEST);
     }
-
     let checkCustomer;
     [err, checkCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2331,11 +2348,10 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         let getCommission = await convertCommissionToMarketer(checkCustomer, !housing ? amount : enteredAmount)
 
         if (!getCommission.success) return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
-
         let createCommission;
         [err, createCommission] = await toAwait(
           CustomerEmiModel.create({
-            bill: createBill?._id,
+            bill: billing?._id,
             customer: customerId,
             emiId: element?._id ? element._id : null,
             amount: !housing ? amount : enteredAmount,
@@ -2438,7 +2454,6 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
       }
     }
 
-
     if (modeOfPayment) {
       let validValue = ["cash", "card", "online"];
       modeOfPayment = modeOfPayment.toLowerCase();
@@ -2518,7 +2533,68 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
         { new: true }
       )
     );
+
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    if(paymentDate) {
+      if(getBilling.emi && mongoose.isValidObjectId(getBilling.emi)) {
+        let getEmi;
+        [err, getEmi] = await toAwait(Emi.findOne({ _id: getBilling.emi }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!getEmi) {
+          return ReE(
+            res,
+            { message: "emi not found given id" },
+            httpStatus.NOT_FOUND
+          );
+        }
+        getEmi = getEmi as IEmi
+        if(getEmi.emiNo === 1){
+          let getMonthPayment = new Date(paymentDate).getMonth() + 1;
+          let hetMonthAlready = new Date(getEmi.date).getMonth() + 1;
+          if(getMonthPayment !== hetMonthAlready){
+            let getBilling;
+            [err, getBilling] = await toAwait(Billing.find({ customer: getEmi.customer }));
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            if (!getBilling) {
+              return ReE(
+                res,
+                { message: "billing not found given id" },
+                httpStatus.NOT_FOUND
+              );
+            }
+            getBilling = getBilling as IBilling[]
+  
+            if(getBilling.length === 1){
+              let getAllEmi;
+              [err, getAllEmi] = await toAwait(Emi.find({ customer: getEmi.customer }).sort({ emiNo: 1 }));
+              if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+              if (!getAllEmi) {
+                return ReE(
+                  res,
+                  { message: "emi not found given id" },
+                  httpStatus.NOT_FOUND
+                );
+              }
+              getAllEmi = getAllEmi as IEmi[]
+              for (let index = 0; index < getAllEmi.length; index++) {
+                const element = getAllEmi[index];
+                let updateEmi;
+                [err, updateEmi] = await toAwait(
+                  Emi.findOneAndUpdate(
+                    { _id: element._id },
+                    { $set: { paidDate: paymentDate, date: getEmiDate(index, new Date(paymentDate)) } },
+                    { new: true }
+                  )
+                )
+                if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+              }
+            }
+          }
+          
+        }
+      }
+    }
 
     return ReS(
       res,
@@ -3332,7 +3408,6 @@ export const getAllBillingReport = async (req: CustomRequest, res: Response) => 
   getBilling = getBilling as IBilling[];
 
   let getEmi;
-  console.log(option)
   if (status === "unpaid" || status === "all") {
     [err, getEmi] = await toAwait(
       Emi.find(emiOption)
@@ -3415,8 +3490,6 @@ export const convertCommissionToMarketer = async (customer: ICustomer | any, emi
       }
       getMarketer = getMarketer as any
 
-      // console.log(getMarketer.overAllHeadBy)
-
       for (let index = 0; index < getMarketer.overAllHeadBy.length; index++) {
         const element = getMarketer.overAllHeadBy[index];
 
@@ -3431,7 +3504,6 @@ export const convertCommissionToMarketer = async (customer: ICustomer | any, emi
           commAmount : emiAmount * (Number(1) / 100),
           percentage : "1%"
         }
-        // console.log(comm,index)
         commision.push(comm)
       }
     }
@@ -3441,7 +3513,6 @@ export const convertCommissionToMarketer = async (customer: ICustomer | any, emi
       marketerModel: "MarketDetail",
       emiAmount: emiAmount,
     }
-    console.log(getMarketer.percentageId)
     if(getMarketer.percentageId?.rate){
       if(!isNaN(emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100))){
         comm.commAmount = emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100)
