@@ -530,9 +530,29 @@ export const deleteCustomer = async (req: Request, res: Response) => {
     return ReE(res, { message: `customer not found for given id!.` }, httpStatus.NOT_FOUND)
   }
 
+  let getBilling;
+  [err, getBilling] = await toAwait(Billing.findOne({ customer: _id }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (getBilling) {
+    return ReE(res, { message: "customer has billing please delete billing first" }, httpStatus.BAD_REQUEST);
+  }
+
+  let getEmi;
+  [err, getEmi] = await toAwait(Emi.findOne({ customer: _id }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (getEmi) {
+    return ReE(res, { message: "customer has emi so can't delete this customer" }, httpStatus.BAD_REQUEST);
+  }
+
   let deleteUser;
   [err, deleteUser] = await toAwait(Customer.deleteOne({ _id: _id }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+
+
+  let deleteEmi;
+  [err, deleteEmi] = await toAwait(Emi.deleteMany({ customer: _id }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+
   ReS(res, { message: "customer deleted" }, httpStatus.OK)
 
 }
