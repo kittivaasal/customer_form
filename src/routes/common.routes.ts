@@ -16,7 +16,7 @@ router.post("/upload", upload.array("files"), uploadImages);
 router.post("/create/all", createCommonData)
 router.post("/create/billing",verifyToken, createBilling)
 router.put("/update/billing",[verifyToken,isAdmin(true)], updateBilling)
-router.put("/update/all", UpdateCommonData)
+router.put("/update/all",verifyToken, UpdateCommonData)
 router.get("/general/get/all", getAllGeneral)
 router.get("/general/get/:id", getByIdGeneral)
 router.get("/plot/get/all", getAllPlot)

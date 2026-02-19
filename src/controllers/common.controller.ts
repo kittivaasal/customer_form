@@ -399,7 +399,7 @@ export const createCommonData = async (req: Request, res: Response) => {
 
 export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
   let body = req.body,
-    user = req.user,
+    user = req.user as IUser,
     err: any;
   const { customerId, general, plot, flat } = body;
 
@@ -545,24 +545,34 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
 
     let checkBillForCus;
     [err, checkBillForCus] = await toAwait(Billing.findOne({ customer: customerId }));
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
 
     if (general.emiAmount || general.noOfInstallments) {
-      if (!user.isAdmin) {
-        return ReE(res, { message: "You don't have permission to update the emi_amount or noOfInstallments " }, httpStatus.BAD_REQUEST)
+      if(general.emiAmount ){
+        if (checkAlreadyExist.emiAmount == general.emiAmount) {
+          delete general.emiAmount
+        }
+      }
+      if(general.noOfInstallments){
+        if (checkAlreadyExist.noOfInstallments == general.noOfInstallments) {
+          delete general.noOfInstallments
+        }
+      }
+ 
+      if(checkAlreadyExist.emiAmount != general.emiAmount || checkAlreadyExist.noOfInstallments != general.noOfInstallments){
+        if (!user.isAdmin) {
+          return ReE(res, { message: "You don't have permission to update the emi_amount or noOfInstallments " }, httpStatus.BAD_REQUEST)
+        }
       }
     }
-
+    
     if (checkBillForCus) {
-      if (general.emiAmount) {
+      if (general.emiAmount && checkAlreadyExist.emiAmount != general.emiAmount) {
         return ReE(res, { message: "You can't update the emi_amount beacause many billing already created" }, httpStatus.BAD_REQUEST)
       }
     }
 
     if (general.noOfInstallments) {
-      if (checkAlreadyExist.noOfInstallments == general.noOfInstallments) {
-        delete general.noOfInstallments
-      }
       let getAllEmiUnPaid;
       [err, getAllEmiUnPaid] = await toAwait(Emi.find({ customer: customerId, paidDate: null }));
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -1519,17 +1529,16 @@ export const getByIdBilling = async (req: Request, res: Response) => {
 
     let totalAmount = 0;
     if(getBilling.general){
-      if(getBilling.general?.totalAmount){
+      if(getBilling.general?.totalAmount && getBilling.general?.totalAmount > 0){
         totalAmount = getBilling.general.totalAmount
       }else{
-        if(getBilling?.totalAmount){
+        if(getBilling?.totalAmount && getBilling?.totalAmount > 0){
           totalAmount = getBilling.totalAmount
         }else if(getBilling.general?.emiAmount && getBilling.general?.noOfInstallments){
           totalAmount = Number(getBilling.general.emiAmount) * Number(getBilling.general.noOfInstallments)
         }
       }
     }
-
     let getAllPaid;
     [err, getAllPaid] = await toAwait(
       Billing.find({ general: generalId, customer: customerId }).populate("customer").populate("general")
@@ -1884,7 +1893,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
             $lte: date.end
           },
         }
-        ));
+      ));
 
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       if (!getEmi) {
@@ -1896,6 +1905,8 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       }
 
       getEmi = getEmi as IEmi;
+
+      console.log("getEmi", getEmi)
 
       if (getEmi.paidDate) {
         return ReE(

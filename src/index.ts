@@ -1813,4 +1813,68 @@ cron.schedule("02 00 * * *", async () => {
 //   }
 // })
 
+// app.get("/bill-count", async (req: Request, res: Response) => {
+//   try {
+//     console.log("Starting EMI paidDate update...");
+
+//     const BATCH_SIZE = 1000;
+//     let bulkOps: any[] = [];
+//     let totalProcessed = 0;
+//     let totalUpdated = 0;
+
+//     const cursor = Billing.find({
+      
+//     })
+//       .select("emi paymentDate amountPaid")
+//       .lean()
+//       .cursor();
+
+//     for await (const bill of cursor) {
+//       totalProcessed++;
+
+//       bulkOps.push({
+//         updateOne: {
+//           filter: { _id: bill.emi },
+//           update: {
+//             $set: { paidDate: bill.paymentDate, paidAmt: bill.amountPaid },
+//           }
+//         }
+//       });
+
+//       // console.log(`Prepared update for EMI: ${bill.emi} | Payment Date: ${bill.paymentDate}, Total Processed: ${totalProcessed}, ${bill.amountPaid}`);
+
+//       // Execute batch
+//       if (bulkOps.length === BATCH_SIZE) {
+//         const result = await Emi.bulkWrite(bulkOps);
+//         totalUpdated += result.modifiedCount;
+//         bulkOps = [];
+//         console.log(`Processed: ${totalProcessed} | matched: ${result.matchedCount} | Total Updated: ${result.modifiedCount}`); // Log batch results
+//       }
+//     }
+
+//     // Run remaining updates
+//     if (bulkOps.length > 0) {
+//       const result = await Emi.bulkWrite(bulkOps);
+//       totalUpdated += result.modifiedCount;
+//       console.log(`Final Batch Processed: ${totalProcessed} | matched: ${result.matchedCount} | Total Updated: ${result.modifiedCount}`); 
+//     }
+
+//     console.log("EMI paidDate updated successfully");
+
+//     return res.status(200).json({
+//       success: true,
+//       message: "EMI paidDate updated successfully",
+//       totalProcessed,
+//       totalUpdated
+//     });
+
+//   } catch (error) {
+//     console.error("Error updating EMI paidDate:", error);
+//     return res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+//   }
+// })
+
 app.listen(port, () => console.log("Server running on port " + port));
