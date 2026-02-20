@@ -10,12 +10,14 @@ const PlotBookingFormSchema: Schema = new Schema(
 
         gender: { type: String, trim: true },
         projectArea: { type: String, trim: true },
-        nameOfCustomer: { type: String, trim: true, required: true },
+        nameOfCustomer: { type: String, trim: true  },
         nationality: { type: String, trim: true },
         dob: { type: Date },
         occupation: { type: String, trim: true },
         qualification: { type: String, trim: true },
         planNo: { type: String, trim: true },
+
+        projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
 
         communicationAddress: { type: String, trim: true },
         pincode: { type: String, trim: true },
@@ -36,14 +38,10 @@ const PlotBookingFormSchema: Schema = new Schema(
 
         address: { type: String, trim: true },
 
-        introducerName: { type: String, trim: true },
-        introducerMobileNo: { type: String, trim: true },
+        cedId: {type: mongoose.Schema.Types.ObjectId,ref: "MarketDetail"},
+        ddId: {type: mongoose.Schema.Types.ObjectId,ref: "MarketingHead"},
 
         immSupervisorName: { type: String, trim: true },
-        cedName: { type: String, trim: true },
-
-        diamountDirectorName: { type: String, trim: true },
-        diamountDirectorPhone: { type: String, trim: true },
 
         modeOfPayment: { type: String, trim: true },
         paymentRefNo: { type: String, trim: true },

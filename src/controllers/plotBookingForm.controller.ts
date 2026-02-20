@@ -2,10 +2,15 @@ import { Request, Response } from "express";
 import httpStatus from "http-status";
 import { Customer } from "../models/customer.model";
 import plotBookingFormModel from "../models/plotBookingForm.model";
-import { isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
+import { isEmail, isNull, isPhone, ReE, ReS, toAutoIncrCode, toAwait } from "../services/util.service";
 import { IPlotBookingForm } from "../type/plotBookingForm";
 import { toLowerCaseObj } from "./common";
 import mongoose from "mongoose";
+import { MarketDetail } from "../models/marketDetail.model";
+import { MarketingHead } from "../models/marketingHead.model";
+import { Project } from "../models/project.model";
+import { Counter } from "../models/counter.model";
+import { IProject } from "../type/project";
 
 export const createPlotBookingForm = async (req: Request, res: Response) => {
     let err;
@@ -21,27 +26,84 @@ export const createPlotBookingForm = async (req: Request, res: Response) => {
         body.referenceId = referenceId; // Add back with correct casing
     }
 
-    
-    let fields = [ "mobileNo", "email", "nameOfCustomer" ];
+    let fields = [ "mobileNo", "email", "nameOfCustomer", "ddId" ];
     let inVaildFields = fields.filter(x => isNull(body[x]));
     if (inVaildFields.length > 0) {
         return ReE(res, { message: `Please enter required fields ${inVaildFields}!.` }, httpStatus.BAD_REQUEST);
     }
-    let { mobileNo, email, pincode, address, nameOfCustomer } = body
+    let { mobileNo, email, pincode, address, nameOfCustomer, ddId, cedId, projectId } = body
+    if(!isEmail(email)) {
+        return ReE(res, { message: `Invalid email!.` }, httpStatus.BAD_REQUEST)
+    }
+    if(!projectId){
+        return ReE(res, { message: `projectId is required!.` }, httpStatus.BAD_REQUEST)
+    }
     if (!isPhone(mobileNo)) {
         return ReE(res, { message: `Invalid mobile number!.` }, httpStatus.BAD_REQUEST)
     }
-    // 🔍 check for duplicate with all provided fields
+
+    if (!mongoose.isValidObjectId(ddId)) {
+        return ReE(res, { message: `Invalid ddId!.` }, httpStatus.BAD_REQUEST);
+    }
+
+    if (cedId) {
+        if (!mongoose.isValidObjectId(cedId)) {
+            return ReE(res, { message: `Invalid cedId!.` }, httpStatus.BAD_REQUEST);
+        }
+        let checkCed;
+        [err, checkCed] = await toAwait(MarketDetail.findOne({ _id: cedId }))
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!checkCed) {
+            return ReE(res, { message: `ced not found for this cedId, id is ${cedId}!..` }, httpStatus.BAD_REQUEST);
+        }
+    }
+
+    let checkDD;
+    [err, checkDD] = await toAwait(MarketingHead.findOne({ _id: ddId }))
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!checkDD) {
+        return ReE(res, { message: `dd not found for this ddId, id is ${ddId}!..` }, httpStatus.BAD_REQUEST);
+    }
     let checkAlready;
     [err, checkAlready] = await toAwait(plotBookingFormModel.findOne(body));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (checkAlready) {
         return ReE(res, { message: `This plotBookingForm already exists.` }, httpStatus.BAD_REQUEST);
     }
+
     email = email.trim().toLowerCase();
     if(photo){
         body.photo = photo;
     }
+
+    if (!mongoose.isValidObjectId(projectId)) {
+        return ReE(res, { message: `Invalid projectId!.` }, httpStatus.BAD_REQUEST);
+    }
+    let checkProject;
+    [err, checkProject] = await toAwait(Project.findOne({ _id: projectId }))
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!checkProject) {
+        return ReE(res, { message: `project not found for this projectId, id is ${projectId}!..` }, httpStatus.BAD_REQUEST);
+    }
+    checkProject = checkProject as IProject;
+    let id = checkProject?.shortName ? checkProject?.shortName.endsWith("-") ? checkProject?.shortName : checkProject?.shortName + "-" : toAutoIncrCode(checkProject?.projectName);
+    let getCustomerCounter, count = 1;
+    [err, getCustomerCounter] = await toAwait(Counter.findOne({ name: "customerid" }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getCustomerCounter) {
+        let newCounter = new Counter({ name: "customerid", seq: 1 });
+        await newCounter.save();
+    } else {
+        getCustomerCounter = getCustomerCounter as any;
+        count = getCustomerCounter.seq + 1;
+        let updateCustomerCounter;
+        [err, updateCustomerCounter] = await toAwait(
+            Counter.updateOne({ name: "customerid" }, { $set: { seq: count } })
+        )
+    }
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    body.id = id + count.toString().padStart(4, '0');
+
     let plotBookingForm;
     [err, plotBookingForm] = await toAwait(plotBookingFormModel.create({...body, referenceId, scheme }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -49,25 +111,23 @@ export const createPlotBookingForm = async (req: Request, res: Response) => {
         return ReE(res, { message: `Failed to create plotBookingForm!` }, httpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    let checkCustomer;
-    [err,checkCustomer] = await toAwait(Customer.findOne({email, phone:mobileNo}))
+    let customer;
+    [err, customer] = await toAwait(Customer.create({
+        phone:mobileNo,
+        email,
+        name : nameOfCustomer,
+        pincode,
+        id: body?.id,
+        ddId,
+        cedId,
+        address,
+        projectId,
+        referenceId
+    }));
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    
-    if (!checkCustomer) {
-        let customer;
-        [err, customer] = await toAwait(Customer.create({
-            phone:mobileNo,
-            email,
-            name : nameOfCustomer,
-            pincode, 
-            address,
-            referenceId
-        }));
-        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        if (!customer) {
-            return ReE(res, { message: `Failed to create customer!.` }, httpStatus.INTERNAL_SERVER_ERROR)
-        }
+    if (!customer) {
+        return ReE(res, { message: `Failed to create customer!.` }, httpStatus.INTERNAL_SERVER_ERROR)
     }
 
     return ReS(res, { message: "plotBookingForm created successfully" }, httpStatus.OK);

@@ -1,4 +1,5 @@
 // types/plotBookingForm.interface.ts
+import mongoose from "mongoose";
 import { Document } from "mongoose";
 
 export interface IPlotBookingForm extends Document {
@@ -26,12 +27,10 @@ export interface IPlotBookingForm extends Document {
     so_wf_do?: string; // S/O, W/O, F/O, D/O (prefix like "S/O")
     relationshipWithCustomer?: string;
     address?: string;
-    introducerName?: string;
-    introducerMobileNo?: string;
+    cedId?: mongoose.Types.ObjectId;
+    ddId?: mongoose.Types.ObjectId;
     immSupervisorName?: string;
     cedName?: string;
-    diamountDirectorName?: string;
-    diamountDirectorPhone?: string;
     modeOfPayment: String;
     paymentRefNo: String;
     createdAt?: Date;
