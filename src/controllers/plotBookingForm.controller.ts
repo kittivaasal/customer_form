@@ -26,15 +26,15 @@ export const createPlotBookingForm = async (req: Request, res: Response) => {
         body.referenceId = referenceId; // Add back with correct casing
     }
 
-    let fields = [ "mobileNo", "email", "nameOfCustomer", "ddId" ];
+    let fields = [ "mobileNo", /* "email", */ "nameOfCustomer", "ddId" ];
     let inVaildFields = fields.filter(x => isNull(body[x]));
     if (inVaildFields.length > 0) {
         return ReE(res, { message: `Please enter required fields ${inVaildFields}!.` }, httpStatus.BAD_REQUEST);
     }
     let { mobileNo, email, pincode, address, nameOfCustomer, ddId, cedId, projectId } = body
-    if(!isEmail(email)) {
-        return ReE(res, { message: `Invalid email!.` }, httpStatus.BAD_REQUEST)
-    }
+    // if(!isEmail(email)) {
+    //     return ReE(res, { message: `Invalid email!.` }, httpStatus.BAD_REQUEST)
+    // }
     if(!projectId){
         return ReE(res, { message: `projectId is required!.` }, httpStatus.BAD_REQUEST)
     }
