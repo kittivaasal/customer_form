@@ -28,7 +28,7 @@ export const getAllLogs = async (req: Request, res: Response) => {
       return ReE(
         res,
         { message: "Invalid date format!" },
-        httpStatus.BAD_REQUEST
+        httpStatus.BAD_REQUEST,
       );
     }
 
@@ -66,18 +66,22 @@ export const getAllLogs = async (req: Request, res: Response) => {
   const collections = [
     { model: Customer, moduleName: "Customer", hasCreatedBy: true },
     { model: Percentage, moduleName: "Percentage", hasCreatedBy: true },
-    { model: Marketer, moduleName: "Marketer", hasCreatedBy: true },
+    { model: Marketer, moduleName: "Marketer", hasCreatedBy: false },
     { model: MarketingHead, moduleName: "Marketing Head", hasCreatedBy: true },
-    { model: Role, moduleName: "Roles", hasCreatedBy: true },
+    { model: Role, moduleName: "Roles", hasCreatedBy: false },
     { model: User, moduleName: "Employee", hasCreatedBy: true },
-    { model: RoleMenu, moduleName: "Roles & Menu Mapping", hasCreatedBy: true },
+    {
+      model: RoleMenu,
+      moduleName: "Roles & Menu Mapping",
+      hasCreatedBy: false,
+    },
     { model: Billing, moduleName: "Billing", hasCreatedBy: true },
-    { model: Nvt, moduleName: "NVT", hasCreatedBy: true },
-    { model: Mod, moduleName: "MOD", hasCreatedBy: true },
-    { model: EditRequest, moduleName: "Request", hasCreatedBy: true },
-    { model: LifeSaving, moduleName: "Life Alliance", hasCreatedBy: true },
-    { model: LifeHousing, moduleName: "Life Housing", hasCreatedBy: true },
-    { model: LifeSaving, moduleName: "Life Saving", hasCreatedBy: true },
+    { model: Nvt, moduleName: "NVT", hasCreatedBy: false },
+    { model: Mod, moduleName: "MOD", hasCreatedBy: false },
+    { model: EditRequest, moduleName: "Request", hasCreatedBy: false },
+    { model: LifeSaving, moduleName: "Life Alliance", hasCreatedBy: false },
+    { model: LifeHousing, moduleName: "Life Housing", hasCreatedBy: false },
+    { model: LifeSaving, moduleName: "Life Saving", hasCreatedBy: false }, // Note: Duplicate LifeSaving in original code
   ];
 
   // Fetch data from all collections
@@ -88,20 +92,45 @@ export const getAllLogs = async (req: Request, res: Response) => {
     let tuple: any[];
 
     if (collection.moduleName === "Roles & Menu Mapping") {
-      const tuple: any = await toAwait(
-        (collection.model as any)
-          .find(dateFilter)
-          .select("_id createdBy createdAt roleId")
-          .lean()
-      );
+      let query = (collection.model as any)
+        .find(dateFilter)
+        .select("_id createdAt roleId");
+      if (collection.hasCreatedBy)
+        query = query
+          .select("createdBy")
+          .populate("createdBy", "name email phone role isAdmin");
+      query = query.populate("roleId", "name status").lean();
+      const tuple: any = await toAwait(query);
+      [err, results] = tuple;
+    } else if (collection.moduleName === "Customer") {
+      let query = (collection.model as any)
+        .find(dateFilter)
+        .select("_id createdAt id");
+      if (collection.hasCreatedBy)
+        query = query
+          .select("createdBy")
+          .populate("createdBy", "name email phone role isAdmin");
+      const tuple: any = await toAwait(query.lean());
+      [err, results] = tuple;
+    } else if (collection.moduleName === "Billing") {
+      let query = (collection.model as any)
+        .find(dateFilter)
+        .select("_id createdAt customerCode");
+      if (collection.hasCreatedBy)
+        query = query
+          .select("createdBy")
+          .populate("createdBy", "name email phone role isAdmin");
+      const tuple: any = await toAwait(query.lean());
       [err, results] = tuple;
     } else {
-      const tuple: any = await toAwait(
-        (collection.model as any)
-          .find(dateFilter)
-          .select("_id createdBy createdAt")
-          .lean()
-      );
+      let query = (collection.model as any)
+        .find(dateFilter)
+        .select("_id createdAt");
+      if (collection.hasCreatedBy)
+        query = query
+          .select("createdBy")
+          .populate("createdBy", "name email phone role isAdmin");
+      const tuple: any = await toAwait(query.lean());
       [err, results] = tuple;
     }
 
@@ -113,7 +142,8 @@ export const getAllLogs = async (req: Request, res: Response) => {
           _id: item._id,
           moduleName: collection.moduleName,
           createdAt: item.createdAt,
-          roleId: item.roleId ? item.roleId : null
+          roleId: item.roleId ? item.roleId : null,
+          customerCode: item.id || item.customerCode || null,
         };
 
         // Only add createdBy if it exists and hasCreatedBy is true
@@ -138,7 +168,7 @@ export const getAllLogs = async (req: Request, res: Response) => {
           data: [],
           totalCount: 0,
         },
-        httpStatus.OK
+        httpStatus.OK,
       );
     }
     // For pagination
@@ -154,13 +184,13 @@ export const getAllLogs = async (req: Request, res: Response) => {
           totalPages: 0,
         },
       },
-      httpStatus.OK
+      httpStatus.OK,
     );
   }
 
   // Sort by createdAt (newest first)
   allLogs.sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
   // Handle export - return all data
@@ -172,7 +202,7 @@ export const getAllLogs = async (req: Request, res: Response) => {
         data: allLogs,
         totalCount: allLogs.length,
       },
-      httpStatus.OK
+      httpStatus.OK,
     );
   }
 
@@ -198,6 +228,6 @@ export const getAllLogs = async (req: Request, res: Response) => {
         totalPages,
       },
     },
-    httpStatus.OK
+    httpStatus.OK,
   );
 };
