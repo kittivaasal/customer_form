@@ -71,11 +71,11 @@ const marketerSchema = new Schema<IMarketerCommission>(
     },
     emiAmount: {
       type: String,
-      required: true,
+      // required: true,
     },
     commAmount: {
       type: String,
-      required: true,
+      // required: true,
     },
   },
   {

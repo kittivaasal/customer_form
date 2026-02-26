@@ -1550,9 +1550,11 @@ export const getByIdBilling = async (req: Request, res: Response) => {
 
     getAllPaid = getAllPaid as IBilling[]
 
-    let totalPaid = getAllPaid.reduce((total, current) => total + Number(current?.enteredAmount === 0 ? current?.amountPaid : current?.enteredAmount), 0);
+    // console.log("getAllPaid", getAllPaid)
+
+    let totalPaid = getAllPaid.reduce((total, current) => total + Number(current?.enteredAmount === 0 ? current?.amountPaid ? current?.amountPaid : 0 : current?.enteredAmount), 0);
     let totalunPaid = totalAmount - totalPaid
-    let totalPrevPaid = totalPaid - Number(getBilling.enteredAmount === 0 ? getBilling.amountPaid : getBilling.enteredAmount)
+    let totalPrevPaid = totalPaid - Number(getBilling.enteredAmount === 0 ? getBilling.amountPaid ? getBilling.amountPaid : 0 : getBilling.enteredAmount)
 
     let billData = {
       totalAmount: totalAmount,
@@ -3641,7 +3643,7 @@ export const convertCommissionToMarketer = async (customer: ICustomer | any, emi
         marketerModel: "MarketingHead",
         emiAmount: emiAmount,
       }
-      if (!customer.cedId) {
+      if (!customer.cedId || customer.cedId.toString() === customer.ddId.toString()) {
         comm.commAmount = emiAmount * (Number(getHead.percentageId.rate.split("%")[0]) / 100)
         comm.percentage = getHead.percentageId.rate
       } else {
@@ -3652,7 +3654,7 @@ export const convertCommissionToMarketer = async (customer: ICustomer | any, emi
     }
 
     let getMarketer;
-    if (customer.cedId) {
+    if (customer.cedId && customer.ddId.toString() !== customer.cedId.toString()) {
       getMarketer = await MarketDetail.findOne({ _id: customer.cedId }).populate(
         "overAllHeadBy"
       ).populate({
@@ -3696,11 +3698,12 @@ export const convertCommissionToMarketer = async (customer: ICustomer | any, emi
       marketerModel: "MarketDetail",
       emiAmount: emiAmount,
     }
+
     if (getMarketer.percentageId?.rate) {
       if (!isNaN(emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100))) {
         comm.commAmount = emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100)
-        comm.percentage = getMarketer.percentageId.rate
       }
+      comm.percentage = getMarketer.percentageId.rate
     }
     commision.push(comm)
     return {
