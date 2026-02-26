@@ -92,45 +92,192 @@ export const getAllLogs = async (req: Request, res: Response) => {
     let tuple: any[];
 
     if (collection.moduleName === "Roles & Menu Mapping") {
-      let query = (collection.model as any)
-        .find(dateFilter)
-        .select("_id createdAt roleId");
-      if (collection.hasCreatedBy)
-        query = query
-          .select("createdBy")
-          .populate("createdBy", "name email phone role isAdmin");
-      query = query.populate("roleId", "name status").lean();
-      const tuple: any = await toAwait(query);
+      let pipeline: any[] = [{ $match: dateFilter }];
+      if (collection.hasCreatedBy) {
+        pipeline.push(
+          {
+            $lookup: {
+              from: "users",
+              localField: "createdBy",
+              foreignField: "_id",
+              as: "creatorDetails",
+            },
+          },
+          {
+            $addFields: {
+              createdByDetail: { $arrayElemAt: ["$creatorDetails", 0] },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              createdAt: 1,
+              roleId: 1,
+              createdBy: {
+                $cond: {
+                  if: { $gt: [{ $size: "$creatorDetails" }, 0] },
+                  then: {
+                    name: "$createdByDetail.name",
+                    email: "$createdByDetail.email",
+                    phone: "$createdByDetail.phone",
+                    role: "$createdByDetail.role",
+                    isAdmin: "$createdByDetail.isAdmin",
+                  },
+                  else: {
+                    $cond: {
+                      if: { $eq: [{ $type: "$createdBy" }, "string"] },
+                      then: { name: "$createdBy" },
+                      else: null,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        );
+      } else {
+        pipeline.push({ $project: { _id: 1, createdAt: 1, roleId: 1 } });
+      }
+
+      let query = (collection.model as any).aggregate(pipeline);
+      // For Roles & Menu Mapping, we still populate roleId
+      // Note: aggregating might not return Mongoose documents, so we can't chain .populate()
+      // Since it's an array of plain objects, we'd need to populate it manually or use another lookup
+      // But roleId seems safe (not causing errors), so let's stick to the simplest fix.
+      // Actually, since we use aggregate, let's $lookup roleId to be safe.
+      let fullPipeline = [...pipeline];
+      fullPipeline.push(
+        {
+          $lookup: {
+            from: "roles",
+            localField: "roleId",
+            foreignField: "_id",
+            as: "roleDetails",
+          },
+        },
+        {
+          $addFields: {
+            roleId: { $arrayElemAt: ["$roleDetails", 0] },
+          },
+        },
+        {
+          $project: {
+            roleDetails: 0,
+          },
+        },
+      );
+      const tuple: any = await toAwait(
+        (collection.model as any).aggregate(fullPipeline),
+      );
       [err, results] = tuple;
-    } else if (collection.moduleName === "Customer") {
-      let query = (collection.model as any)
-        .find(dateFilter)
-        .select("_id createdAt id");
-      if (collection.hasCreatedBy)
-        query = query
-          .select("createdBy")
-          .populate("createdBy", "name email phone role isAdmin");
-      const tuple: any = await toAwait(query.lean());
-      [err, results] = tuple;
-    } else if (collection.moduleName === "Billing") {
-      let query = (collection.model as any)
-        .find(dateFilter)
-        .select("_id createdAt customerCode");
-      if (collection.hasCreatedBy)
-        query = query
-          .select("createdBy")
-          .populate("createdBy", "name email phone role isAdmin");
-      const tuple: any = await toAwait(query.lean());
+    } else if (
+      collection.moduleName === "Customer" ||
+      collection.moduleName === "Billing"
+    ) {
+      let pipeline: any[] = [{ $match: dateFilter }];
+      if (collection.hasCreatedBy) {
+        pipeline.push(
+          {
+            $lookup: {
+              from: "users",
+              localField: "createdBy",
+              foreignField: "_id",
+              as: "creatorDetails",
+            },
+          },
+          {
+            $addFields: {
+              createdByDetail: { $arrayElemAt: ["$creatorDetails", 0] },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              createdAt: 1,
+              id: 1,
+              customerCode: 1,
+              createdBy: {
+                $cond: {
+                  if: { $gt: [{ $size: "$creatorDetails" }, 0] },
+                  then: {
+                    name: "$createdByDetail.name",
+                    email: "$createdByDetail.email",
+                    phone: "$createdByDetail.phone",
+                    role: "$createdByDetail.role",
+                    isAdmin: "$createdByDetail.isAdmin",
+                  },
+                  else: {
+                    $cond: {
+                      if: { $eq: [{ $type: "$createdBy" }, "string"] },
+                      then: { name: "$createdBy" },
+                      else: null,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        );
+      } else {
+        pipeline.push({
+          $project: { _id: 1, createdAt: 1, id: 1, customerCode: 1 },
+        });
+      }
+
+      const tuple: any = await toAwait(
+        (collection.model as any).aggregate(pipeline),
+      );
       [err, results] = tuple;
     } else {
-      let query = (collection.model as any)
-        .find(dateFilter)
-        .select("_id createdAt");
-      if (collection.hasCreatedBy)
-        query = query
-          .select("createdBy")
-          .populate("createdBy", "name email phone role isAdmin");
-      const tuple: any = await toAwait(query.lean());
+      let pipeline: any[] = [{ $match: dateFilter }];
+      if (collection.hasCreatedBy) {
+        pipeline.push(
+          {
+            $lookup: {
+              from: "users",
+              localField: "createdBy",
+              foreignField: "_id",
+              as: "creatorDetails",
+            },
+          },
+          {
+            $addFields: {
+              createdByDetail: { $arrayElemAt: ["$creatorDetails", 0] },
+            },
+          },
+          {
+            $project: {
+              _id: 1,
+              createdAt: 1,
+              createdBy: {
+                $cond: {
+                  if: { $gt: [{ $size: "$creatorDetails" }, 0] },
+                  then: {
+                    name: "$createdByDetail.name",
+                    email: "$createdByDetail.email",
+                    phone: "$createdByDetail.phone",
+                    role: "$createdByDetail.role",
+                    isAdmin: "$createdByDetail.isAdmin",
+                  },
+                  else: {
+                    $cond: {
+                      if: { $eq: [{ $type: "$createdBy" }, "string"] },
+                      then: { name: "$createdBy" },
+                      else: null,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        );
+      } else {
+        pipeline.push({ $project: { _id: 1, createdAt: 1 } });
+      }
+
+      const tuple: any = await toAwait(
+        (collection.model as any).aggregate(pipeline),
+      );
       [err, results] = tuple;
     }
 
@@ -148,6 +295,7 @@ export const getAllLogs = async (req: Request, res: Response) => {
 
         // Only add createdBy if it exists and hasCreatedBy is true
         if (collection.hasCreatedBy && item.createdBy) {
+          
           log.createdBy = item.createdBy;
         }
 
