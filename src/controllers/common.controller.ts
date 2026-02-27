@@ -2482,9 +2482,9 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           [err, updateEmis] = await toAwait(
             Emi.updateMany(
               { _id: { $in: createBill.emiCover } },
-              { $set: { paidDate: new Date(paymentDate) } },
-            ),
-          );
+              { $set: { paidDate: new Date(paymentDate), paidAmt: createBill.amountPaid } }
+            )
+          )
 
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
@@ -2511,19 +2511,15 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
       if (checkAlreadyExist && !housing) {
-        checkAlreadyExist = checkAlreadyExist as IBilling;
+        checkAlreadyExist = checkAlreadyExist as IBilling
+        let amountPaid = checkAlreadyExist.amountPaid ? checkAlreadyExist.amountPaid : checkAlreadyExist.enteredAmount ? checkAlreadyExist.enteredAmount : 0;
         let updateEmiPaid;
         [err, updateEmiPaid] = await toAwait(
           Emi.updateOne(
             { _id: checkAlreadyExist?.emi },
-            {
-              $set: {
-                paidDate: checkAlreadyExist?.paymentDate,
-                paidAmt: checkAlreadyExist.amountPaid,
-              },
-            },
-          ),
-        );
+            { $set: { paidDate: checkAlreadyExist?.paymentDate, paidAmt: amountPaid } }
+          )
+        )
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
         let getEmi;
         [err, getEmi] = await toAwait(
@@ -4077,26 +4073,22 @@ export const convertCommissionToMarketer = async (
       }
     }
 
-    let comm: any = {
-      marketerId: getMarketer._id,
-      marketerModel: "MarketDetail",
-      emiAmount: emiAmount,
-    };
+    if(customer.ddId.toString() !== customer.cedId.toString()){
 
-    if (getMarketer.percentageId?.rate) {
-      if (
-        !isNaN(
-          emiAmount *
-            (Number(getMarketer.percentageId.rate.split("%")[0]) / 100),
-        )
-      ) {
-        comm.commAmount =
-          emiAmount *
-          (Number(getMarketer.percentageId.rate.split("%")[0]) / 100);
+      let comm: any = {
+        marketerId: getMarketer._id,
+        marketerModel: "MarketDetail",
+        emiAmount: emiAmount,
       }
-      comm.percentage = getMarketer.percentageId.rate;
+  
+      if (getMarketer.percentageId?.rate) {
+        if (!isNaN(emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100))) {
+          comm.commAmount = emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100)
+        }
+        comm.percentage = getMarketer.percentageId.rate
+      }
+      commision.push(comm)
     }
-    commision.push(comm);
     return {
       success: true,
       message: "Commission found",

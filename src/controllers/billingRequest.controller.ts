@@ -268,7 +268,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               [err, updateEmis] = await toAwait(
                 Emi.updateMany(
                   { _id: { $in: createBill.emiCover } },
-                  { $set: { paidDate: new Date(createBill.paymentDate) } }
+                  { $set: { paidDate: new Date(createBill.paymentDate), paidAmt: createBill.amountPaid } }
                 )
               )
 
@@ -292,11 +292,12 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
           if (checkAlreadyExist && !getBillingRequest.billingDetails.housing) {
             checkAlreadyExist = checkAlreadyExist as IBilling | any
+            let amountPaid = checkAlreadyExist.amountPaid ? checkAlreadyExist.amountPaid : checkAlreadyExist.enteredAmount ? checkAlreadyExist.enteredAmount : 0;
             let updateEmiPaid;
             [err, updateEmiPaid] = await toAwait(
               Emi.updateOne(
                 { _id: checkAlreadyExist?.emi },
-                { $set: { paidDate: checkAlreadyExist?.paymentDate, paidAmt: checkAlreadyExist.amountPaid } }
+                { $set: { paidDate: checkAlreadyExist?.paymentDate, paidAmt: amountPaid } }
               )
             )
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -316,8 +317,17 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               continue;
             }
 
+            // if (getBillingRequest?.billingDetails?.housing) {
+            //   if(checkAlreadyExist){
+            //     checkAlreadyExist = checkAlreadyExist as IBilling 
+            //     let deleteBill;
+            //     [err, deleteBill] = await toAwait(Billing.deleteOne({ _id: checkAlreadyExist._id }));
+            //     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            //   }
+            // }
+
             [err, billing] = await toAwait(Billing.create(createBill));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);            
 
             billing = billing as IBilling;
             getMarketer = getMarketer as any;
@@ -331,9 +341,9 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             }
 
             let getCommission = await convertCommissionToMarketer(checkCustomer, am)
-    
-            if (!getCommission.success) return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
 
+            if (!getCommission.success) return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
+            
             let createCommission;
             [err, createCommission] = await toAwait(
               CustomerEmiModel.create({
@@ -344,7 +354,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                 marketer: getCommission.data
               })
             );
-    
+
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
             if (!createCommission) {
