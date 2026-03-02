@@ -92,6 +92,9 @@ const GeneralSchema = new Schema(
     totalAmount: {
       type: Number,
     },
+    sPartyCode:{
+      type: String,
+    }
   },
 
   { timestamps: true }

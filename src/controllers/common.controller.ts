@@ -1841,6 +1841,15 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     } = body;
 
     amount = Number(amount);
+
+    if (isNaN(amount) || amount <= 0) {
+      return ReE(
+        res,
+        { message: "Amount must be a greater than zero" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+
     let customerBalanceAmount = 0;
     const enteredAmount = amount;
 
