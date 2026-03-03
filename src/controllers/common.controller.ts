@@ -3854,7 +3854,7 @@ export const getAllBillingReport = async (
           BillingRequest.create({
             userId: user._id,
             status: "pending",
-            message: `This user ${user._id} want to get billing report from ${dateFrom} to ${dateTo}`,
+            message: `This user ${user.name} want to get billing report from ${dateFrom} to ${dateTo}`,
             requestFor: "excel",
             excelFromDate: new Date(dateFrom as string),
             excelToDate: new Date(dateTo as string),
