@@ -46,6 +46,7 @@ export interface IBilling extends Document {
     totalPaid?: string;
     totalBalance?: string;
     enteredAmount?: number;
+    projectId?: mongoose.Types.ObjectId;
     TType?: string;
     product?: string;
     EMIDate?: string;

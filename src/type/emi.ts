@@ -12,6 +12,7 @@ export interface IEmi {
     jpd?: string;
     createdAt?: Date;
     updatedAt?: Date;
+    projectId?: mongoose.Types.ObjectId;
 
     oldData?: boolean
     payRef?: string;

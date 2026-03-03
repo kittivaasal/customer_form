@@ -1379,15 +1379,15 @@ export const getAllEmi = async (req: Request, res: Response) => {
       data: getEmi,
       ...(page &&
         limit && {
-          pagination: {
-            page,
-            limit,
-            total,
-            totalPages,
-            hasNextPage: page < totalPages,
-            hasPreviousPage: page > 1,
-          },
-        }),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      }),
     },
     httpStatus.OK,
   );
@@ -2224,6 +2224,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               billFor,
               createdBy: user._id,
               enteredAmount,
+              projectId: checkCustomer.projectId
             }),
           );
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2482,6 +2483,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         billFor,
         createdBy: user._id,
         enteredAmount,
+        projectId: checkCustomer.projectId
       };
 
       if (housing) {
@@ -3685,9 +3687,24 @@ export const getAllBillingReport = async (
   let user = req.user as IUser;
   let err;
 
-  let { dateFrom, dateTo, date, status, blocked } = req.query,
+  let { dateFrom, dateTo, date, status, blocked, projectId } = req.query,
     option: any = {},
     emiOption: any = {};
+
+  if(projectId) {
+    if(!mongoose.isValidObjectId(projectId)) {
+      return ReE(res, { message: "Invalid project id" }, httpStatus.BAD_REQUEST);
+    }
+    let getProject;
+    [err, getProject] = await toAwait(Project.findOne({ _id: projectId }));
+    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if(!getProject) {
+      return ReE(res, { message: "Project not found for given id" }, httpStatus.NOT_FOUND);
+    }
+    getProject = getProject as IProject;
+    option.projectId = projectId;
+    emiOption.projectId = projectId;
+  }
 
   if (status) {
     status = status as string;
@@ -4082,14 +4099,14 @@ export const convertCommissionToMarketer = async (
       }
     }
 
-    if(customer.ddId.toString() !== customer.cedId.toString()){
+    if (customer.ddId.toString() !== customer.cedId.toString()) {
 
       let comm: any = {
         marketerId: getMarketer._id,
         marketerModel: "MarketDetail",
         emiAmount: emiAmount,
       }
-  
+
       if (getMarketer.percentageId?.rate) {
         if (!isNaN(emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100))) {
           comm.commAmount = emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100)

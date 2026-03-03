@@ -110,7 +110,6 @@ const BillingSchema: Schema = new Schema<IBilling>(
       type:Boolean,
       default:false
     },
-    
     project: {
       type: String,
     },
@@ -156,6 +155,10 @@ const BillingSchema: Schema = new Schema<IBilling>(
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
+    },
+    projectId: {
+      type: Schema.Types.ObjectId,
+      ref: "Project",
     },
     totalAmount: {
       type: String,

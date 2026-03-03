@@ -127,6 +127,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               customerCode: checkCustomer.id,
               createdBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
               enteredAmount: getBillingRequest.billingDetails.enteredAmount,
+              projectId: checkCustomer.projectId
             })
           );
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -256,7 +257,8 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             billFor: getBillingRequest.billingDetails.billFor,
             customerCode: checkCustomer.id,
             createdBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
-            enteredAmount: getBillingRequest.billingDetails.enteredAmount
+            enteredAmount: getBillingRequest.billingDetails.enteredAmount,
+            projectId: checkCustomer.projectId
           };
 
           let getMarketer;

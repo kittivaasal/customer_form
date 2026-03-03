@@ -16,6 +16,7 @@ const EmiSchema = new Schema({
     paidDate: { type: Date },
     paidAmt: { type: Number },
     jpd: { type: String },
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: "Project" },
 
     oldData: {type:Boolean,default:false},
     payRef: { type: String },
