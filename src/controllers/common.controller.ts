@@ -3801,8 +3801,24 @@ export const getAllBillingReport = async (
         httpStatus.BAD_REQUEST,
       );
     }
-    option.paymentDate = { $gte: new Date(dateFrom), $lte: new Date(dateTo) };
-    emiOption.date = { $gte: new Date(dateFrom), $lte: new Date(dateTo) };
+
+    let from = new Date(dateFrom as string);
+    let to = new Date(dateTo as string);
+    const start = new Date(from);
+    start.setUTCHours(0, 0, 0, 0);
+
+    const end = new Date(to);
+    end.setUTCHours(23, 59, 59, 999);
+
+    option.paymentDate = {
+      $gte: start,
+      $lte: end,
+    };
+
+    emiOption.date = {
+      $gte: start,
+      $lte: end,
+    };
   } else if (date) {
     date = date as string;
     if (!isValidDate(date)) {
@@ -3994,6 +4010,11 @@ export const getAllBillingReport = async (
 
   let getEmi;
   if (status === "unpaid" || status === "all") {
+    if(status === "unpaid") {
+      emiOption.paidDate = null;
+      delete emiOption.date;
+    }
+    console.log("emi option", emiOption);
     [err, getEmi] = await toAwait(
       Emi.find(emiOption)
         .populate({

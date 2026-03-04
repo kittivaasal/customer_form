@@ -414,6 +414,18 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
 export const getByIdCustomer = async (req: Request, res: Response) => {
   let err, { id } = req.params;
 
+  let { general } = req.query;
+
+  let getGeneral;
+  if (general === 'true') {
+    [err, getGeneral] = await toAwait(General.findOne({ customer: id }).populate("project"));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getGeneral) {
+      return ReE(res, { message: `General not found for given customer id!.` }, httpStatus.NOT_FOUND)
+    }
+    getGeneral = getGeneral as IGeneral;
+  }
+
   if (!mongoose.isValidObjectId(id)) {
     return ReE(res, { message: `Invalid customer id!` }, httpStatus.BAD_REQUEST);
   }
@@ -427,7 +439,7 @@ export const getByIdCustomer = async (req: Request, res: Response) => {
     return ReE(res, { message: `customer not found for given id!.` }, httpStatus.NOT_FOUND)
   }
 
-  ReS(res, { message: "customer found", data: getCustomer }, httpStatus.OK)
+  ReS(res, { message: "customer found", data: getCustomer, general: getGeneral }, httpStatus.OK)
 }
 
 export const getAllCustomer = async (req: Request, res: Response) => {
