@@ -1926,7 +1926,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     }
 
     if (modeOfPayment) {
-      let validValue = ["cash", "card", "online"];
+      let validValue = ["cash", "card", "online", "others"];
       modeOfPayment = modeOfPayment.toLowerCase();
       if (!validValue.includes(modeOfPayment)) {
         return ReE(
@@ -1942,7 +1942,9 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           ? "Cash"
           : modeOfPayment === "card"
             ? "Card"
-            : "Online";
+            : modeOfPayment === "online"
+              ? "Online"
+              : "Others";
     }
 
     if (saleType) {
@@ -2700,7 +2702,7 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
     }
 
     if (modeOfPayment) {
-      let validValue = ["cash", "card", "online"];
+      let validValue = ["cash", "card", "online", "others"];
       modeOfPayment = modeOfPayment.toLowerCase();
       if (!validValue.includes(modeOfPayment)) {
         return ReE(
@@ -2716,7 +2718,21 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
           ? "Cash"
           : modeOfPayment === "card"
             ? "Card"
-            : "Online";
+            : modeOfPayment === "online"
+              ? "Online"
+              : "Others";
+      if (obj.modeOfPayment === "Others") {
+        if (!remarks) {
+          return ReE(
+            res,
+            { message: `remarks is required!` },
+            httpStatus.BAD_REQUEST,
+          );
+        }
+        obj.remarks = remarks;
+      } else {
+        obj.remarks = null;
+      }
       obj.modeOfPayment = modeOfPayment;
       if (obj.modeOfPayment !== "Cash") {
         if (!referenceId) {
