@@ -3940,20 +3940,26 @@ export const convertCommissionToMarketer = async (
     }
 
     if (customer.ddId.toString() !== customer.cedId.toString()) {
-
       let comm: any = {
         marketerId: getMarketer._id,
         marketerModel: "MarketDetail",
         emiAmount: emiAmount,
-      }
+      };
 
       if (getMarketer.percentageId?.rate) {
-        if (!isNaN(emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100))) {
-          comm.commAmount = emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100)
+        if (
+          !isNaN(
+            emiAmount *
+              (Number(getMarketer.percentageId.rate.split("%")[0]) / 100),
+          )
+        ) {
+          comm.commAmount =
+            emiAmount *
+            (Number(getMarketer.percentageId.rate.split("%")[0]) / 100);
         }
-        comm.percentage = getMarketer.percentageId.rate
+        comm.percentage = getMarketer.percentageId.rate;
       }
-      commision.push(comm)
+      commision.push(comm);
     }
     return {
       success: true,
@@ -3985,8 +3991,8 @@ export const excelToJson = (filePath: string): Promise<any> => {
 
 export const bulkUpdateEmi = async (req: Request, res: Response) => {
   try {
-
-    let body = req.body, err;
+    let body = req.body,
+      err;
     let file = req.file as Express.Multer.File;
 
     //file validation accept only excel file
@@ -4013,7 +4019,11 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
     const json = XLSX.utils.sheet_to_json(sheet) as any[];
 
     if (json.length === 0) {
-      return ReE(res, { message: "Excel file is empty!" }, httpStatus.BAD_REQUEST);
+      return ReE(
+        res,
+        { message: "Excel file is empty!" },
+        httpStatus.BAD_REQUEST,
+      );
     }
 
     let bulkOperations: any[] = [];
@@ -4114,7 +4124,18 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
         // console.log("pay month", payMonth, index + 2, emiNo.toString());
         if (emiNo.toString() === "1") {
           if (changePayMonth !== emiMonth && changePayMonth !== payMonth) {
-            let customerId = getBilling.customer?._id ? getBilling.customer._id.toString() as string : getBilling.customer.toString() as string;
+            if (!getBilling.customer) {
+              return ReE(
+                res,
+                {
+                  message: `Customer not found for 'Billing Id' in row ${index + 2}`,
+                },
+                httpStatus.NOT_FOUND,
+              );
+            }
+            let customerId = getBilling.customer._id
+              ? (getBilling.customer._id.toString() as string)
+              : (getBilling.customer.toString() as string);
             let getAllBilling;
             [err, getAllBilling] = await toAwait(
               Billing.find({ customer: customerId }).sort({ createdAt: 1 }).limit(3),
