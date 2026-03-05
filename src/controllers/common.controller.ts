@@ -21,6 +21,7 @@ import { CustomerEmiModel } from "../models/commision.model";
 import { MarketDetail } from "../models/marketDetail.model";
 import { Project } from "../models/project.model";
 import {
+  excelDateToJSDate,
   getEmiDate,
   getMonthStartEndDate,
   isNull,
@@ -2856,7 +2857,7 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
                       {
                         $set: {
                           paidDate: paymentDate,
-                          date: getEmiDate(index, new Date(getemi.paidDate)),
+                          date: getEmiDate(index, new Date(paymentDate)),
                         },
                       },
                       { new: true },
@@ -2888,188 +2889,6 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
             }
           }
         }
-      }
-    }
-
-    return ReS(
-      res,
-      { message: "billing updated successfully!" },
-      httpStatus.OK,
-    );
-  } catch (error) {
-    return ReE(res, error, httpStatus.INTERNAL_SERVER_ERROR);
-  }
-};
-
-export const updateBillingBulk = async (req: CustomRequest, res: Response) => {
-  try {
-    let err,
-      body = req.body,
-      user = req.user,
-      obj: any = {};
-    let fields = ["status", "paymentDate", "modeOfPayment"];
-
-    let jsonData = fs.readFileSync("./src/uploads/Mass.json", "utf-8");
-
-    let _id = JSON.parse(jsonData);
-    if (!user)
-      return ReE(
-        res,
-        { message: "You are not access this api" },
-        httpStatus.UNAUTHORIZED,
-      );
-
-    if (!user.isAdmin)
-      return ReE(
-        res,
-        { message: "You are not access this api" },
-        httpStatus.UNAUTHORIZED,
-      );
-
-    let inVaildFields = fields.filter((x) => !isNull(body[x]));
-    if (inVaildFields.length === 0) {
-      return ReE(
-        res,
-        { message: `Please enter any one field to update ${fields}!.` },
-        httpStatus.BAD_REQUEST,
-      );
-    }
-
-    let { paymentDate } = body;
-
-    if (!Array.isArray(_id) && _id.length === 0) {
-      return ReE(
-        res,
-        { message: `_id should be an array of billing ids!` },
-        httpStatus.BAD_REQUEST,
-      );
-    }
-
-    for (let index = 0; index < _id.length; index++) {
-      const idElem = _id[index]._id;
-      if (!mongoose.isValidObjectId(idElem)) {
-        console.log(`Invalid _id at index ${index}: ${idElem}`);
-        return ReE(
-          res,
-          { message: `Invalid _id at index ${index}!` },
-          httpStatus.BAD_REQUEST,
-        );
-      }
-      let getBilling;
-      [err, getBilling] = await toAwait(Billing.findOne({ _id: idElem }));
-      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      if (!getBilling) {
-        return ReE(
-          res,
-          { message: "billing not found given id" },
-          httpStatus.NOT_FOUND,
-        );
-      }
-
-      getBilling = getBilling as IBilling;
-
-      let updateBilling;
-      [err, updateBilling] = await toAwait(
-        Billing.findOneAndUpdate(
-          { _id: idElem },
-          { $set: { paymentDate: new Date(paymentDate) } },
-          { new: true },
-        ),
-      );
-
-      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-
-      if (paymentDate) {
-        if (getBilling.emi && mongoose.isValidObjectId(getBilling.emi)) {
-          let getEmi;
-          [err, getEmi] = await toAwait(Emi.findOne({ _id: getBilling.emi }));
-          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-          if (!getEmi) {
-            return ReE(
-              res,
-              { message: "emi not found given id" },
-              httpStatus.NOT_FOUND,
-            );
-          }
-          getEmi = getEmi as IEmi;
-          if (getEmi.emiNo === 1) {
-            let getMonthPayment = new Date(paymentDate).getMonth() + 1;
-            let hetMonthAlready = new Date(getEmi.date).getMonth() + 1;
-            if (getMonthPayment !== hetMonthAlready) {
-              let getBilling;
-              [err, getBilling] = await toAwait(
-                Billing.find({ customer: getEmi.customer }),
-              );
-              if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-              if (!getBilling) {
-                return ReE(
-                  res,
-                  { message: "billing not found given id" },
-                  httpStatus.NOT_FOUND,
-                );
-              }
-              getBilling = getBilling as IBilling[];
-
-              if (getBilling.length === 1) {
-                let getAllEmi;
-                [err, getAllEmi] = await toAwait(
-                  Emi.find({ customer: getEmi.customer }).sort({ emiNo: 1 }),
-                );
-                if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-                if (!getAllEmi) {
-                  return ReE(
-                    res,
-                    { message: "emi not found given id" },
-                    httpStatus.NOT_FOUND,
-                  );
-                }
-                getAllEmi = getAllEmi as IEmi[];
-                for (let index = 0; index < getAllEmi.length; index++) {
-                  const element = getAllEmi[index];
-                  let getemi;
-                  [err, getemi] = await toAwait(
-                    Emi.findOne({ _id: element._id }),
-                  );
-                  if (err)
-                    return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-                  getemi = getemi as IEmi;
-                  let updateEmi;
-                  if (getemi.paidDate) {
-                    updateEmi = await toAwait(
-                      Emi.findOneAndUpdate(
-                        { _id: element._id },
-                        {
-                          $set: {
-                            paidDate: paymentDate,
-                            date: getEmiDate(index, new Date(getemi.paidDate)),
-                          },
-                        },
-                        { new: true },
-                      ),
-                    );
-                  } else {
-                    updateEmi = await toAwait(
-                      Emi.findOneAndUpdate(
-                        { _id: element._id },
-                        {
-                          $set: {
-                            date: getEmiDate(index, new Date(paymentDate)),
-                          },
-                        },
-                        { new: true },
-                      ),
-                    );
-                  }
-                  if (err)
-                    return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-                }
-              }
-            }
-          }
-        }
-      }
-      if (index % 10 === 0) {
-        console.log(`Updated ${index + 1} out of ${_id.length} billings...`);
       }
     }
 
@@ -3691,14 +3510,14 @@ export const getAllBillingReport = async (
     option: any = {},
     emiOption: any = {};
 
-  if(projectId) {
-    if(!mongoose.isValidObjectId(projectId)) {
+  if (projectId) {
+    if (!mongoose.isValidObjectId(projectId)) {
       return ReE(res, { message: "Invalid project id" }, httpStatus.BAD_REQUEST);
     }
     let getProject;
     [err, getProject] = await toAwait(Project.findOne({ _id: projectId }));
-    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if(!getProject) {
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getProject) {
       return ReE(res, { message: "Project not found for given id" }, httpStatus.NOT_FOUND);
     }
     getProject = getProject as IProject;
@@ -4010,7 +3829,7 @@ export const getAllBillingReport = async (
 
   let getEmi;
   if (status === "unpaid" || status === "all") {
-    if(status === "unpaid") {
+    if (status === "unpaid") {
       emiOption.paidDate = null;
       delete emiOption.date;
     }
@@ -4165,27 +3984,260 @@ export const excelToJson = (filePath: string): Promise<any> => {
 };
 
 export const bulkUpdateEmi = async (req: Request, res: Response) => {
-  let body = req.body,
-    err;
-  //excel file from frontend and array of emi id and paid date
-  let file = req.files as Express.Multer.File[];
+  try {
 
-  if (!file || !Array.isArray(file) || file.length === 0) {
+    let body = req.body, err;
+    let file = req.file as Express.Multer.File;
+
+    //file validation accept only excel file
+    if (!file.originalname.match(/\.(xlsx|xls)$/)) {
+      return ReE(
+        res,
+        { message: "Please upload a valid Excel file!" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!file) {
+      return ReE(
+        res,
+        { message: "Excel file is required!" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+
+    const excelFile = file;
+    const workbook = XLSX.read(excelFile.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const json = XLSX.utils.sheet_to_json(sheet) as any[];
+
+    if (json.length === 0) {
+      return ReE(res, { message: "Excel file is empty!" }, httpStatus.BAD_REQUEST);
+    }
+
+    let bulkOperations: any[] = [];
+    let changeEmi: any[] = [];
+    let updateEmi: any[] = [];
+
+    // console.log(new Date(json[2]["Payment Date"]),new Date(json[2]['Payment Date']).getMonth(), json[2]["Payment Date"], json[2]);
+
+    for (let index = 0; index < json.length; index++) {
+      const element = json[index];
+      let billingId = element["Billing Id"];
+      let changePaymentDate = element["Payment Date Change"];
+      let paymentDate = element["Payment Date"];
+      let customerId = element["Customer ID"];
+      if (!billingId) {
+        return ReE(
+          res,
+          { message: `'Billing Id' required fields in row ${index + 2}` },
+          httpStatus.BAD_REQUEST,
+        );
+      }
+      if (!mongoose.isValidObjectId(billingId)) {
+        return ReE(
+          res,
+          { message: `Invalid 'Billing Id' in row ${index + 2}` },
+          httpStatus.BAD_REQUEST,
+        );
+      }
+      let getBilling;
+      [err, getBilling] = await toAwait(
+        Billing.findOne({ _id: billingId }).populate("emi").populate("customer"),
+      );
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getBilling) {
+        return ReE(
+          res,
+          { message: `Billing not found given 'Billing Id' in row ${index + 2}` },
+          httpStatus.NOT_FOUND,
+        );
+      }
+      if (!paymentDate) {
+        return ReE(
+          res,
+          { message: `'Payment Date' required fields in row ${index + 2}` },
+          httpStatus.BAD_REQUEST,
+        );
+      }
+      if (typeof paymentDate === "number") {
+        paymentDate = excelDateToJSDate(paymentDate);
+        json[index]["Payment Date"] = paymentDate;
+      } else if (typeof paymentDate === "string") {
+        if (!isValidDate(paymentDate)) {
+          return ReE(
+            res,
+            { message: `Invalid 'Payment Date' format in row ${index + 2} valid format is (YYYY-MM-DD)` },
+            httpStatus.BAD_REQUEST,
+          );
+        }
+        paymentDate = new Date(paymentDate);
+        json[index]["Payment Date"] = paymentDate;
+      }
+      if (!changePaymentDate) {
+        return ReE(
+          res,
+          { message: `'Payment Date Change' required fields in row ${index + 2}` },
+          httpStatus.BAD_REQUEST,
+        );
+      }
+      if (typeof changePaymentDate === "number") {
+        changePaymentDate = excelDateToJSDate(changePaymentDate);
+        json[index]["Payment Date Change"] = changePaymentDate;
+      } else if (typeof changePaymentDate === "string") {
+        if (!isValidDate(changePaymentDate)) {
+          return ReE(
+            res,
+            { message: `Invalid 'Payment Date Change' format in row ${index + 2} valid format is (YYYY-MM-DD)` },
+            httpStatus.BAD_REQUEST,
+          );
+        }
+        changePaymentDate = new Date(changePaymentDate);
+        json[index]["Payment Date Change"] = changePaymentDate;
+      }
+
+      bulkOperations.push({
+        updateOne: {
+          filter: { _id: billingId },
+          update: { $set: { paymentDate: changePaymentDate } },
+        },
+      });
+
+      let emiNo = element["EMI No"];
+
+      getBilling = getBilling as any;
+      if (emiNo) {
+        let payMonth = new Date(paymentDate).getMonth() + 1;
+        let emiMonth = new Date(getBilling.emi?.date).getMonth() + 1;
+        let changePayMonth = new Date(changePaymentDate).getMonth() + 1;
+        // console.log("pay month", payMonth, index + 2, emiNo.toString());
+        if (emiNo.toString() === "1") {
+          if (changePayMonth !== emiMonth && changePayMonth !== payMonth) {
+            let customerId = getBilling.customer?._id ? getBilling.customer._id.toString() as string : getBilling.customer.toString() as string;
+            let getAllBilling;
+            [err, getAllBilling] = await toAwait(
+              Billing.find({ customer: customerId }).sort({ createdAt: 1 }).limit(3),
+            );
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            getAllBilling = getAllBilling as IBilling[];
+            if (getAllBilling.length === 1) {
+              changeEmi.push({ emi: getBilling.emi, paymentDate, changePaymentDate });
+            } else {
+              updateEmi.push({
+                updateOne: {
+                  filter: { _id: getBilling.emi?._id },
+                  update: { $set: { paidDate: changePaymentDate } },
+                },
+              });
+            }
+          } else {
+            updateEmi.push({
+              updateOne: {
+                filter: { _id: getBilling.emi?._id },
+                update: { $set: { paidDate: changePaymentDate } },
+              },
+            });
+          }
+        } else {
+          updateEmi.push({
+            updateOne: {
+              filter: { _id: getBilling.emi?._id },
+              update: { $set: { paidDate: changePaymentDate } },
+            },
+          });
+        }
+      }
+
+    }
+
+    let bulkEmiUpdate: any[] = [];
+console.log("change emi", "changeEmi");
+    for (let index = 0; index < changeEmi.length; index++) {
+      const element = changeEmi[index];
+      let getAllEmi;
+      [err, getAllEmi] = await toAwait(
+        Emi.find({ customer: element.emi.customer }).sort({ emiNo: 1 }),
+      );
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getAllEmi) {
+
+        // return ReE(
+        //   res,
+        //   { message: "emi not found given id" },
+        //   httpStatus.NOT_FOUND,
+        // );
+        continue;
+      }
+      getAllEmi = getAllEmi as IEmi[];
+      for (let index = 0; index < getAllEmi.length; index++) {
+        const emiEle = getAllEmi[index];
+        let getemi = emiEle as IEmi;
+        console.log("emi date", getemi.date,getemi._id,emiEle._id, index + 2);
+        if (getemi.paidDate) {
+          bulkEmiUpdate.push({
+            updateOne: {
+              filter: { _id: emiEle._id },
+              update: {
+                $set: {
+                  paidDate: element.changePaymentDate,
+                  date: getEmiDate(index, new Date(element.changePaymentDate)),
+                },
+              },
+            }
+          })
+        } else {
+          bulkEmiUpdate.push({
+            updateOne: {
+              filter: { _id: emiEle._id },
+              update: {
+                $set: {
+                  date: getEmiDate(index, new Date(element.changePaymentDate)),
+                },
+              },
+            }
+          })
+        }
+      }
+
+    }
+
+    let BATCH_SIZE = 1000;
+    if (bulkOperations.length > 0) {
+      for (let i = 0; i < bulkOperations.length; i += BATCH_SIZE) {
+        const batch = bulkOperations.slice(i, i + BATCH_SIZE);
+        let update = await Billing.bulkWrite(batch, { ordered: false });
+        console.log(`✅ Updated bill ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+      }
+      console.log(bulkOperations);
+    }
+
+    // if (bulkEmiUpdate.length > 0) {
+    //   for (let i = 0; i < bulkEmiUpdate.length; i += BATCH_SIZE) {
+    //     const batch = bulkEmiUpdate.slice(i, i + BATCH_SIZE);
+    //     let update = await Emi.bulkWrite(batch, { ordered: false });
+    //     console.log(`✅ Updated chnage ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+    //   }
+
+    //   console.log(bulkEmiUpdate)
+    // }
+
+    if(updateEmi.length > 0){
+      for (let i = 0; i < updateEmi.length; i += BATCH_SIZE) {
+        const batch = updateEmi.slice(i, i + BATCH_SIZE);
+        let update = await Emi.bulkWrite(batch, { ordered: false });
+        console.log(`✅ Updated emi ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+      }
+    }
+
+    return ReS(res, { message: "Excel file has been updated successfully" }, httpStatus.OK);
+
+  } catch (error: any) {
+    console.error("Error processing Excel file:", error);
     return ReE(
       res,
-      { message: "Excel file is required!" },
-      httpStatus.BAD_REQUEST,
+      { message: "Error processing Excel file", error: error.message },
+      httpStatus.INTERNAL_SERVER_ERROR,
     );
   }
-
-  const excelFile = file[0];
-  const workbook = XLSX.read(excelFile.buffer, { type: "buffer" });
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-  console.log(sheet);
-  const json = XLSX.utils.sheet_to_json(sheet);
-
-  console.log(json);
-
-  res.json({ message: "Excel file uploaded successfully!", data: json });
 };

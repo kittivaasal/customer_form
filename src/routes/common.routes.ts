@@ -4,7 +4,7 @@ import path from "path";
 import { Request } from "express";
 import express from "express";
 import fs from "fs";
-import { checkEmi, createBilling, deleteBilling, createCommonData, getAllBilling, getAllBillingReport, getAllDataBasedOnGeneral, getAllDetailsByCustomerId, getAllEmi, getAllFlat, getAllGeneral, getAllMarketer, getAllPlot, getByIdBilling, getByIdEmi, getByIdFlat, getByIdGeneral, getByIdMarketer, getByIdPlot, getDataBasedOnGeneralById, storeFcmToken, updateBilling, UpdateCommonData, uploadImages, bulkUpdateEmi, updateBillingBulk } from "../controllers/common.controller";
+import { checkEmi, createBilling, deleteBilling, createCommonData, getAllBilling, getAllBillingReport, getAllDataBasedOnGeneral, getAllDetailsByCustomerId, getAllEmi, getAllFlat, getAllGeneral, getAllMarketer, getAllPlot, getByIdBilling, getByIdEmi, getByIdFlat, getByIdGeneral, getByIdMarketer, getByIdPlot, getDataBasedOnGeneralById, storeFcmToken, updateBilling, UpdateCommonData, uploadImages, bulkUpdateEmi } from "../controllers/common.controller";
 import verifyToken from "../middleware/verfiyToken";
 import isAdmin from "../middleware/admin";
 
@@ -37,6 +37,6 @@ router.get("/get/all/estimate", getAllDataBasedOnGeneral)
 router.get("/get/all/estimate/:id", getDataBasedOnGeneralById)
 router.post("/check/emi", checkEmi)
 router.post("/add/fcm/token",storeFcmToken)
-router.put("/billing/bulk/update",verifyToken, upload.array("files"), bulkUpdateEmi)
+router.put("/billing/bulk/update",verifyToken, upload.single("file"), bulkUpdateEmi)
 
 export default router;
