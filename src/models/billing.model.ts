@@ -197,7 +197,10 @@ const BillingSchema: Schema = new Schema<IBilling>(
         type:Schema.Types.ObjectId,
         ref:'Emi'
       }
-    ]
+    ],
+    commissionErrorMsg:{
+      type:String
+    }
   },
   { timestamps: true }
 );

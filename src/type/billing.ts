@@ -55,4 +55,5 @@ export interface IBilling extends Document {
     push?: boolean
     amountPaidForBill: number
     emiCover:mongoose.Types.ObjectId[]
+    commissionErrorMsg?: string
 }

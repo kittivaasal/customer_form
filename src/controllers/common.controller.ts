@@ -12,7 +12,6 @@ import { MarketingHead } from "../models/marketingHead.model";
 import { Plot } from "../models/plot.model";
 import { User } from "../models/user.model";
 import { s3 } from "../services/digitalOceanConfig";
-
 import fs from "fs";
 import moment from "moment-timezone";
 import * as XLSX from "xlsx";
@@ -1990,7 +1989,27 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
     let readyForBill: IEmi[] = [];
 
+    let checkBillingRequestForCustomer;
+    [err, checkBillingRequestForCustomer] = await toAwait(
+      BillingRequest.findOne({
+        requestFor: "create",
+        customerId: customerId,
+        status: "pending",
+      }),
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (checkBillingRequestForCustomer) {
+      return ReE(
+        res,
+        { message: "create bill billing request already pending for this customer so you can't create bill" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+
     if (billFor === "current") {
+      if (housing) {
+        amount += Number(checkCustomer.balanceAmount);
+      }
       //replace oldData
       let getAllBill;
       [err, getAllBill] = await toAwait(
@@ -2022,7 +2041,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           date: {
             $gte: date.start,
             $lte: date.end,
-          },
+          }
         }),
       );
 
@@ -2037,8 +2056,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
       getEmi = getEmi as IEmi;
 
-      console.log("getEmi", getEmi);
-
       if (getEmi.paidDate) {
         return ReE(
           res,
@@ -2047,7 +2064,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         );
       }
 
-      if (getEmi.emiAmt !== amount) {
+      if (!housing && getEmi.emiAmt !== amount) {
         return ReE(
           res,
           {
@@ -2059,24 +2076,61 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         );
       }
 
-      readyForBill.push(getEmi);
-    } else {
-      let checkBillingRequestForCustomer;
-      [err, checkBillingRequestForCustomer] = await toAwait(
-        BillingRequest.findOne({
-          requestFor: "create",
-          customerId: customerId,
-          status: "pending",
-        }),
-      );
-      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      if (checkBillingRequestForCustomer) {
-        return ReE(
-          res,
-          { message: "billing request already pending for this customer" },
-          httpStatus.BAD_REQUEST,
-        );
+      if(housing) {
+        if (getEmi.emiAmt > amount) {
+          return ReE(
+            res,
+            {
+              message:
+                "entered amount is less than current month emi amount, please pay at least current month emi amount which is " +
+                getEmi.emiAmt,
+            },
+            httpStatus.BAD_REQUEST,
+          );
+        }
+
+        if(amount === getEmi.emiAmt) {
+          readyForBill.push(getEmi);
+        }else if(amount > getEmi.emiAmt) {
+          let getAllEmiPast;
+          [err, getAllEmiPast] = await toAwait(
+            Emi.find({
+              general: checkGeneral._id,
+              customer: customerId,
+              paidDate: null,
+              _id: { $ne: getEmi._id }
+            }).sort({ emiNo: 1 }),
+          );
+
+          if (err) {
+            return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+          }
+
+          getAllEmiPast = getAllEmiPast as IEmi[];
+
+          let balAmt = amount - getEmi.emiAmt;
+          let noOfEmiPay = balAmt / getEmi.emiAmt;
+
+          noOfEmiPay = Math.floor(noOfEmiPay);
+
+          readyForBill = getAllEmiPast.slice(0, noOfEmiPay);
+          readyForBill.unshift(getEmi);
+
+          if(noOfEmiPay === 0) {
+            noOfEmiPay = 1;
+          }
+
+          if (housing) {
+            customerBalanceAmount = Number(amount) - getEmi.emiAmt * noOfEmiPay;
+            amount = getEmi.emiAmt * noOfEmiPay;
+          }
+
+        }
+      }else{
+        readyForBill.push(getEmi);
       }
+
+    } else {
 
       let getAllEmiPast;
       //replace oldData
@@ -2332,6 +2386,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           Number(amount) - getAllEmiPast[0].emiAmt * noOfEmiPay;
         amount = getAllEmiPast[0].emiAmt * noOfEmiPay;
       }
+
     }
 
     if (!user?.isAdmin) {
@@ -2556,24 +2611,22 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         // return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
       } else {
         if (i !== 0 && housing) continue;
+        
+        let getCommission = await convertCommissionToMarketer(
+          checkCustomer,
+          !housing ? amount : enteredAmount,
+        );
+        
+        if (!getCommission.success){
+          createBill.commissionErrorMsg = getCommission.message;
+        }
 
         let billing;
         [err, billing] = await toAwait(Billing.create(createBill));
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
         billing = billing as IBilling;
-
-        let getCommission = await convertCommissionToMarketer(
-          checkCustomer,
-          !housing ? amount : enteredAmount,
-        );
-
-        if (!getCommission.success)
-          return ReE(
-            res,
-            { message: getCommission.message },
-            httpStatus.INTERNAL_SERVER_ERROR,
-          );
+  
         let createCommission;
         [err, createCommission] = await toAwait(
           CustomerEmiModel.create({
