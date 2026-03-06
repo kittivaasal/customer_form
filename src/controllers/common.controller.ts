@@ -91,7 +91,7 @@ export const uploadImages = async (req: Request, res: Response) => {
 export const createCommonData = async (req: Request, res: Response) => {
   let body = req.body,
     err: any;
-  const { customerId, general, plot, billing, flat } = body;
+  const { customerId, general, plot, billing, flat, housing = false } = body;
 
   if (!customerId) {
     return ReE(
@@ -280,13 +280,13 @@ export const createCommonData = async (req: Request, res: Response) => {
     //     );
     //   }
 
-    //   if (!checkMarketingHead) {
-    //     return ReE(
-    //       res,
-    //       { message: "MarketingHead not found inside map with this customer" },
-    //       httpStatus.BAD_REQUEST
-    //     );
-    //   }
+    // if (!checkMarketingHead) {
+    //   return ReE(
+    //     res,
+    //     { message: "MarketingHead not found inside map with this customer" },
+    //     httpStatus.BAD_REQUEST
+    //   );
+    // }
 
     //   general.marketerByModel = "MarketingHead";
     //   general.marketer = checkCustomer.ddId;
@@ -300,13 +300,30 @@ export const createCommonData = async (req: Request, res: Response) => {
     //   );
     // }
 
+    if (housing && !general.totalAmount) {
+      return ReE(
+        res,
+        { message: "total amount is required in general" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (housing && general.totalAmount) {
+      if (isNaN(general.totalAmount)) {
+        return ReE(
+          res,
+          { message: "total amount must be number in general" },
+          httpStatus.BAD_REQUEST
+        );
+      }
+    }
+
     if (general.startDate) {
       if (!isValidDate(general.startDate)) {
         return ReE(
           res,
           {
-            message:
-              "Invalid date format for dateFrom valid format is (YYYY-MM-DD)!",
+            message: "Invalid date format for dateFrom valid format is (YYYY-MM-DD)!",
           },
           httpStatus.BAD_REQUEST,
         );
@@ -512,6 +529,7 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
         getEmi = getEmi as IEmi;
         general._id = getEmi.general;
       }
+
       if (!customerId) {
         return ReE(
           res,
@@ -532,7 +550,8 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
       );
     }
 
-    let checkAlreadyExist = await General.findOne({ _id: general._id });
+    let checkAlreadyExist;
+    [err, checkAlreadyExist] = await toAwait(General.findOne({ _id: general._id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!checkAlreadyExist) {
       return ReE(
@@ -542,20 +561,33 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
       );
     }
 
-    let getProject;
-    [err, getProject] = await toAwait(
-      Project.findOne({ _id: checkAlreadyExist.project }),
-    );
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!getProject) {
-      return ReE(
-        res,
-        { message: "project id not found in update general" },
-        httpStatus.BAD_REQUEST,
-      );
+    checkAlreadyExist = checkAlreadyExist as IGeneral;
+
+    //compare start date and existing start date ifequal dkeklete the gener.start 
+    let exStartDateYear = new Date(checkAlreadyExist.startDate).getFullYear(); 
+    let exStartDateMonth = new Date(checkAlreadyExist.startDate).getMonth() + 1;
+    let exStartDateDate = new Date(checkAlreadyExist.startDate).getDate();
+    let currentStartDateYear = new Date(general.startDate).getFullYear();
+    let currentStartDateMonth = new Date(general.startDate).getMonth() + 1;
+    let currentStartDateDate = new Date(general.startDate).getDate();
+    if(exStartDateYear === currentStartDateYear && exStartDateMonth === currentStartDateMonth && exStartDateDate === currentStartDateDate){
+      delete general.startDate
     }
 
-    getProject = getProject as IProject;
+    // let getProject;
+    // [err, getProject] = await toAwait(
+    //   Project.findOne({ _id: checkAlreadyExist.project }),
+    // );
+    // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    // if (!getProject) {
+    //   return ReE(
+    //     res,
+    //     { message: "project id not found in update general" },
+    //     httpStatus.BAD_REQUEST,
+    //   );
+    // }
+
+    // getProject = getProject as IProject;
 
     let checkBillForCus;
     [err, checkBillForCus] = await toAwait(
@@ -744,13 +776,47 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
   }
 
   if (general) {
+
     let getGeneral;
     [err, getGeneral] = await toAwait(General.findOne({ _id: general._id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!getGeneral)
+    if (!getGeneral){
       return ReE(res, { message: "General not found" }, httpStatus.NOT_FOUND);
+    }
 
     getGeneral = getGeneral as IGeneral;
+
+    if (general.startDate) {
+
+      if (!isValidDate(general.startDate)) {
+        return ReE(
+          res,
+          { message: "start date in general is invalid date format valid date format is dd-mm-yyyy" },
+          httpStatus.BAD_REQUEST,
+        );
+      }
+
+      let getBilling;
+      [err, getBilling] = await toAwait(
+        Billing.find({ general: getGeneral._id, customer: getGeneral.customer }),
+      );
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!getBilling) {
+        return ReE(
+          res,
+          { message: "billing not found given id" },
+          httpStatus.NOT_FOUND,
+        );
+      }
+
+      getBilling = getBilling as IBilling[];
+
+      if (getBilling.length > 1 && general.startDate) {
+        return ReE(res, { message: "This customer has multiple billing so you can't update the startDate" }, httpStatus.BAD_REQUEST)
+      }
+
+    }
+
     if (general.noOfInstallments) {
       const oldInstallments = getGeneral.noOfInstallments;
       const newInstallments = general.noOfInstallments;
@@ -811,6 +877,7 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
         }
       }
     }
+
     if (general.emiAmount) {
       if (getGeneral.emiAmount !== general.emiAmount) {
         let updateAllEmis;
@@ -826,6 +893,37 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
         }
       }
     }
+
+    if (general.startDate) {
+
+      let getAllEmi;
+      [err, getAllEmi] = await toAwait(
+        Emi.find({ customer: getGeneral.customer }).sort({ emiNo: 1 }),
+      );
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      getAllEmi = getAllEmi as IEmi[];
+      let bulk = [];
+      for (let index = 0; index < getAllEmi.length; index++) {
+        const element = getAllEmi[index];
+        bulk.push({
+          updateOne: {
+            filter: { _id: element._id },
+            update: {
+              $set: {
+                date: getEmiDate(index, new Date(general.startDate)),
+              },
+            },
+          },
+        })
+        let updateEmi;
+        if (bulk.length !== 0) {
+          [err, updateEmi] = await toAwait(Emi.bulkWrite(bulk));
+        }
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      }
+
+    }
+
     let updateGeneral;
     [err, updateGeneral] = await toAwait(
       General.updateOne({ _id: general._id }, general),
@@ -835,6 +933,7 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     }
     results.general = updateGeneral;
     results.message = "general updated successfully";
+
   }
 
   if (plot) {
@@ -2032,6 +2131,29 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       );
     }
 
+    if (housing && !checkGeneral.totalAmount) {
+      return ReE(
+        res,
+        { message: "total amount is required for housing billing so pls update total amount in estimate" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+
+    let lastEmi;
+    [err, lastEmi] = await toAwait(
+      Emi.findOne({
+        general: checkGeneral._id,
+        customer: customerId,
+        paidDate: null,
+      }).sort({ emiNo: -1 }),
+    );
+
+    if (err) {
+      return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    lastEmi = lastEmi as IEmi;
+
     let readyForBill: IEmi[] = [];
 
     let checkBillingRequestForCustomer;
@@ -2055,29 +2177,9 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     }
 
     if (billFor === "current") {
-      if (housing) {
-        amount += Number(checkCustomer.balanceAmount);
-      }
-      //replace oldData
-      let getAllBill;
-      [err, getAllBill] = await toAwait(
-        Billing.find({
-          general: checkGeneral._id,
-          customer: customerId,
-        }),
-      );
-      if (err) {
-        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      }
-      getAllBill = getAllBill as IBilling[];
-      let totalAmount =
-        checkGeneral.emiAmount! * checkGeneral.noOfInstallments!;
-      if (getAllBill.length === 0) {
-        balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
-      } else {
-        let total = getAllBill.reduce((acc, curr) => acc + curr.amountPaid, 0);
-        balanceAmount = totalAmount - (total + amount);
-      }
+      // if (housing) {
+      //   amount += Number(checkCustomer.balanceAmount);
+      // }
 
       let date = getMonthStartEndDate();
 
@@ -2094,6 +2196,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       );
 
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
       if (!getEmi) {
         return ReE(
           res,
@@ -2124,61 +2227,59 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         );
       }
 
+      let getAllBill;
+      [err, getAllBill] = await toAwait(
+        Billing.find({
+          customer: customerId,
+          general: checkGeneral._id,
+        }),
+      );
+      if (err) {
+        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      }
+      getAllBill = getAllBill as IBilling[];
+
+      let totalAmount = 0;
+      if (checkGeneral.totalAmount && checkGeneral.totalAmount > 0) {
+        totalAmount = checkGeneral.totalAmount;
+      } else if (!housing && checkGeneral.emiAmount && checkGeneral.noOfInstallments) {
+        totalAmount = checkGeneral.emiAmount * checkGeneral.noOfInstallments;
+      }
+
+      let totalPaid = 0
+      if (getAllBill.length === 0) {
+        balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
+      } else {
+        totalPaid = getAllBill.reduce((acc, curr: any) => acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid, 0);
+        balanceAmount = totalAmount - (totalPaid + amount);
+      }
+
       if (housing) {
-        if (getEmi.emiAmt > amount) {
+        if ((totalPaid + amount) > totalAmount) {
           return ReE(
             res,
-            {
-              message:
-                "entered amount is less than current month emi amount, please pay at least current month emi amount which is " +
-                getEmi.emiAmt,
-            },
+            { message: `This customer total amount: ${totalAmount} already paid ${totalPaid} balance amount is ${totalAmount - totalPaid} so amount must be less than or equal to ${totalAmount - totalPaid}!` },
             httpStatus.BAD_REQUEST,
           );
         }
-
-        if (amount === getEmi.emiAmt) {
-          readyForBill.push(getEmi);
-        } else if (amount > getEmi.emiAmt) {
-          let getAllEmiPast;
-          [err, getAllEmiPast] = await toAwait(
-            Emi.find({
-              general: checkGeneral._id,
-              customer: customerId,
-              paidDate: null,
-              _id: { $ne: getEmi._id },
-            }).sort({ emiNo: 1 }),
-          );
-
-          if (err) {
-            return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-          }
-
-          getAllEmiPast = getAllEmiPast as IEmi[];
-
-          let balAmt = amount - getEmi.emiAmt;
-          let noOfEmiPay = balAmt / getEmi.emiAmt;
-
-          noOfEmiPay = Math.floor(noOfEmiPay);
-
-          readyForBill = getAllEmiPast.slice(0, noOfEmiPay);
-          readyForBill.unshift(getEmi);
-
-          if (noOfEmiPay === 0) {
-            noOfEmiPay = 1;
-          }
-
-          if (housing) {
-            customerBalanceAmount = Number(amount) - getEmi.emiAmt * noOfEmiPay;
-            amount = getEmi.emiAmt * noOfEmiPay;
-          }
-        }
-      } else {
-        readyForBill.push(getEmi);
       }
+
+      // if(housing){
+      //   if(getAllBill.length === 59){
+      //     if(amount !== (totalPaid + amount)){
+      //       return ReE(
+      //         res,
+      //         { message: "This is last bill for this customer so amount must be equal to "+ (totalAmount - totalPaid) },
+      //         httpStatus.BAD_REQUEST,
+      //       );
+      //     }
+      //   }
+      // }
+
+      readyForBill.push(getEmi);
+
     } else {
       let getAllEmiPast;
-      //replace oldData
       [err, getAllEmiPast] = await toAwait(
         Emi.find({
           general: checkGeneral._id,
@@ -2193,9 +2294,9 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
       getAllEmiPast = getAllEmiPast as IEmi[];
 
+      let checkEmi;
       if (getAllEmiPast.length === 0) {
-        let getEmi;
-        [err, getEmi] = await toAwait(
+        [err, checkEmi] = await toAwait(
           Emi.findOne({
             general: checkGeneral._id,
             customer: customerId,
@@ -2203,23 +2304,63 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         );
 
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        if (!getEmi) {
+        if (!checkEmi) {
           return ReE(
             res,
             { message: "emi's not found for given customer and general id" },
             httpStatus.BAD_REQUEST,
           );
         }
-        return ReE(
-          res,
-          { message: "This customer has already paided all emi" },
-          httpStatus.BAD_REQUEST,
-        );
+        checkEmi = checkEmi as IEmi;
+        if (!housing) {
+          return ReE(
+            res,
+            { message: "This customer has already paided all emi" },
+            httpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
+      let getAllBill;
+      [err, getAllBill] = await toAwait(
+        Billing.find({
+          customer: customerId,
+          general: checkGeneral._id,
+        }),
+      );
+      if (err) {
+        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      }
+      getAllBill = getAllBill as IBilling[];
+
+      let totalAmount = 0;
+      if (checkGeneral.totalAmount && checkGeneral.totalAmount > 0) {
+        totalAmount = checkGeneral.totalAmount;
+      } else if (!housing && checkGeneral.emiAmount && checkGeneral.noOfInstallments) {
+        totalAmount = checkGeneral.emiAmount * checkGeneral.noOfInstallments;
+      }
+
+      let totalPaid = 0
+      if (getAllBill.length === 0) {
+        balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
+      } else {
+        totalPaid = getAllBill.reduce((acc, curr: any) => acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid, 0);
+        balanceAmount = totalAmount - (totalPaid + amount);
       }
 
       if (housing) {
-        amount += Number(checkCustomer.balanceAmount);
-        if (getAllEmiPast[0].emiAmt > amount) {
+        if ((totalPaid + amount) > totalAmount) {
+          return ReE(
+            res,
+            { message: `This customer total amount: ${totalAmount} already paid ${totalPaid} balance amount is ${totalAmount - totalPaid} so amount must be less than or equal to ${totalAmount - totalPaid}!` },
+            httpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
+      if (housing) {
+        if (getAllEmiPast.length === 0) {
+
           let createBill;
           if (!user.isAdmin) {
             [err, checkBillingRequestForCustomer] = await toAwait(
@@ -2245,7 +2386,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               BillingRequest.create({
                 status: "pending",
                 userId: user._id,
-                message: `Billing parcially paid creation Request from  ${user.name} for ${readyForBill.length} EMIs`,
+                message: `Billing parcially paid creation Request from  ${user.name} `,
                 requestFor: "create",
                 customerId: customerId,
                 emi: readyForBill.map((emi) => emi._id),
@@ -2258,7 +2399,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
                   cardNo,
                   referenceId,
                   billFor,
-                  customerBalanceAmount: customerBalanceAmount,
+                  balanceAmount: balanceAmount,
                   housing,
                   enteredAmount,
                   parciallyPaid: true,
@@ -2275,32 +2416,27 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               );
             }
 
-            // let createCommission;
-            // [err, createCommission] = await toAwait(
-            //   CustomerEmiModel.create({
-            //     bill: createBillingRequest?._id,
-            //     customer: customerId,
-            //     emi: readyForBill.map((emi) => emi._id),
-            //     amount: enteredAmount
-
-            //   })
-            // );
-
-            // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            // if (!createCommission) {
-            //   return ReE(
-            //     res,
-            //     { message: "commission request not created" },
-            //     httpStatus.INTERNAL_SERVER_ERROR
-            //   );
-            // }
-
             return ReS(
               res,
               { message: "billing request created successfully" },
               httpStatus.OK,
             );
           }
+
+          let getCommission = await convertCommissionToMarketer(
+            checkCustomer,
+            enteredAmount,
+          );
+
+          if (!getCommission.success) {
+
+            // return ReE(
+            //   res,
+            //   { message: getCommission.message },
+            //   httpStatus.INTERNAL_SERVER_ERROR,
+            // );
+          }
+
           [err, createBill] = await toAwait(
             Billing.create({
               // amountPaid: enteredAmount,
@@ -2327,6 +2463,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               createdBy: user._id,
               enteredAmount,
               projectId: checkCustomer.projectId,
+              commissionErrorMsg: getCommission.success ? "" : getCommission.message
             }),
           );
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2339,35 +2476,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
             );
           }
 
-          let updateCustomer;
-          [err, updateCustomer] = await toAwait(
-            Customer.updateOne(
-              { _id: customerId },
-              { $inc: { balanceAmount: Number(enteredAmount) } },
-            ),
-          );
-          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-          if (!updateCustomer) {
-            return ReE(
-              res,
-              { message: "customer not updated" },
-              httpStatus.INTERNAL_SERVER_ERROR,
-            );
-          }
-
           createBill = createBill as IBilling;
-
-          let getCommission = await convertCommissionToMarketer(
-            checkCustomer,
-            enteredAmount,
-          );
-
-          if (!getCommission.success)
-            return ReE(
-              res,
-              { message: getCommission.message },
-              httpStatus.INTERNAL_SERVER_ERROR,
-            );
 
           let createCommission;
           [err, createCommission] = await toAwait(
@@ -2424,13 +2533,25 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
       noOfEmiPay = Math.floor(noOfEmiPay);
 
-      readyForBill = getAllEmiPast.slice(0, noOfEmiPay);
-
       if (housing) {
-        customerBalanceAmount =
-          Number(amount) - getAllEmiPast[0].emiAmt * noOfEmiPay;
-        amount = getAllEmiPast[0].emiAmt * noOfEmiPay;
+        if (getAllEmiPast.length === 0) {
+          return ReE(
+            res,
+            { message: "All EMI already paid for this customer" },
+            httpStatus.BAD_REQUEST,
+          );
+        }
+        readyForBill = [getAllEmiPast[0]];
+      } else {
+        readyForBill = getAllEmiPast.slice(0, noOfEmiPay);
       }
+
+      // if (housing) {
+      // customerBalanceAmount =
+      //   Number(amount) - getAllEmiPast[0].emiAmt * noOfEmiPay;
+      // amount = getAllEmiPast[0].emiAmt * noOfEmiPay;
+      // }
+
     }
 
     if (!user?.isAdmin) {
@@ -2451,21 +2572,13 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
         if (checkBillingRequest) {
           checkBillingRequest = checkBillingRequest as IBillingRequest;
-
-          let allreadyExist = readyForBill.filter((emi) =>
-            checkBillingRequest.emi.includes(emi._id),
+          return ReE(
+            res,
+            {
+              message: "You already have pending billing request for existing EMIs",
+            },
+            httpStatus.BAD_REQUEST,
           );
-
-          if (allreadyExist.length !== 0) {
-            return ReE(
-              res,
-              {
-                message:
-                  "You already have pending billing request for existing EMIs",
-              },
-              httpStatus.BAD_REQUEST,
-            );
-          }
         }
 
         let createBillRequest;
@@ -2533,7 +2646,9 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     }
 
     let noOFPay = amount / readyForBill[0].emiAmt;
-    amount = amount / noOFPay;
+    if (!housing) {
+      amount = amount / noOFPay;
+    }
 
     for (let i = 0; i < readyForBill.length; i++) {
       let element = readyForBill[i];
@@ -2549,12 +2664,18 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       }
       getAllBill = getAllBill as IBilling[];
-      let totalAmount =
-        checkGeneral.emiAmount! * checkGeneral.noOfInstallments!;
+
+      let totalAmount = 0;
+      if (checkGeneral.totalAmount && checkGeneral.totalAmount > 0) {
+        totalAmount = checkGeneral.totalAmount;
+      } else if (!housing && checkGeneral.emiAmount && checkGeneral.noOfInstallments) {
+        totalAmount = checkGeneral.emiAmount * checkGeneral.noOfInstallments;
+      }
+
       if (getAllBill.length === 0) {
         balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
       } else {
-        let total = getAllBill.reduce((acc, curr) => acc + curr.amountPaid, 0);
+        let total = getAllBill.reduce((acc, curr: any) => acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid, 0);
         balanceAmount = totalAmount - (total + amount);
       }
 
@@ -2590,19 +2711,14 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
       if (housing) {
         if (i === 0) {
-          createBill.emiCover = readyForBill.map((emi) => emi._id);
+          // createBill.emiCover = readyForBill.map((emi) => emi._id);
           let updateEmis;
           [err, updateEmis] = await toAwait(
-            Emi.updateMany(
-              { _id: { $in: createBill.emiCover } },
-              {
-                $set: {
-                  paidDate: new Date(paymentDate),
-                  paidAmt: createBill.amountPaid,
-                },
-              },
-            ),
-          );
+            Emi.updateOne(
+              { _id: element._id },
+              { $set: { paidDate: new Date(paymentDate), paidAmt: enteredAmount } }
+            )
+          )
 
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
@@ -2720,19 +2836,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           }
         }
       }
-    }
-
-    let updateCustomerBalance;
-    [err, updateCustomerBalance] = await toAwait(
-      Customer.findOneAndUpdate(
-        { _id: customerId },
-        { $set: { balanceAmount: customerBalanceAmount } },
-        { new: true },
-      ),
-    );
-
-    if (err) {
-      return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     }
 
     return ReS(
@@ -2925,96 +3028,21 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
 
     if (paymentDate) {
       if (getBilling.emi && mongoose.isValidObjectId(getBilling.emi)) {
-        let getEmi;
-        [err, getEmi] = await toAwait(Emi.findOne({ _id: getBilling.emi }));
+        let updateEmi;
+        [err, updateEmi] = await toAwait(
+          Emi.findOneAndUpdate(
+            { _id: getBilling.emi },
+            { $set: { paidDate:paymentDate } },
+            { new: true },
+          ),
+        );
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        if (!getEmi) {
+        if (!updateEmi) {
           return ReE(
             res,
             { message: "emi not found given id" },
             httpStatus.NOT_FOUND,
           );
-        }
-        getEmi = getEmi as IEmi;
-        if (getEmi.emiNo === 1) {
-          let getMonthPayment = new Date(paymentDate).getMonth() + 1;
-          let hetMonthAlready = new Date(getEmi.date).getMonth() + 1;
-          if (getMonthPayment !== hetMonthAlready) {
-            let getBilling;
-            [err, getBilling] = await toAwait(
-              Billing.find({ customer: getEmi.customer }),
-            );
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            if (!getBilling) {
-              return ReE(
-                res,
-                { message: "billing not found given id" },
-                httpStatus.NOT_FOUND,
-              );
-            }
-            getBilling = getBilling as IBilling[];
-
-            if (getBilling.length === 1) {
-              let getAllEmi;
-              [err, getAllEmi] = await toAwait(
-                Emi.find({ customer: getEmi.customer }).sort({ emiNo: 1 }),
-              );
-              if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-              if (!getAllEmi) {
-                return ReE(
-                  res,
-                  { message: "emi not found given id" },
-                  httpStatus.NOT_FOUND,
-                );
-              }
-              getAllEmi = getAllEmi as IEmi[];
-              for (let index = 0; index < getAllEmi.length; index++) {
-                const element = getAllEmi[index];
-                let getemi;
-                [err, getemi] = await toAwait(
-                  Emi.findOne({ _id: element._id }),
-                );
-                if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-                getemi = getemi as IEmi;
-                let updateEmi;
-                if (getemi.paidDate) {
-                  updateEmi = await toAwait(
-                    Emi.findOneAndUpdate(
-                      { _id: element._id },
-                      {
-                        $set: {
-                          paidDate: paymentDate,
-                          date: getEmiDate(index, new Date(paymentDate)),
-                        },
-                      },
-                      { new: true },
-                    ),
-                  );
-                } else {
-                  updateEmi = await toAwait(
-                    Emi.findOneAndUpdate(
-                      { _id: element._id },
-                      {
-                        $set: {
-                          date: getEmiDate(index, new Date(paymentDate)),
-                        },
-                      },
-                      { new: true },
-                    ),
-                  );
-                }
-                // let updateEmi;
-                // [err, updateEmi] = await toAwait(
-                //   Emi.findOneAndUpdate(
-                //     { _id: element._id },
-                //     { $set: { paidDate: paymentDate, date: getEmiDate(index, new Date(paymentDate)) } },
-                //     { new: true }
-                //   )
-                // )
-                if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-              }
-            }
-          }
         }
       }
     }
@@ -4085,7 +4113,7 @@ export const convertCommissionToMarketer = async (
         if (
           !isNaN(
             emiAmount *
-              (Number(getMarketer.percentageId.rate.split("%")[0]) / 100),
+            (Number(getMarketer.percentageId.rate.split("%")[0]) / 100),
           )
         ) {
           comm.commAmount =
@@ -4162,10 +4190,7 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
     }
 
     let bulkOperations: any[] = [];
-    let changeEmi: any[] = [];
     let updateEmi: any[] = [];
-
-    // console.log(new Date(json[2]["Payment Date"]),new Date(json[2]['Payment Date']).getMonth(), json[2]["Payment Date"], json[2]);
 
     for (let index = 0; index < json.length; index++) {
       const element = json[index];
@@ -4262,113 +4287,20 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
       let emiNo = element["EMI No"];
 
       getBilling = getBilling as any;
-      if (emiNo) {
-        let payMonth = new Date(paymentDate).getMonth() + 1;
-        let emiMonth = new Date(getBilling.emi?.date).getMonth() + 1;
-        let changePayMonth = new Date(changePaymentDate).getMonth() + 1;
-        // console.log("pay month", payMonth, index + 2, emiNo.toString());
-        if (emiNo.toString() === "1") {
-          if (changePayMonth !== emiMonth && changePayMonth !== payMonth) {
-            if (!getBilling.customer) {
-              return ReE(
-                res,
-                {
-                  message: `Customer not found for 'Billing Id' in row ${index + 2}`,
-                },
-                httpStatus.NOT_FOUND,
-              );
-            }
-            let customerId = getBilling.customer._id
-              ? (getBilling.customer._id.toString() as string)
-              : (getBilling.customer.toString() as string);
-            let getAllBilling;
-            [err, getAllBilling] = await toAwait(
-              Billing.find({ customer: customerId })
-                .sort({ createdAt: 1 })
-                .limit(3),
-            );
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            getAllBilling = getAllBilling as IBilling[];
-            if (getAllBilling.length === 1) {
-              changeEmi.push({
-                emi: getBilling.emi,
-                paymentDate,
-                changePaymentDate,
-              });
-            } else {
-              updateEmi.push({
-                updateOne: {
-                  filter: { _id: getBilling.emi?._id },
-                  update: { $set: { paidDate: changePaymentDate } },
-                },
-              });
-            }
-          } else {
-            updateEmi.push({
-              updateOne: {
-                filter: { _id: getBilling.emi?._id },
-                update: { $set: { paidDate: changePaymentDate } },
-              },
-            });
-          }
-        } else {
-          updateEmi.push({
-            updateOne: {
-              filter: { _id: getBilling.emi?._id },
-              update: { $set: { paidDate: changePaymentDate } },
-            },
-          });
-        }
+      let emiId=""
+      if(mongoose.isValidObjectId(emiNo)){
+        emiId=emiNo
+      }else{
+        emiId=getBilling.emi._id
       }
-    }
 
-    let bulkEmiUpdate: any[] = [];
-    console.log("change emi", "changeEmi");
-    for (let index = 0; index < changeEmi.length; index++) {
-      const element = changeEmi[index];
-      let getAllEmi;
-      [err, getAllEmi] = await toAwait(
-        Emi.find({ customer: element.emi.customer }).sort({ emiNo: 1 }),
-      );
-      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      if (!getAllEmi) {
-        // return ReE(
-        //   res,
-        //   { message: "emi not found given id" },
-        //   httpStatus.NOT_FOUND,
-        // );
-        continue;
-      }
-      getAllEmi = getAllEmi as IEmi[];
-      for (let index = 0; index < getAllEmi.length; index++) {
-        const emiEle = getAllEmi[index];
-        let getemi = emiEle as IEmi;
-        console.log("emi date", getemi.date, getemi._id, emiEle._id, index + 2);
-        if (getemi.paidDate) {
-          bulkEmiUpdate.push({
-            updateOne: {
-              filter: { _id: emiEle._id },
-              update: {
-                $set: {
-                  paidDate: element.changePaymentDate,
-                  date: getEmiDate(index, new Date(element.changePaymentDate)),
-                },
-              },
-            },
-          });
-        } else {
-          bulkEmiUpdate.push({
-            updateOne: {
-              filter: { _id: emiEle._id },
-              update: {
-                $set: {
-                  date: getEmiDate(index, new Date(element.changePaymentDate)),
-                },
-              },
-            },
-          });
+      updateEmi.push({
+        updateOne: {
+          filter: { _id: emiId },
+          update: { $set: { paidDate: changePaymentDate } },
         }
-      }
+      })
+
     }
 
     let BATCH_SIZE = 1000;
@@ -4380,18 +4312,7 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
           `✅ Updated bill ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`,
         );
       }
-      console.log(bulkOperations);
     }
-
-    // if (bulkEmiUpdate.length > 0) {
-    //   for (let i = 0; i < bulkEmiUpdate.length; i += BATCH_SIZE) {
-    //     const batch = bulkEmiUpdate.slice(i, i + BATCH_SIZE);
-    //     let update = await Emi.bulkWrite(batch, { ordered: false });
-    //     console.log(`✅ Updated chnage ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
-    //   }
-
-    //   console.log(bulkEmiUpdate)
-    // }
 
     if (updateEmi.length > 0) {
       for (let i = 0; i < updateEmi.length; i += BATCH_SIZE) {

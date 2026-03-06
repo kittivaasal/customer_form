@@ -107,6 +107,9 @@ const GeneralSchema = new Schema(
       additionalCharges: { type: Number },
       totalValue: { type: Number },
     },
+    startDate:{
+      type: Date
+    }
   },
 
   { timestamps: true },

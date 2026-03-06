@@ -74,6 +74,9 @@ const BillingRequestSchema: Schema = new Schema<IBillingRequest>(
             parciallyPaid: {
                 type: Boolean,
                 default: false
+            },
+            balanceAmount:{
+                type: Number
             }
         },
         reason: {

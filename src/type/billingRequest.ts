@@ -31,5 +31,6 @@ export interface IBillingRequest {
         housing: boolean,
         enteredAmount?: number
         parciallyPaid?: boolean
+        balanceAmount?: number
     },
 }

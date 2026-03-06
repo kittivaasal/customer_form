@@ -29,4 +29,7 @@ export interface IGeneral {
     sBookedDate?: string;	
     createdOn?: string;	
     modifiedOn?: string;
+    totalAmount: number
+
+    startDate: Date
 }

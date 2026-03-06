@@ -104,6 +104,19 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
         if (getBillingRequest.billingDetails?.housing && getBillingRequest.billingDetails?.parciallyPaid === true) {
 
+          let am=0
+          if(getBillingRequest.billingDetails?.enteredAmount){
+            am=getBillingRequest.billingDetails.enteredAmount
+          }else if(getBillingRequest.billingDetails?.amountPaid){
+            am=getBillingRequest.billingDetails.amountPaid
+          }
+
+          let getCommission = await convertCommissionToMarketer(checkCustomer, am)
+  
+          if (!getCommission.success) {
+            // return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
+          }
+
           let createBill;
           [err, createBill] = await toAwait(
             Billing.create({
@@ -124,10 +137,13 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               customerName: checkCustomer?.name,
               oldData : oldData ? oldData : checkCustomer?.oldData,
               billFor: getBillingRequest.billingDetails.billFor,
+              balanceAmount: getBillingRequest.billingDetails?.balanceAmount,
               customerCode: checkCustomer.id,
               createdBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
               enteredAmount: getBillingRequest.billingDetails.enteredAmount,
-              projectId: checkCustomer.projectId
+              amountPaid: getBillingRequest.billingDetails.enteredAmount,
+              projectId: checkCustomer.projectId,
+              commissionErrorMsg: getCommission.success ? "" : getCommission.message
             })
           );
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -142,34 +158,6 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
           createBill = createBill as IBilling;
 
-          let updateCustomer;
-          [err, updateCustomer] = await toAwait(
-            Customer.updateOne({ _id: customerId }, { $inc: { balanceAmount: Number(getBillingRequest.billingDetails.enteredAmount) } })
-          );
-          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-          if (!updateCustomer) {
-            return ReE(
-              res,
-              { message: "customer not updated" },
-              httpStatus.INTERNAL_SERVER_ERROR
-            );
-          }
-
-          let am=0
-          if(getBillingRequest.billingDetails?.enteredAmount){
-            am=getBillingRequest.billingDetails.enteredAmount
-          }else{
-            if(createBill?.enteredAmount){
-              am=createBill?.enteredAmount
-            }else{
-              am=createBill?.amountPaid
-            }
-          }
-
-          let getCommission = await convertCommissionToMarketer(checkCustomer, am)
-  
-          if (!getCommission.success) return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
-  
           let createCommission;
           [err, createCommission] = await toAwait(
             CustomerEmiModel.create({
@@ -225,17 +213,27 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
           }
           getAllBill = getAllBill as IBilling[];
-          let totalAmount = checkGeneral.emiAmount! * checkGeneral.noOfInstallments!;
+
+
+          let totalAmount = 0;
+          if(checkGeneral.totalAmount && checkGeneral.totalAmount > 0){
+            totalAmount = checkGeneral.totalAmount;
+          }else if(!getBillingRequest.billingDetails?.housing && checkGeneral.emiAmount && checkGeneral.noOfInstallments){
+            totalAmount = checkGeneral.emiAmount * checkGeneral.noOfInstallments;
+          }
+
+          let amount = getBillingRequest.billingDetails.enteredAmount
+
           if (getAllBill.length === 0) {
-            balanceAmount = isNaN(totalAmount) ? element.emiAmt : totalAmount - element.emiAmt;
+            balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
           } else {
-            let total = getAllBill.reduce((acc, curr) => acc + curr.amountPaid, 0);
-            balanceAmount = totalAmount - (total + element.emiAmt);
+            let total = getAllBill.reduce((acc, curr:any) => acc + curr.enteredAmount  ? curr.enteredAmount : curr.amountPaid , 0);
+            balanceAmount = totalAmount - (total + amount);
           }
 
           let createBill: any = {
             emiNo: element.emiNo,
-            amountPaid: element.emiAmt,
+            amountPaid: getBillingRequest.billingDetails.enteredAmount,
             paymentDate: new Date(getBillingRequest?.billingDetails?.paymentDate || new Date()),
             transactionType: "EMI Receipt",
             introducer: checkCustomer?.ddId,
@@ -265,11 +263,10 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
           if (getBillingRequest?.billingDetails?.housing) {
             if (i === 0) {
-              createBill.emiCover = readyForBill.map((emi) => emi._id)
               let updateEmis;
               [err, updateEmis] = await toAwait(
-                Emi.updateMany(
-                  { _id: { $in: createBill.emiCover } },
+                Emi.updateOne(
+                  { _id: element._id },
                   { $set: { paidDate: new Date(createBill.paymentDate), paidAmt: createBill.amountPaid } }
                 )
               )
@@ -328,24 +325,29 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             //   }
             // }
 
+
+            let am=0;
+
+            if (getBillingRequest.billingDetails?.housing) {
+              am = getBillingRequest.billingDetails.enteredAmount;
+            }else{
+              am = getBillingRequest.billingDetails.enteredAmount
+            }
+
+            let getCommission = await convertCommissionToMarketer(checkCustomer, am)
+
+            if (!getCommission.success){
+              createBill.commissionErrorMsg = getCommission.message
+              // return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
+            } 
+            
+
             [err, billing] = await toAwait(Billing.create(createBill));
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);            
 
             billing = billing as IBilling;
             getMarketer = getMarketer as any;
           
-            let am=0;
-
-            if (getBillingRequest.billingDetails?.housing) {
-              am = getBillingRequest.billingDetails.enteredAmount;
-            }else{
-              am = billing.amountPaid
-            }
-
-            let getCommission = await convertCommissionToMarketer(checkCustomer, am)
-
-            if (!getCommission.success) return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
-            
             let createCommission;
             [err, createCommission] = await toAwait(
               CustomerEmiModel.create({
@@ -369,7 +371,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               [err, updateEmi] = await toAwait(
                 Emi.findOneAndUpdate(
                   { _id: element._id },
-                  { paidDate: billing.paymentDate, paidAmt: billing.amountPaid },
+                  { paidDate: billing.paymentDate, paidAmt: element.emiAmt },
                   { new: true }
                 )
               );
@@ -379,19 +381,6 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             }
           }
 
-        }
-
-        let updateCustomer;
-        [err, updateCustomer] = await toAwait(
-          Customer.updateOne({ _id: customerId }, { $set: { balanceAmount: Number(getBillingRequest.billingDetails?.customerBalanceAmount) } })
-        );
-        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        if (!updateCustomer) {
-          return ReE(
-            res,
-            { message: "customer not updated" },
-            httpStatus.INTERNAL_SERVER_ERROR
-          );
         }
 
       }
