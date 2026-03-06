@@ -3663,7 +3663,8 @@ export const getAllBillingReport = async (
 
   let { dateFrom, dateTo, date, status, blocked, projectId } = req.query,
     option: any = {},
-    emiOption: any = {};
+    emiOption: any = {},
+    generalOption: any = {};
 
   if (projectId) {
     if (!mongoose.isValidObjectId(projectId)) {
@@ -3706,8 +3707,7 @@ export const getAllBillingReport = async (
     } else if (status === "unpaid") {
       emiOption.paidDate = null;
     } else if (status === "blocked") {
-      option.status = "blocked";
-      emiOption.status = "blocked";
+      generalOption.status = "blocked";
     } else if (status === "all") {
     }
   }
@@ -3723,8 +3723,7 @@ export const getAllBillingReport = async (
       );
     }
     if (blocked === "true") {
-      option.status = "blocked";
-      emiOption.status = "blocked";
+      generalOption.status = "blocked";
     }
   }
 
@@ -3996,7 +3995,6 @@ export const getAllBillingReport = async (
       emiOption.paidDate = null;
       delete emiOption.date;
     }
-    console.log("emi option", emiOption);
     [err, getEmi] = await toAwait(
       Emi.find(emiOption)
         .populate({
@@ -4009,6 +4007,33 @@ export const getAllBillingReport = async (
         })
         .sort({ createdAt: -1 }),
     );
+  }
+
+  let general
+  if (status === "blocked") {
+    [err,general] = await toAwait(
+      General.find(generalOption).populate("project").populate({
+        path: "customer",
+        populate: [
+          {
+            path: "ddId", // populate cedId first
+            populate: {
+              path: "percentageId", // then populate marketerId inside cedId
+            },
+          },
+          {
+            path: "cedId",
+            populate: [
+              { path: "percentageId" },
+              {
+                path: "overAllHeadBy.headBy", // populate headBy inside overAllHeadBy array
+                populate: { path: "percentageId" }, // populate headBy.percentageId
+              },
+            ],
+          },
+        ],
+      })
+    )
   }
 
   if (err) {
