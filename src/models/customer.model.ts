@@ -44,7 +44,10 @@ const customerSchema = new mongoose.Schema({
   motherName: String,
   immSupervisorName: String,
   photoUrl: String,
-
+  panNo: {
+    type: String,
+    default: ''
+  },
   oldData: {type:Boolean, default:false},
   marketerPercent: String,
   marketerId: String,

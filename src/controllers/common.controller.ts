@@ -1,24 +1,23 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { Request, Response } from "express";
 import httpStatus from "http-status";
+import moment from "moment-timezone";
 import mongoose, { isValidObjectId } from "mongoose";
+import * as XLSX from "xlsx";
 import { Billing } from "../models/billing.model";
+import { BillingRequest } from "../models/billingRequest.model";
+import { CustomerEmiModel } from "../models/commision.model";
 import { Customer } from "../models/customer.model";
 import { Emi } from "../models/emi.model";
 import { Flat } from "../models/flat.model";
 import { General } from "../models/general.model";
+import { MarketDetail } from "../models/marketDetail.model";
 import { Marketer } from "../models/marketer";
 import { MarketingHead } from "../models/marketingHead.model";
 import { Plot } from "../models/plot.model";
+import { Project } from "../models/project.model";
 import { User } from "../models/user.model";
 import { s3 } from "../services/digitalOceanConfig";
-import fs from "fs";
-import moment from "moment-timezone";
-import * as XLSX from "xlsx";
-import { BillingRequest } from "../models/billingRequest.model";
-import { CustomerEmiModel } from "../models/commision.model";
-import { MarketDetail } from "../models/marketDetail.model";
-import { Project } from "../models/project.model";
 import {
   excelDateToJSDate,
   getEmiDate,
@@ -404,7 +403,12 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
   let body = req.body,
     user = req.user as IUser,
     err: any;
-  const { customerId, general, plot, flat } = body;
+  const {
+    customerId,
+    general,
+    plot,
+    flat,
+  }: { customerId: any; general: any; plot: any; flat: any } = body;
 
   if (user) {
     if (user.isAdmin === false) {
@@ -683,6 +687,8 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
       );
   }
 
+  let plotResolvedGeneralId: any = null;
+
   if (plot) {
     let keyLength = Object.keys(plot).length;
     if (keyLength === 0) {
@@ -694,29 +700,47 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     }
 
     if (!plot._id) {
-      return ReE(
-        res,
-        { message: "when update plot then plot._id is required" },
-        httpStatus.BAD_REQUEST,
-      );
-    }
+      // Fallback: resolve generalId from general._id (priority) or customerId
+      plotResolvedGeneralId = general?._id || null;
 
-    if (!mongoose.isValidObjectId(plot._id)) {
-      return ReE(
-        res,
-        { message: "plot _id is invalid" },
-        httpStatus.BAD_REQUEST,
-      );
-    }
+      if (!plotResolvedGeneralId && customerId) {
+        let foundGeneral;
+        [err, foundGeneral] = await toAwait(
+          General.findOne({ customer: customerId }),
+        );
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (foundGeneral) plotResolvedGeneralId = (foundGeneral as any)._id;
+      }
 
-    let checkAlreadyExist = await Plot.findOne({ _id: plot._id });
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!checkAlreadyExist)
-      return ReE(
-        res,
-        { message: `plot not found given id` },
-        httpStatus.BAD_REQUEST,
-      );
+      if (plotResolvedGeneralId) {
+        let foundPlot;
+        [err, foundPlot] = await toAwait(
+          Plot.findOne({ general: plotResolvedGeneralId }),
+        );
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (foundPlot) {
+          plot._id = (foundPlot as any)._id;
+        }
+        // If no plot found → plotResolvedGeneralId is set, will create below
+      }
+    } else {
+      if (!mongoose.isValidObjectId(plot._id)) {
+        return ReE(
+          res,
+          { message: "plot _id is invalid" },
+          httpStatus.BAD_REQUEST,
+        );
+      }
+
+      let checkAlreadyExist = await Plot.findOne({ _id: plot._id });
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!checkAlreadyExist)
+        return ReE(
+          res,
+          { message: `plot not found given id` },
+          httpStatus.BAD_REQUEST,
+        );
+    }
   }
 
   if (general) {
@@ -814,13 +838,34 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
   }
 
   if (plot) {
-    let updatePlot;
-    [err, updatePlot] = await toAwait(Plot.updateOne({ _id: plot._id }, plot));
-    if (err) {
-      errors.push(`error in while updating plot: ${err.message}`);
+    if (plot._id) {
+      // Existing plot → update by _id
+      let updatePlot;
+      [err, updatePlot] = await toAwait(
+        Plot.updateOne({ _id: plot._id }, { $set: plot }),
+      );
+      if (err) {
+        errors.push(`error while updating plot: ${err.message}`);
+      }
+      results.plot = updatePlot;
+      results.message = "plot updated successfully";
+    } else if (plotResolvedGeneralId) {
+      // No existing plot → create new one
+      const { _id: _ignore, ...plotData } = plot;
+      let createPlot;
+      [err, createPlot] = await toAwait(
+        Plot.create({
+          ...plotData,
+          general: plotResolvedGeneralId,
+          customer: customerId,
+        }),
+      );
+      if (err) {
+        errors.push(`error while creating plot: ${err.message}`);
+      }
+      results.plot = createPlot;
+      results.message = "plot created successfully";
     }
-    results.plot = updatePlot;
-    results.message = "plot updated successfully";
   }
 
   if (flat) {
@@ -1379,15 +1424,15 @@ export const getAllEmi = async (req: Request, res: Response) => {
       data: getEmi,
       ...(page &&
         limit && {
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages,
-          hasNextPage: page < totalPages,
-          hasPreviousPage: page > 1,
-        },
-      }),
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages,
+            hasNextPage: page < totalPages,
+            hasPreviousPage: page > 1,
+          },
+        }),
     },
     httpStatus.OK,
   );
@@ -2001,7 +2046,10 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     if (checkBillingRequestForCustomer) {
       return ReE(
         res,
-        { message: "create bill billing request already pending for this customer so you can't create bill" },
+        {
+          message:
+            "create bill billing request already pending for this customer so you can't create bill",
+        },
         httpStatus.BAD_REQUEST,
       );
     }
@@ -2041,7 +2089,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           date: {
             $gte: date.start,
             $lte: date.end,
-          }
+          },
         }),
       );
 
@@ -2076,7 +2124,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         );
       }
 
-      if(housing) {
+      if (housing) {
         if (getEmi.emiAmt > amount) {
           return ReE(
             res,
@@ -2089,16 +2137,16 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           );
         }
 
-        if(amount === getEmi.emiAmt) {
+        if (amount === getEmi.emiAmt) {
           readyForBill.push(getEmi);
-        }else if(amount > getEmi.emiAmt) {
+        } else if (amount > getEmi.emiAmt) {
           let getAllEmiPast;
           [err, getAllEmiPast] = await toAwait(
             Emi.find({
               general: checkGeneral._id,
               customer: customerId,
               paidDate: null,
-              _id: { $ne: getEmi._id }
+              _id: { $ne: getEmi._id },
             }).sort({ emiNo: 1 }),
           );
 
@@ -2116,7 +2164,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           readyForBill = getAllEmiPast.slice(0, noOfEmiPay);
           readyForBill.unshift(getEmi);
 
-          if(noOfEmiPay === 0) {
+          if (noOfEmiPay === 0) {
             noOfEmiPay = 1;
           }
 
@@ -2124,14 +2172,11 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
             customerBalanceAmount = Number(amount) - getEmi.emiAmt * noOfEmiPay;
             amount = getEmi.emiAmt * noOfEmiPay;
           }
-
         }
-      }else{
+      } else {
         readyForBill.push(getEmi);
       }
-
     } else {
-
       let getAllEmiPast;
       //replace oldData
       [err, getAllEmiPast] = await toAwait(
@@ -2281,7 +2326,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               billFor,
               createdBy: user._id,
               enteredAmount,
-              projectId: checkCustomer.projectId
+              projectId: checkCustomer.projectId,
             }),
           );
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2386,7 +2431,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           Number(amount) - getAllEmiPast[0].emiAmt * noOfEmiPay;
         amount = getAllEmiPast[0].emiAmt * noOfEmiPay;
       }
-
     }
 
     if (!user?.isAdmin) {
@@ -2541,7 +2585,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         billFor,
         createdBy: user._id,
         enteredAmount,
-        projectId: checkCustomer.projectId
+        projectId: checkCustomer.projectId,
       };
 
       if (housing) {
@@ -2551,9 +2595,14 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           [err, updateEmis] = await toAwait(
             Emi.updateMany(
               { _id: { $in: createBill.emiCover } },
-              { $set: { paidDate: new Date(paymentDate), paidAmt: createBill.amountPaid } }
-            )
-          )
+              {
+                $set: {
+                  paidDate: new Date(paymentDate),
+                  paidAmt: createBill.amountPaid,
+                },
+              },
+            ),
+          );
 
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
@@ -2580,15 +2629,24 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
       if (checkAlreadyExist && !housing) {
-        checkAlreadyExist = checkAlreadyExist as IBilling
-        let amountPaid = checkAlreadyExist.amountPaid ? checkAlreadyExist.amountPaid : checkAlreadyExist.enteredAmount ? checkAlreadyExist.enteredAmount : 0;
+        checkAlreadyExist = checkAlreadyExist as IBilling;
+        let amountPaid = checkAlreadyExist.amountPaid
+          ? checkAlreadyExist.amountPaid
+          : checkAlreadyExist.enteredAmount
+            ? checkAlreadyExist.enteredAmount
+            : 0;
         let updateEmiPaid;
         [err, updateEmiPaid] = await toAwait(
           Emi.updateOne(
             { _id: checkAlreadyExist?.emi },
-            { $set: { paidDate: checkAlreadyExist?.paymentDate, paidAmt: amountPaid } }
-          )
-        )
+            {
+              $set: {
+                paidDate: checkAlreadyExist?.paymentDate,
+                paidAmt: amountPaid,
+              },
+            },
+          ),
+        );
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
         let getEmi;
         [err, getEmi] = await toAwait(
@@ -2611,13 +2669,13 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         // return ReE(res, { message: `billing already exist for this emi no ${element.emiNo} for this customer please try again!` }, httpStatus.BAD_REQUEST);
       } else {
         if (i !== 0 && housing) continue;
-        
+
         let getCommission = await convertCommissionToMarketer(
           checkCustomer,
           !housing ? amount : enteredAmount,
         );
-        
-        if (!getCommission.success){
+
+        if (!getCommission.success) {
           createBill.commissionErrorMsg = getCommission.message;
         }
 
@@ -2626,7 +2684,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
         billing = billing as IBilling;
-  
+
         let createCommission;
         [err, createCommission] = await toAwait(
           CustomerEmiModel.create({
@@ -3581,13 +3639,21 @@ export const getAllBillingReport = async (
 
   if (projectId) {
     if (!mongoose.isValidObjectId(projectId)) {
-      return ReE(res, { message: "Invalid project id" }, httpStatus.BAD_REQUEST);
+      return ReE(
+        res,
+        { message: "Invalid project id" },
+        httpStatus.BAD_REQUEST,
+      );
     }
     let getProject;
     [err, getProject] = await toAwait(Project.findOne({ _id: projectId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!getProject) {
-      return ReE(res, { message: "Project not found for given id" }, httpStatus.NOT_FOUND);
+      return ReE(
+        res,
+        { message: "Project not found for given id" },
+        httpStatus.NOT_FOUND,
+      );
     }
     getProject = getProject as IProject;
     option.projectId = projectId;
@@ -4123,13 +4189,17 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
       }
       let getBilling;
       [err, getBilling] = await toAwait(
-        Billing.findOne({ _id: billingId }).populate("emi").populate("customer"),
+        Billing.findOne({ _id: billingId })
+          .populate("emi")
+          .populate("customer"),
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       if (!getBilling) {
         return ReE(
           res,
-          { message: `Billing not found given 'Billing Id' in row ${index + 2}` },
+          {
+            message: `Billing not found given 'Billing Id' in row ${index + 2}`,
+          },
           httpStatus.NOT_FOUND,
         );
       }
@@ -4147,7 +4217,9 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
         if (!isValidDate(paymentDate)) {
           return ReE(
             res,
-            { message: `Invalid 'Payment Date' format in row ${index + 2} valid format is (YYYY-MM-DD)` },
+            {
+              message: `Invalid 'Payment Date' format in row ${index + 2} valid format is (YYYY-MM-DD)`,
+            },
             httpStatus.BAD_REQUEST,
           );
         }
@@ -4157,7 +4229,9 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
       if (!changePaymentDate) {
         return ReE(
           res,
-          { message: `'Payment Date Change' required fields in row ${index + 2}` },
+          {
+            message: `'Payment Date Change' required fields in row ${index + 2}`,
+          },
           httpStatus.BAD_REQUEST,
         );
       }
@@ -4168,7 +4242,9 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
         if (!isValidDate(changePaymentDate)) {
           return ReE(
             res,
-            { message: `Invalid 'Payment Date Change' format in row ${index + 2} valid format is (YYYY-MM-DD)` },
+            {
+              message: `Invalid 'Payment Date Change' format in row ${index + 2} valid format is (YYYY-MM-DD)`,
+            },
             httpStatus.BAD_REQUEST,
           );
         }
@@ -4207,12 +4283,18 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
               : (getBilling.customer.toString() as string);
             let getAllBilling;
             [err, getAllBilling] = await toAwait(
-              Billing.find({ customer: customerId }).sort({ createdAt: 1 }).limit(3),
+              Billing.find({ customer: customerId })
+                .sort({ createdAt: 1 })
+                .limit(3),
             );
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
             getAllBilling = getAllBilling as IBilling[];
             if (getAllBilling.length === 1) {
-              changeEmi.push({ emi: getBilling.emi, paymentDate, changePaymentDate });
+              changeEmi.push({
+                emi: getBilling.emi,
+                paymentDate,
+                changePaymentDate,
+              });
             } else {
               updateEmi.push({
                 updateOne: {
@@ -4238,11 +4320,10 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
           });
         }
       }
-
     }
 
     let bulkEmiUpdate: any[] = [];
-console.log("change emi", "changeEmi");
+    console.log("change emi", "changeEmi");
     for (let index = 0; index < changeEmi.length; index++) {
       const element = changeEmi[index];
       let getAllEmi;
@@ -4251,7 +4332,6 @@ console.log("change emi", "changeEmi");
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       if (!getAllEmi) {
-
         // return ReE(
         //   res,
         //   { message: "emi not found given id" },
@@ -4263,7 +4343,7 @@ console.log("change emi", "changeEmi");
       for (let index = 0; index < getAllEmi.length; index++) {
         const emiEle = getAllEmi[index];
         let getemi = emiEle as IEmi;
-        console.log("emi date", getemi.date,getemi._id,emiEle._id, index + 2);
+        console.log("emi date", getemi.date, getemi._id, emiEle._id, index + 2);
         if (getemi.paidDate) {
           bulkEmiUpdate.push({
             updateOne: {
@@ -4274,8 +4354,8 @@ console.log("change emi", "changeEmi");
                   date: getEmiDate(index, new Date(element.changePaymentDate)),
                 },
               },
-            }
-          })
+            },
+          });
         } else {
           bulkEmiUpdate.push({
             updateOne: {
@@ -4285,11 +4365,10 @@ console.log("change emi", "changeEmi");
                   date: getEmiDate(index, new Date(element.changePaymentDate)),
                 },
               },
-            }
-          })
+            },
+          });
         }
       }
-
     }
 
     let BATCH_SIZE = 1000;
@@ -4297,7 +4376,9 @@ console.log("change emi", "changeEmi");
       for (let i = 0; i < bulkOperations.length; i += BATCH_SIZE) {
         const batch = bulkOperations.slice(i, i + BATCH_SIZE);
         let update = await Billing.bulkWrite(batch, { ordered: false });
-        console.log(`✅ Updated bill ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+        console.log(
+          `✅ Updated bill ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`,
+        );
       }
       console.log(bulkOperations);
     }
@@ -4312,16 +4393,21 @@ console.log("change emi", "changeEmi");
     //   console.log(bulkEmiUpdate)
     // }
 
-    if(updateEmi.length > 0){
+    if (updateEmi.length > 0) {
       for (let i = 0; i < updateEmi.length; i += BATCH_SIZE) {
         const batch = updateEmi.slice(i, i + BATCH_SIZE);
         let update = await Emi.bulkWrite(batch, { ordered: false });
-        console.log(`✅ Updated emi ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+        console.log(
+          `✅ Updated emi ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`,
+        );
       }
     }
 
-    return ReS(res, { message: "Excel file has been updated successfully" }, httpStatus.OK);
-
+    return ReS(
+      res,
+      { message: "Excel file has been updated successfully" },
+      httpStatus.OK,
+    );
   } catch (error: any) {
     console.error("Error processing Excel file:", error);
     return ReE(

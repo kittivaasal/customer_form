@@ -1,23 +1,23 @@
-import mongoose, { model, Schema } from "mongoose";
+import { model, Schema } from "mongoose";
 
 const GeneralSchema = new Schema(
   {
     customer: {
-      type:Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "Customer",
     },
     marketer: {
       type: Schema.Types.ObjectId,
-      refPath: 'marketerByModel'
+      refPath: "marketerByModel",
     },
     marketerByModel: {
       type: String,
       required: true,
       default: "MarketDetail",
-      enum: ["MarketDetail", "MarketingHead"]
+      enum: ["MarketDetail", "MarketingHead"],
     },
     project: {
-      type:Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "Project",
     },
     saleDeedDoc: {
@@ -58,7 +58,7 @@ const GeneralSchema = new Schema(
 
     oldData: {
       type: Boolean,
-      default: false
+      default: false,
     },
     sSalesNo: {
       type: String,
@@ -81,9 +81,9 @@ const GeneralSchema = new Schema(
     modifiedOn: {
       type: String,
     },
-    push:{
-      type:Boolean,
-      default:true
+    push: {
+      type: Boolean,
+      default: true,
     },
     createdBy: {
       type: Schema.Types.ObjectId,
@@ -92,12 +92,24 @@ const GeneralSchema = new Schema(
     totalAmount: {
       type: Number,
     },
-    sPartyCode:{
+    sPartyCode: {
       type: String,
-    }
+    },
+    saleType: {
+      type: String,
+      default: "",
+    },
+    plotGuideValue: {
+      guideRateSqFt: { type: Number },
+      guideLandValue: { type: Number },
+      landValue: { type: Number },
+      regValue: { type: Number },
+      additionalCharges: { type: Number },
+      totalValue: { type: Number },
+    },
   },
 
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export const General = model("General", GeneralSchema);
