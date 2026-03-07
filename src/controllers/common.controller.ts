@@ -4040,7 +4040,7 @@ export const getAllBillingReport = async (
     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   }
 
-  return ReS(res, { billing: getBilling, emi: getEmi }, httpStatus.OK);
+  return ReS(res, { billing: getBilling, emi: getEmi, general }, httpStatus.OK);
 };
 
 export const convertCommissionToMarketer = async (
