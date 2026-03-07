@@ -19,6 +19,7 @@ import { Project } from "../models/project.model";
 import { User } from "../models/user.model";
 import { s3 } from "../services/digitalOceanConfig";
 import {
+  escapeRegex,
   excelDateToJSDate,
   getEmiDate,
   getMonthStartEndDate,
@@ -1108,6 +1109,7 @@ export const getAllBilling = async (req: Request, res: Response) => {
   let { customerId, generalId, page, limit, search } = req.query,
     option: any = {};
 
+    console.log(search, "search");
   // Existing customerId validation
   if (customerId) {
     if (mongoose.isValidObjectId(customerId)) {
@@ -1410,7 +1412,9 @@ export const getAllEmi = async (req: Request, res: Response) => {
 
   const page = req.query.page ? parseInt(req.query.page as string) : null;
   const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
-  const search = (req.query.search as string) || "";
+
+  const rawSearch = (req.query.search as string) || "";
+  const search = escapeRegex(rawSearch);
   const searchConditions: any[] = [];
 
   if (customerId) {

@@ -12,6 +12,7 @@ import { MarketingHead } from "../models/marketingHead.model";
 import { Plot } from "../models/plot.model";
 import { Project } from "../models/project.model";
 import {
+  escapeRegex,
   isEmail,
   isEmpty,
   isNull,
@@ -615,8 +616,11 @@ export const getAllCustomer = async (req: Request, res: Response) => {
 
   const page = req.query.page ? parseInt(req.query.page as string) : null;
   const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
-  const search = (req.query.search as string) || "";
+  // const search = (req.query.search as string) || "";
   const searchConditions: any[] = [];
+  
+  const rawSearch = (req.query.search as string) || "";
+  const search = escapeRegex(rawSearch);
 
   if (search) {
     searchConditions.push(

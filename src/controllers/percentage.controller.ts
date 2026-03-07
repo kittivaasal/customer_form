@@ -3,7 +3,7 @@ import httpStatus from "http-status";
 import mongoose from "mongoose";
 import EditRequest from "../models/editRequest.model";
 import { Percentage } from "../models/percentage.model";
-import { isNull, ReE, ReS, toAwait } from "../services/util.service";
+import { escapeRegex, isNull, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
 import { IEditRequest } from "../type/editRequest";
 import { IPercentage } from "../type/percentage";
@@ -165,7 +165,9 @@ export const getAllPercentage = async (req: Request, res: Response) => {
 
     const page = req.query.page ? parseInt(req.query.page as string) : null;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
-    const search = (req.query.search as string) || "";
+    
+    const rawSearch = (req.query.search as string) || "";
+    const search = escapeRegex(rawSearch);
 
     const searchConditions: any[] = [];
     if (search) {

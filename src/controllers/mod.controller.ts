@@ -3,7 +3,7 @@ import httpStatus from "http-status";
 import mongoose from "mongoose";
 import EditRequest from "../models/editRequest.model";
 import { Mod } from "../models/mod.model";
-import { isNull, ReE, ReS } from "../services/util.service";
+import { escapeRegex, isNull, ReE, ReS } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
@@ -263,7 +263,8 @@ export const getAllMod = async (req: Request, res: Response) => {
     try {
         const page = req.query.page ? parseInt(req.query.page as string) : null;
         const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
-        const search = (req.query.search as string) || "";
+        const rawSearch = (req.query.search as string) || "";
+        const search = escapeRegex(rawSearch);
         const customerId = (req.query.customerId as string) || "";
         const searchConditions: any[] = [];
 
@@ -426,7 +427,8 @@ export const getAllModCustomer = async (req: Request, res: Response) => {
     try {
         const page = req.query.page ? parseInt(req.query.page as string) : null;
         const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
-        const search = (req.query.search as string) || "";
+        const rawSearch = (req.query.search as string) || "";
+        const search = escapeRegex(rawSearch);
         const searchConditions: any[] = [];
 
         if (search) {

@@ -21,6 +21,7 @@ const EmiSchema = new Schema({
     oldData: {type:Boolean,default:false},
     payRef: { type: String },
     supplierCode: { type: String },
+    customerCode: { type: String },
     customerName: { type: String },
     sSalesNo: { type: String },
     createdDate: { type: Date },

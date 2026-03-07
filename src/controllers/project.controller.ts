@@ -5,7 +5,7 @@ import { Billing } from "../models/billing.model";
 import EditRequest from "../models/editRequest.model";
 import { General } from "../models/general.model";
 import { Project } from "../models/project.model";
-import { isNull, ReE, ReS, toAwait } from "../services/util.service";
+import { escapeRegex, isNull, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
 import { IEditRequest } from "../type/editRequest";
 import { IProject } from "../type/project";
@@ -239,7 +239,8 @@ export const getAllProject = async (req: Request, res: Response) => {
 
   const page = req.query.page ? parseInt(req.query.page as string) : null;
   const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
-  const search = (req.query.search as string) || "";
+  const rawSearch = (req.query.search as string) || "";
+  const search = escapeRegex(rawSearch);
   const searchConditions: any[] = [];
 
   if (search) {

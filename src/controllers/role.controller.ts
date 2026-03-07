@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import httpStatus from "http-status";
 import mongoose from "mongoose";
 import { Role } from "../models/role.model";
-import { isNull, ReE, ReS, toAwait } from "../services/util.service";
+import { escapeRegex, isNull, ReE, ReS, toAwait } from "../services/util.service";
 import { IRole } from "../type/role";
 
 export const createRole = async (req: Request, res: Response) => {
@@ -130,7 +130,9 @@ export const getAllRole = async (req: Request, res: Response) => {
 
     const page = req.query.page ? parseInt(req.query.page as string) : null;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
-    const search = (req.query.search as string) || "";
+
+    const rawSearch = (req.query.search as string) || "";
+    const search = escapeRegex(rawSearch);
 
     const searchConditions: any[] = [];
     if (search) {

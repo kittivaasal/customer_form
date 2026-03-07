@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { Role } from "../models/role.model";
 import { User } from "../models/user.model";
-import { isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
+import { escapeRegex, isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
 import { IUser } from "../type/user";
 
@@ -235,7 +235,9 @@ export const getAllUser = async (req: Request, res: Response) => {
 
     const page = req.query.page ? parseInt(req.query.page as string) : null;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
-    const search = (req.query.search as string) || "";
+
+    const rawSearch = (req.query.search as string) || "";
+    const search = escapeRegex(rawSearch);
 
     const searchConditions: any[] = [];
     if (search) {

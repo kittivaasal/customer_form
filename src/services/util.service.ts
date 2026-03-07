@@ -7,6 +7,9 @@ export const IsValidUUIDV4 = (val: string): boolean => {
   return isValidUUIDV4(val);
 };
 
+export function escapeRegex(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 export function getMonthStartEndDate(): { start: Date; end: Date } {
   const now = new Date();
