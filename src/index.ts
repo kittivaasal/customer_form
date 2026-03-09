@@ -35,13 +35,17 @@ import { MarketingHead } from "./models/marketingHead.model";
 import { MarketDetail } from "./models/marketDetail.model";
 import { Project } from "./models/project.model";
 import fs from "fs";
+import * as XLSX from "xlsx";
 import Excel from "exceljs";
-import { excelDateToJSDate, ReS } from "./services/util.service";
+import { excelDateToJSDate, ReE, ReS, toAwait } from "./services/util.service";
 import { IBilling } from "./type/billing";
 import { IMarketDetail } from "./type/marketDetail";
 import e from "express";
 import commissionRoutes from "./routes/commission.routes";
 import { convertCommissionToMarketer } from "./controllers/common.controller";
+import httpStatus from "http-status";
+import { ICustomer } from "./type/customer";
+import { IGeneral } from "./type/general";
 
 const app = express();
 app.use(express.json());
@@ -130,16 +134,39 @@ app.use("/api/commission", commissionRoutes)
 //   try { 
 //     let up = await Emi.updateMany(
 //       {
-//         paidDate: { $ne: null },
-//         $or: [
-//           { paidAmt: 0 },
-//           { paidAmt: null }
-//         ]
+//         customer: "697c521c78f99965bc606737"
 //       },
 //       [
 //     {
 //       $set: {
-//         paidAmt: "$emiAmt"
+//         // customer: {
+//         //   $toObjectId: "$customer"
+//         // },
+//         // general: {
+//         //   $toObjectId: "$general"
+//         // },
+//         //string to Date
+//         // createdAt: {
+//         //   $toDate: "$createdAt"
+//         // },
+//         // updatedAt: {
+//         //   $toDate: "$updatedAt"
+//         // },
+//         // paidDate:{
+//         //   $toDate: "$paidDate"
+//         // },
+//         // date:{
+//         //   $toDate: "$date"
+//         // },
+//         emiAmt: {
+//   $toInt: "$emiAmt"
+// },
+//         // emiAmt: {
+//         //   $toNumber: "$emiAmt"
+//         // },
+//         paidAmt:{
+//            $toInt: "$emiAmt"
+//         }
 //       }
 //     }
 //   ]
@@ -172,8 +199,16 @@ cron.schedule("02 00 * * *", async () => {
     today.setHours(0, 0, 0, 0); // normalize date
 
     // Calculate the cutoff date: EMIs whose date + 2 months <= today
+    let sub = 2;
+    let getDb;
+    if(process.env.DBURL){
+      getDb = process.env.DBURL
+      if(getDb.includes("/housing")){
+        sub = 3;
+      }
+    }
     const cutoffDate = new Date(today);
-    cutoffDate.setMonth(cutoffDate.getMonth() - 2); // subtract 2 months
+    cutoffDate.setMonth(cutoffDate.getMonth() - sub); // subtract 2 months
 
     // Find unpaid EMIs where emi.date <= cutoffDate
     const unpaidEmis: IEmi[] = await Emi.find({
@@ -222,7 +257,6 @@ cron.schedule("02 00 * * *", async () => {
 //bill emi
 // app.get("/emi/bill/merge", async (req: Request, res: Response) => {
 //   try {
-//     // STEP 1: COUNT
 //     const countPipeline: any[] = [
 //       {
 //         $match: {
@@ -1616,185 +1650,253 @@ cron.schedule("02 00 * * *", async () => {
 // bill count upload
 // app.get("/bill-count", async (req: Request, res: Response) => {
 //   try {
-//     console.log("Starting bill count upload...");
+//     console.log("🚀 Starting bill processing...");
 
-//     const excelPath = "./src/uploads/AllianceBilling-09.xlsx";
+//     const excelPath = "./src/uploads/HB.xlsx";
 //     const outputDir = "./src/uploads/generated";
-//     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-//     const jsonPath = path.join(outputDir, `bill-count-hou${Date.now()}.json`);
 
-//     // Fetch EMIs and customers once
-//     const customers = await Customer.find({}).lean();
-//     const emis = await Emi.find({ oldData: true }).lean();
-
-//     // Maps for fast lookup
-//     const customerMap = new Map<string, any>();
-//     for (const c of customers) {
-//       if (c.id) customerMap.set(c.id.toString(), c);
+//     if (!fs.existsSync(outputDir)) {
+//       fs.mkdirSync(outputDir, { recursive: true });
 //     }
 
-//     const emiMap = new Map<string, any>();
-//     for (const e of emis) {
-//       if (e.emiNo && e.customer) {
-//         emiMap.set(`${e.emiNo.toString()}|${e.customer.toString()}`, e);
+//     const jsonPath = path.join(
+//       outputDir,
+//       `bill-count-${Date.now()}.json`
+//     );
+
+//     const emiPath = path.join(
+//       outputDir,
+//       `emi-update-${Date.now()}.json`
+//     );
+
+//     console.log("Loading customers & EMIs...");
+
+//     const customers = await Customer.find({}).lean();
+//     const emis = await Emi.find({}).lean();
+
+//     const customerMap = new Map<string, any>();
+
+//     for (const c of customers) {
+//       if (c.id) {
+//         customerMap.set(c.id.toString(), c);
 //       }
 //     }
 
-//     const bills: any[] = [];
-//     let emi :any[] = [];
-//     let bulkOperations: any[] = [];
-//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
-//       entries: "emit",
-//       worksheets: "emit",
-//       sharedStrings: "cache",
-//       styles: "ignore",
-//       hyperlinks: "ignore",
+//     const emiMap = new Map<string, any>();
+
+//     for (const e of emis) {
+//       if (e.emiNo && e.customer) {
+//         emiMap.set(`${e.emiNo}|${e.customer}`, e);
+//       }
+//     }
+
+//     console.log("Customers:", customerMap.size);
+//     console.log("EMIs:", emiMap.size);
+
+//     const workbook = XLSX.readFile(excelPath);
+
+//     const sheetName = workbook.SheetNames[0];
+
+//     const sheet = workbook.Sheets[sheetName];
+
+//     const rows: any[] = XLSX.utils.sheet_to_json(sheet, {
+//       defval: null
 //     });
 
-//     console.log("🚀 mass Excel Processing...");
+//     const bills: any[] = [];
+//     const bulkOperations: any[] = [];
 
-//     workbook.on("worksheet", (worksheet: any) => {
-//       worksheet.on("row", (row: any) => {
-//         if (row.number === 1) return;
+//     console.log("Total Excel rows:", rows.length);
 
-//         const customerCode = row.getCell(4).text?.trim();
-//         const salesNo = row.getCell(2).value;
+//     for (let i = 0; i < rows.length; i++) {
 
-//         console.log({ customerCode, salesNo });
+//       const row = rows[i];
 
-//         if (!customerCode || !salesNo) return;
+//       const customerCode = row["CustomerCode"] || row["customerCode"];
 
-//         const customer = customerMap.get(customerCode.toString()) || null;
-//         console.log({ customer });
-//         if (!customer) return;
+//       if (!customerCode) continue;
 
-//         const emiKey = `${row.getCell(14).value.toString()}|${customer._id.toString()}`;
-//         const emi = emiMap.get(emiKey) || null;
+//       const customer = customerMap.get(customerCode.toString());
 
-//         if (row.number === 5) {
-//           console.log({ emiKey, emi });
-//         }
+//       if (!customer) {
+//         console.log("Customer not found:", customerCode);
+//         continue;
+//       }
 
-//         // console.log(excelDateToJSDate(row.getCell(10).value), row.getCell(10).value, new Date(row.getCell(10).value) === null );
-//         let payDate =  typeof row.getCell(10).value  === "string" ?   row.getCell(10).value : excelDateToJSDate(row.getCell(10).value) 
-//         bills.push({
-//           general: emi?.general || null,
-//           customer: customer._id,
-//           introducer: customer?.ddId || null,
-//           introducerByModel: "MarketDetail",
-//           customerCode: customerCode,
-//           phone: row.getCell(5).value,
-//           sSalesNo: salesNo,
-//           paymentDate: payDate ,
-//           amountPaid: row.getCell(11).value,
-//           bookingId: row.getCell(12).value,
-//           emiNo: row.getCell(14).value,
-//           modeOfPayment: row.getCell(15).value,
-//           remarks: row.getCell(16).value,
-//           createdBy: row.getCell(17).value,
-//           totalAmount: row.getCell(18).value,
-//           balanceAmount: row.getCell(19).value,
-//           emi: emi?._id || null,
-//           oldData: true,
-//           createdAt: new Date(),
-//           updatedAt: new Date(),
-//           paidDate: emi?.paidDate ? true : false
-//         });
-//         // emi.push({
-//         //   updateOne: {
-//         //     filter: { _id: emi?._id },
-//         //     update: {
-//         //       $set: {
-//         //         paidDate:excelDateToJSDate(row.getCell(10).value),
-//         //         update: true
-//         //       },
-//         //     },
-//         //   },
-//         // });
+//       const emiNo = row["SE_EMI_No"] || row["emiNo"];
 
-//         console.log( typeof row.getCell(10).value  === "string" ?  row.getCell(10).value: excelDateToJSDate(row.getCell(10).value) )
+//       const emiKey = `${emiNo}|${customer._id}`;
 
+//       const emi = emiMap.get(emiKey);
+
+//       const payDateF = row["PaidDate"];
+
+//       let payDate = typeof payDateF === "string" ? payDateF : excelDateToJSDate(payDateF)
+
+//       bills.push({
+//         general: emi?.general || null,
+//         customer: customer._id,
+//         introducer: customer?.ddId || null,
+//         introducerByModel: "MarketDetail",
+//         customerCode: customerCode,
+//         phone: row["Phone"],
+//         paymentDate: payDate,
+//         amountPaid: row["SE_EMI_Paid_Amt"],
+//         bookingId: row["Booking_Id"],
+//         emiNo: emiNo,
+//         modeOfPayment: row["PayMode"],
+//         remarks: row["Remarks"],
+//         createdBy: row["CreatedBy"],
+//         totalAmount: row["Total_Amount"],
+//         balanceAmount: row["Total_Balance"],
+//         emi: emi?._id || null,
+//         oldData: true,
+//         projectId: customer.projectId,
+//         createdAt: new Date(),
+//         updatedAt: new Date()
+//       });
+
+//       if (emi?._id) {
 //         bulkOperations.push({
 //           updateOne: {
-//             filter: { _id: emi?._id },
+//             filter: { _id: emi._id },
 //             update: {
 //               $set: {
-//                 paidDate:new Date(payDate) ,
-//                 paidAmt: row.getCell(11).value,
+//                 paidDate: payDate ? new Date(payDate) : null,
+//                 paidAmt: row["SE_EMI_Paid_Amt"],
 //                 update: true
-//               },
-//             },
-//           },
-//         })
-
-//         if (row.number % 1000 === 0) console.log(`Processed ${row.number} rows`);
-//       });
-//     });
-
-//     // workbook.on("end", () => {
-//     //   fs.writeFileSync(jsonPath, JSON.stringify(bills, null, 2));
-//     //   console.log("✅ Bill JSON generated:", jsonPath);
-
-//     //   res.status(200).json({
-//     //     success: true,
-//     //     file: jsonPath,
-//     //     count: bills.length,
-//     //     data: bulkOperations,
-//     //   });
-//     // });
-
-//     // workbook.on("error", (err: any) => {
-//     //   console.error("Excel read error:", err);
-//     //   res.status(500).json({ success: false, message: "Failed to read Excel file" });
-//     // });
-
-//     workbook.on("finished", async () => {
-//         try {
-//           console.log("📦 Starting Bulk Update...");
-//           const BATCH_SIZE = 1000;
-
-//           for (let i = 0; i < bulkOperations.length; i += BATCH_SIZE) {
-//             const batch = bulkOperations.slice(i, i + BATCH_SIZE);
-//             let update = await Emi.bulkWrite(batch, { ordered: false });
-//             console.log(`✅ Updated ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+//               }
+//             }
 //           }
+//         });
+//       }
 
-//           fs.writeFileSync(jsonPath, JSON.stringify(bills, null, 2));
+//       if (i % 1000 === 0) {
+//         console.log(`Processed ${i} rows`);
+//       }
+//     }
 
-//           console.log("🎉 Completed Successfully");
+//     let batchSize = 1000;
 
-//           res.status(200).json({
-//             success: true,
-//             totalBills: bills.length,
-//             data: bulkOperations,
-//             file: jsonPath
-//           });
+//     for (let i = 0; i < bills.length; i += batchSize) {
+//       const batch = bulkOperations.slice(i, i + batchSize);
+//       let update = await Emi.bulkWrite(batch, { ordered: false });
+//       console.log(`Processed batch ${i + batchSize}, matchecd ${update.matchedCount}, modified ${update.modifiedCount}`);
+//     }
 
-//         } catch (error) {
-//           console.error("Bulk write error:", error);
-//           res.status(500).json({
-//             success: false,
-//             message: "Bulk write failed"
-//           });
-//         }
-//       });
-//     // });
+//     fs.writeFileSync(jsonPath, JSON.stringify(bills, null, 2));
+//     fs.writeFileSync(emiPath, JSON.stringify(bulkOperations, null, 2));
 
-//     workbook.on("error", (err: any) => {
-//       console.error("Excel error:", err);
-//       res.status(500).json({
-//         success: false,
-//         message: "Excel read failed"
-//       });
+//     console.log("🎉 Completed Successfully");
+
+//     res.json({
+//       success: true,
+//       totalRows: rows.length,
+//       bills: bills.length,
+//       updates: bulkOperations.length,
+//       billFile: jsonPath,
+//       emiFile: emiPath
 //     });
 
-//     await workbook.read();
-//   } catch (err) {
-//     console.error("Server error:", err);
-//     res.status(500).json({ success: false, message: "Internal server error" });
+//   } catch (error) {
+
+//     console.error(error);
+
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+
 //   }
 // });
 
+// bill count upload
+// app.get("/emi-count", async (req: Request, res: Response) => {
+//   try {
+//     console.log("starting")
+//     let getAllBill = await Billing.find({}).lean();
+//     let billMap = new Map();
+
+//     const outputDir = "./src/uploads/generated";
+
+//     if (!fs.existsSync(outputDir)) {
+//       fs.mkdirSync(outputDir, { recursive: true });
+//     }
+
+//     const jsonPath = path.join(
+//       outputDir,
+//       `bill-count-${Date.now()}.json`
+//     );
+//     for (let i = 0; i < getAllBill.length; i++) {
+//       const element = getAllBill[i];
+//       if(element.emi){
+//         billMap.set(element.emi.toString(), element);
+//       }
+//     }
+//     console.log(billMap.size, " size of emi " , getAllBill.length)
+
+//     let bulkUpdate:any = []
+
+//     let getAllEmi = await Emi.find({
+//   $or: [
+//     { paidDate: { $type: "number" } },
+    
+    
+//     { paidDate: null }
+    
+//   ]
+// }).lean();
+    
+//     for (let index = 0; index < getAllEmi.length; index++) {
+//       const element = getAllEmi[index];
+
+//       let getBill = billMap.get(element._id.toString());
+
+//       if(getBill){
+//         bulkUpdate.push({
+//           updateOne: {
+//             filter: { _id: element._id },
+//             update: {
+//               $set: {
+//                 paidDate: getBill.paymentDate ? new Date(getBill.paymentDate) : null,
+//                 paidAmt: getBill.amountPaid,
+//                 update: true
+//               }
+//             }
+//           }
+//         })
+//       }
+//     }
+
+//     let batchSize = 1000;
+
+//     for (let i = 0; i < bulkUpdate.length; i += batchSize) {
+//       const batch = bulkUpdate.slice(i, i + batchSize);
+//       let update = await Emi.bulkWrite(batch, { ordered: false });
+//       console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+//     }
+
+
+//     // fs.writeFileSync(jsonPath, JSON.stringify(not, null, 2));
+
+//     res.json({
+//       success: true,
+//       // totalRows: getAllEmi.length,
+//       // updates: bulkUpdate.length,
+//       emiFile: jsonPath
+//     })
+
+//   } catch (error) {
+
+//     console.error(error);
+
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error"
+//     });
+
+//   }
+// });
 
 // app.get("/bulk/emi/paid",async(req,res)=>{
 //   try{
@@ -1876,5 +1978,728 @@ cron.schedule("02 00 * * *", async () => {
 //     });
 //   }
 // })
+
+// app.get("/update/id/:id", async (req: Request, res: Response) => {
+//   try {
+//     console.log("🚀 Starting General Update...");
+//     let id = req.params.id;
+//     let getCustomer;
+//     let err;
+//     [err, getCustomer] = await toAwait(Customer.find({ id: id }));
+//     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+//     if (!getCustomer) {
+//       return ReE(res, { message: "customer not found given id" }, httpStatus.NOT_FOUND);
+//     }
+//     let customerNoBill:any[]=[]
+//     let customerNoGen:any[]=[]
+//     let customerNoEmi:any[]=[]
+//     getCustomer = getCustomer as ICustomer[];
+//     console.log(getCustomer.length, getCustomer)
+//     for (let index = 0; index < getCustomer.length; index++) {
+//       const element = getCustomer[index];
+
+//       let getAllBilling;
+//       [err, getAllBilling] = await toAwait(Billing.find({ customer: element._id }));
+//       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+//       if (!getAllBilling) {
+//         return ReE(res, { message: "billing not found given id" }, httpStatus.NOT_FOUND);
+//       }
+//       getAllBilling = getAllBilling as IBilling[];
+
+//       if(getAllBilling.length === 0){
+//         customerNoBill.push(element._id)
+//       }
+
+//       let getAllGeneral;
+//       [err, getAllGeneral] = await toAwait(General.find({ customer: element._id }));
+//       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+//       if (!getAllGeneral) {
+//         return ReE(res, { message: "general not found given id" }, httpStatus.NOT_FOUND);
+//       }
+//       getAllGeneral = getAllGeneral as IGeneral[];
+
+//       if(getAllGeneral.length === 0){
+//         customerNoGen.push(element._id)
+//       }
+
+//       let getAllEmi;
+//       [err, getAllEmi] = await toAwait(Emi.find({ customer: element._id }));
+//       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+//       if (!getAllEmi) {
+//         return ReE(res, { message: "emi not found given id" }, httpStatus.NOT_FOUND);
+//       }
+//       getAllEmi = getAllEmi as IEmi[];
+
+//       if(getAllEmi.length === 0){
+//         customerNoEmi.push(element._id)
+//       }
+      
+//     }
+
+//     // let deleteBulk;
+//     // [err,deleteBulk] = await toAwait(Billing.deleteMany({customer: {$in: customerNoBill}}))
+    
+//     let deleteCus;
+//     [err,deleteCus] = await toAwait(Customer.deleteMany({_id: {$in: customerNoBill}}))
+
+
+//     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+//     ReS(res, { message: "customer updated successfully", data: {   customerNoBill, customerNoGen, customerNoEmi } }, httpStatus.OK);
+//   } catch (error) {
+    
+//   }
+// })
+
+// app.get("/mass",  async (req: Request, res: Response) => {
+
+//   try {
+//     console.log("🚀 Starting General Update...");
+//     let bulkUpdate:any[] = []
+//     let notFound :any[] = []
+//     let getAllCustomer = await Customer.find({}).lean();
+//     let customerMap = new Map();
+//     for (let index = 0; index < getAllCustomer.length; index++) {
+//       const element = getAllCustomer[index];
+//       customerMap.set(element._id.toString(), element)
+//     }
+//     let getAllEmi = await Emi.find().lean();
+//     console.log(getAllEmi.length," getAllEmi length")
+//     for (let index = 0; index < getAllEmi.length; index++) {
+//       const element = getAllEmi[index];
+
+//       let findCustomer = customerMap.get(element.customer?.toString())
+//       if(findCustomer){
+//         bulkUpdate.push({
+//           updateOne: {
+//             filter: { _id: element._id },
+//             update: {
+//               $set: {
+//                 customerCode: findCustomer.id,
+//                 supplierCode: findCustomer.id
+//               }
+//             }
+//           }
+//         })
+//       }else{
+//         notFound.push(element._id)
+//       }
+
+//       if(index % 1000 === 0){
+//         console.log("🚀 ~ file: index.ts:429 ~ app.get ~ element:", index);
+//       }
+      
+//     }
+
+//     let BATCH_SIZE = 1000;
+//     let totalProcessed = 0;
+//     let totalUpdated = 0;
+//     console.log(bulkUpdate.length)
+//     for (let i = 0; i < bulkUpdate.length; i += BATCH_SIZE) {
+//       let batch = bulkUpdate.slice(i, i + BATCH_SIZE);
+//       let result = await Emi.bulkWrite(batch);
+//       totalProcessed += batch.length;
+//       totalUpdated += result.modifiedCount;
+//       console.log(`✅ Updated ${i + batch.length} maches record of ${result.matchedCount} | Updated: ${result.modifiedCount}`);
+//     }
+
+//     const outputDir = "./src/uploads/generated";
+//     const jsonPath = path.join(outputDir, `bill-count-hou${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath, JSON.stringify(bulkUpdate))
+
+//     ReS(res, { message: "customer updated successfully", data: {data:bulkUpdate.length, emi: getAllEmi.length  } }, httpStatus.OK);
+//   } catch (error:any) {
+//     ReE(res, { message: error.message }, httpStatus.INTERNAL_SERVER_ERROR);
+//   }
+
+// })
+
+//step 1
+app.get("/update/customer",  async (req: Request, res: Response) => {
+  try {
+    let id= [
+      "LSSP(2)1744",
+      "LIP-4C-0008",
+      "LSSP(2)2858",
+      "LSSP(5)0035",
+      "NVT0313",
+      "LSG0041",
+      "NVT1340",
+      "LSSP(6)0004"
+    ]
+    let getAllCustomer = await Customer.find({id:{$in:id}}).lean();
+    let customerMap = new Map();
+    let dupCus = []
+    for (let index = 0; index < getAllCustomer.length; index++) {
+      const element = getAllCustomer[index];
+      if (element.id && !customerMap.has(element.id.toString())) {
+        customerMap.set(element.id.toString(), element);
+      }else if(element.id && customerMap.has(element.id.toString())){
+        dupCus.push(element._id)
+      }
+    }
+
+    // let bulk = await Customer.deleteMany({ _id: { $in: dupCus } });
+
+    // console.log(`update ${bulk.deletedCount}`)
+    res.json({dupCus,getAllCustomer:customerMap.size, get:getAllCustomer.length})
+  } catch (err) {
+    ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
+  }
+})
+
+//step 3 skip for alliance
+// app.get("/update/general1",  async (req: Request, res: Response) => {
+//   try {
+//     const outputDir = "./src/uploads/General.json";
+//     // let id= ["LJBN0013","LLD0016","LLD0022","LMC0022","LSN0005","LSN0021","LSN0034","LSN0066","LSN0071","LSSP(2)0017","LSSP(2)0071","LSSP(2)0383","LSSP(2)0518","LSSP(2)0672","LSSP(2)0738","LSSP(2)0947","LSSP(2)1252","LSSP(2)1333","LSSP(2)1336","LSSP(2)1344","LSSP(2)1395","LSSP(2)1472","LSSP(2)1481","LSSP(2)1486","LSSP(2)1709","LSSP(2)1906","LSSP(2)2130","LSSP(2)2132","LSSP(2)2150","LSSP(2)2207","LSSP(2)2487","LSSP(2)2536","LSSP(2)2538","LSSP(2)2543","LSSP(2)2558","LSSP(2)2561","LSSP(2)2625","LSSP(2)2662","LSSP(2)2833","LSSP(3)0032","LSSP(3)0367","LSSP(3)0799","LSSP(3)0807","LSSP(3)0828","LSSP(3)1136","LSSP(5)0033","NVT0007","NVT0020","NVT0023","NVT0032","NVT0103","NVT0106","NVT0117","NVT0121","NVT0125","NVT0157","NVT0166","NVT0174","NVT0227","NVT0252","NVT0273","NVT0282","NVT0291","NVT0295","NVT0312","NVT0378","NVT0487","NVT0488","NVT0502","NVT0566","NVT0768","NVT0851","NVT0856","NVT0885","NVT0921","NVT0928","NVT1012","NVT1227"]
+//     let readJson = JSON.parse(fs.readFileSync(outputDir, "utf8"));
+//     // let getAllCustomer = await Customer.find({id:{$in:readJson.map((element: any) => element.supplierCode)}}).lean();
+//     let genMap = new Map();
+
+//     let dupCus = []
+//     let getAllGeneral = await General.find({supplierCode: {$in:readJson.map((element: any) => element.supplierCode)}}).lean();
+//     for (let index = 0; index < getAllGeneral.length; index++) {
+//       const element = getAllGeneral[index];
+//       if (element.supplierCode && !genMap.has(element.supplierCode.toString()+"|"+element.noOfInstallments?.toString())) {
+//         genMap.set(element.supplierCode.toString()+"|"+element.noOfInstallments?.toString(), element);
+//       }else if(element.supplierCode && genMap.has(element.supplierCode.toString()+"|"+element.noOfInstallments?.toString())){
+//         dupCus.push(element._id)
+//       }
+//       console.log("🚀 ~ file: index.ts:429 ~ app.get ~ element:"+ index + " " +genMap.has(element?.supplierCode?.toString()+"|"+element.noOfInstallments?.toString()))
+//     }
+
+//     // let bulk = await General.deleteMany({ _id: { $in: dupCus } });
+
+//     // console.log(`update ${bulk.deletedCount}`)
+//     // let getAllEmi = await Emi.find({customerCode: {$in:id }}).lean();
+//     // for(let emi of getAllEmi){
+//     //   let findCustomer = customerMap.get(emi.customerCode?.toString);
+//     //   if(findCustomer){
+//     //     await Emi.updateOne({ _id: emi._id }, {
+//     //       $set: {
+//     //         customerCode: findCustomer.id,
+//     //         supplierCode: findCustomer.id
+//     //       }
+//     //     })
+//     //   }
+//     // }
+//     res.json({dupCus,genmap:genMap.size, gen:getAllGeneral.length })
+//   } catch (err) {
+//     console.log(err)
+//     ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
+//   }
+// })
+
+//step 4
+// app.get("/update/general2",  async (req: Request, res: Response) => {
+//   try {
+//     const outputDir = "./src/uploads/General.json";
+//     let id= [
+//       "LSSP(2)1744",
+//       "LIP-4C-0008",
+//       "LSSP(2)2858",
+//       "LSSP(5)0035",
+//       "NVT0313",
+//       "LSG0041",
+//       "NVT1340",
+//       "LSSP(6)0004"
+//     ]
+//     // let readJson = JSON.parse(fs.readFileSync(outputDir, "utf8"));
+//     let genMap = new Map();
+
+//     let dupCus = []
+//     let getAllGeneral = await General.find({supplierCode: {$in: id}}).lean();
+//     for (let index = 0; index < getAllGeneral.length; index++) {
+//       const element = getAllGeneral[index];
+//       if (element.supplierCode && !genMap.has(element.supplierCode.toString())) {
+//         genMap.set(element.supplierCode.toString(), element);
+//       }else if(element.supplierCode && genMap.has(element.supplierCode.toString())){
+//         dupCus.push(element._id)
+//       }
+//       console.log("🚀 ~ file: index.ts:429 ~ app.get ~ element:"+ index + " " +genMap.has(element?.supplierCode?.toString()+"|"+element.noOfInstallments?.toString()))
+//     }
+
+//     let bulk = await General.deleteMany({ _id: { $in: dupCus } });
+
+//     console.log(`update ${bulk.deletedCount}`)
+//     // let getAllEmi = await Emi.find({customerCode: {$in:id }}).lean();
+//     // for(let emi of getAllEmi){
+//     //   let findCustomer = customerMap.get(emi.customerCode?.toString);
+//     //   if(findCustomer){
+//     //     await Emi.updateOne({ _id: emi._id }, {
+//     //       $set: {
+//     //         customerCode: findCustomer.id,
+//     //         supplierCode: findCustomer.id
+//     //       }
+//     //     })
+//     //   }
+//     // }
+//     res.json({dupCus,genmap:genMap.size, gen:getAllGeneral.length })
+//   } catch (err) {
+//     console.log(err)
+//     ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
+//   }
+// })
+
+// app.get("/update/gen/code", async (req: Request, res: Response) => {
+//   try {
+//     let getAll = await Customer.find({}).lean();
+//     let customerMap = new Map();
+//     for (let index = 0; index < getAll.length; index++) {
+//       const element = getAll[index];
+//       if (element._id && !customerMap.has(element._id.toString())) {
+//         customerMap.set(element._id.toString(), element);
+//       }
+//     }
+//     let bulk :any[] =[]
+//     let not :any[] =[]
+//     let getAllGeneral = await General.find({supplierCode:null}).lean();
+//     for (let index = 0; index < getAllGeneral.length; index++) {
+//       const element = getAllGeneral[index];
+//       let findCustomer = customerMap.get(element.customer?.toString());
+//       if(findCustomer){
+//         bulk.push({
+//           updateOne: {
+//             filter: { _id: element._id },
+//             update: {
+//               $set: {
+//                 supplierCode: findCustomer.id
+//               }
+//             }
+//           }
+//         })
+//       }else{
+//         not.push(element._id)
+//       }
+//     }
+//     let bulkRes = await General.bulkWrite(bulk);
+//     console.log(bulkRes)
+//     return res.json({not,bulk, gen:getAllGeneral.length })
+//   } catch (error) {
+//     res.json(error)
+//   }
+// })
+
+//step 2
+// app.get("/update/mass",  async (req: Request, res: Response) => {
+//   try {
+//     let id= [
+//       "LSSP(2)1744",
+//       "LIP-4C-0008",
+//       "LSSP(2)2858",
+//       "LSSP(5)0035",
+//       "NVT0313",
+//       "LSG0041",
+//       "NVT1340",
+//       "LSSP(6)0004"
+//     ]
+//     let getAllCustomer = await Customer.find({id:{$in:id}}).lean();
+//     let customerMap = new Map();
+//     let dupCus = []
+//     for (let index = 0; index < getAllCustomer.length; index++) {
+//       const element = getAllCustomer[index];
+//       if (element.id && !customerMap.has(element.id.toString())) {
+//         customerMap.set(element.id.toString(), element);
+//       }
+//     }
+
+//     let emiBulk :any[] = []
+//     let emiNot: any[] =[]
+//     let genBulk :any[] = []
+//     let genNot: any[] =[]
+//     let billBulk :any[] = []
+//     let billNot: any[] =[]
+
+//     let getAllEmi = await Emi.find({customerCode: {$in:id }}).lean();
+//     for(let emi of getAllEmi){
+//       let findCustomer = customerMap.get(emi.customerCode?.toString());
+//       if(findCustomer){
+//         emiBulk.push({
+//           updateOne: {
+//             filter: { _id: emi._id },
+//             update: {
+//               $set: {
+//                 customer: findCustomer._id
+//               }
+//             }
+//           }
+//         })
+//       }else{
+//         emiNot.push(emi.customerCode)
+//       }
+//     }
+//     let getAllBill = await Billing.find({customerCode: {$in:id }}).lean();
+//     for(let bill of getAllBill){
+//       let findCustomer = customerMap.get(bill.customerCode?.toString());
+//       if(findCustomer){
+//         billBulk.push({
+//           updateOne: {
+//             filter: { _id: bill._id },
+//             update: {
+//               $set: {
+//                 customer: findCustomer._id
+//               }
+//             }
+//           }
+//         })
+//       }else{
+//         billNot.push(bill.customerCode)
+//       }
+//     }
+
+//     let getAllgen = await General.find({supplierCode: {$in:id }}).lean();
+//     for(let gen of getAllgen){
+//       let findCustomer = customerMap.get(gen.supplierCode?.toString());
+//       console.log(gen.supplierCode,findCustomer, customerMap.size)
+//       if(findCustomer){
+//         genBulk.push({
+//           updateOne: {
+//             filter: { _id: gen._id },
+//             update: {
+//               $set: {
+//                 customer: findCustomer._id
+//               }
+//             }
+//           }
+//         })
+//       }else{
+//         genNot.push(gen.supplierCode)
+//       }
+//     }
+
+//     console.log(getAllBill.length," emi ",getAllEmi.length, " egn " , getAllgen.length)
+
+//     const BATCH_SIZE = 1000;
+
+//     for (let i = 0; i < emiBulk.length; i += BATCH_SIZE) {
+//       const batch = emiBulk.slice(i, i + BATCH_SIZE);
+//       let update = await Emi.bulkWrite(batch, { ordered: false });
+//       console.log(`✅ Updated emi ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+//     }
+//     for (let i = 0; i < billBulk.length; i += BATCH_SIZE) {
+//       const batch = billBulk.slice(i, i + BATCH_SIZE);
+//       let update = await Billing.bulkWrite(batch, { ordered: false });
+//       console.log(`✅ Updated bill ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+//     }
+//     for (let i = 0; i < genBulk.length; i += BATCH_SIZE) {
+//       const batch = genBulk.slice(i, i + BATCH_SIZE);
+//       let update = await General.bulkWrite(batch, { ordered: false });
+//       console.log(`✅ Updated general ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+//     }
+
+//     const outputDir = "./src/uploads/generated";
+//     const jsonPath = path.join(outputDir, `emi${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath, JSON.stringify(emiBulk))
+//     const jsonPath1 = path.join(outputDir, `emiNot${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath1, JSON.stringify(emiNot))
+//     const jsonPath2 = path.join(outputDir, `gen${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath2, JSON.stringify(genBulk))
+//     const jsonPath3= path.join(outputDir, `gen${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath3, JSON.stringify(genNot))
+//     const jsonPath4 = path.join(outputDir, `bill${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath4, JSON.stringify(billBulk))
+//     const jsonPath5 = path.join(outputDir, `bill${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath5, JSON.stringify(billNot))
+
+//     res.json({emi:emiBulk.length,emiNot:emiNot.length,gen:genBulk.length,genNot:genNot.length,bill:billBulk.length,billNot:billNot.length})
+//   } catch (err) {
+//     ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
+//   }
+// })
+
+// app.get("/update/general",  async (req: Request, res: Response) => {
+//   try {
+//     let id= ["LASS-2-0329","LASS-2-0399","LASS-2-0405","LASS-2-0633","LASS-2-0700","LASS-2-1049","LASS-2-1164","LASS-2-1234","LASS-2-1477","LASS-2-1520","LASS-2-1736","LASS-2-1738","LASS-2-1821","LASS-2-1953","LASS-2-2034","LASS-2-2074","LASS-2-2112","LASS-2-2159","LASS-2-2372","LASS-2-2597","LASS-2-2642","LASS-2-2643","LASS-2-2645","LASS-2-2646","LASS-2-2647","LASS-2-2811","LASS-2-2812","LASS-2-2829","LASS-2-2917","LASS-2-2977","LASS-2-3014","LASS-2-3037","LASS-2-3286","LASS-2-3480","LASS-2-3567","LASS-2-3575","LASS-2-3576","LASS-2-3676","LASS-2-3688","LASS-2-4051","LASS-2-4667","LASS-2-4846","LASS-2-4856","LASS-2-5122","LASS-2-5333","LASS-2-5374","LASS-2-5379","LASS-2-5395","LASS-2-5532","LASS-2-5885","LASS-2-5977","LASS-3-0249","LASS-3-0264","LASS-3-0326","LASS-3-0943","LASS-3-0969","LASS-3-0977","LASS-3-1024","LASS-3-1109","LASS-3-1113","LASS-3-1258","LASS-3-1377","LASS-3-1496","LASS-3-1525","LASS-3-1598","LASS-3-1651","LASS-3-1838","LASS-3-1886","LASS-3-1918","LASS-3-1973","LASS-3-2069","LASS-3-2343","LASS-3-2561","LASS-3-2567","LASS-3-2973","LASS-3-2977","LASS-3-2987","LASS-4-0102","LASS-4-0319","LASS-5-0017","LASS-5-0043","LASS-5-0138","LASS-5-0336","LASS-9-0100","LASS-9-0542","LSS-1-0046","LSS-16-0480","LSS-16-0680","LSS-16-0690","LSS-16-1232","LSS-16-1661","LSS-16-1691","LSS-16-1715","LSS-16-1802","LSS-18-0103","LSS-18-0238","LSS-18-1104","LSS-18-1155","LSS-21-0161","LSS-22-0352","LSS-24-0007","LSS-24-0018","LSS-26-0250","LSS-26-0277","LSS-26-0356","LSS-26-0739","LSS-26-0865","LSS-26-0964","LSS-26-0967","LSS-26-0978","LSS-26-0988","LSS-26-1020","LSS-26-1054","LSS-26-1069","LSS-26-1152","LSS-26-1468","LSS-26-1541","LSS-26-1564","LSS-26-1633","LSS-26-1641","LSS-26-1642","LSS-26-1643","LSS-26-1644","LSS-26-1645","LSS-26-1646","LSS-26-1647","LSS-26-1648","LSS-26-1716","LSS-26-1725","LSS-26-1768","LSS-26-2025","LSS-26-2082","LSS-26-2087","LSS-26-2135","LSS-26-2521","LSS-26-2539","LSS-26-2797","LSS-26-3486","LSS-26-3682","LSS-26-4012","LSS-26-4036","LSS-26-4285","LSS-26-4776","LSS-26-4858","LSS-26-4883","LSS-26-5032","LSS-26-5046","LSS-26-5052","LSS-26-5277","LSS-26-5285","LSS-26-5540","LSS-26-5568","LSS-26-5814","LSS-26-5815","LSS-26-5822","LSS-26-5899","LSS-26-5922","LSS-26-6051","LSS-26-6321","LSS-26-6430","LSS-26-6444","LSS-26-6644","LSS-26-6655","LSS-26-6796","LSS-26-6978","LSS-26-7017","LSS-26-7104","LSS-26-7739","LSS-26-7808","LSS-26-7992","LSS-26-8072","LSS-26-8239","LSS-26-8265","LSS-26-8546","LSS-26-8661","LSS-26-8710","LSS-26-8741","LSS-26-8774","LSS-26-8775","LSS-26-8834","LSS-26-8837","LSS-26-8854","LSS-26-8856","LSS-26-8997","LSS-26-9024","LSS-26-9028","LSS-26-9043","LSS-26-9164","LSS-26-9187","LSS-26-9189","LSS-26-9262","LSS-29-0096","LSS-30-0028","LSS-5-0018","LSS-5-0128","LSS-5-0236","LSS-6-0152","LSS-6-0327","LSS-6-0452","LSS-6-0909","LSS-6-1252","LSS-6-1361","LSS-6-1372","LSS-6-1472","LSS-6-1476","LSS-6-1655","LSS-6-1759","LSS-6-1808","LSS-6-1945","LSS-6-1952","LSS-6-2228","LSS-6-2232","LSS-6-2281","LSS-6-2525","LSS-6-2823","LSS-6-2824","LSS-6-3169","LSS-6-3374","LSS-6-3447","LSS-6-3491","LSS-8-0419","LSS-8-0438","LSS-9-0087","LSS-9-0950","LSS-9-1103","LSS-9-1190"]
+//     let getAllCustomer = await Customer.find({id:{$in:id}}).lean();
+//     let customerMap = new Map();
+//     let dupCus = []
+//     for (let index = 0; index < getAllCustomer.length; index++) {
+//       const element = getAllCustomer[index];
+//       if (element.id && !customerMap.has(element.id.toString())) {
+//         customerMap.set(element.id.toString(), element);
+//       }
+//     }
+
+//     let emiBulk :any[] = []
+//     let emiNot: any[] =[]
+//     let genBulk :any[] = []
+//     let genNot: any[] =[]
+//     let billBulk :any[] = []
+//     let billNot: any[] =[]
+
+//     let getAllEmi = await Emi.find({customerCode: {$in:id }}).lean();
+//     for(let emi of getAllEmi){
+//       let findCustomer = customerMap.get(emi.customerCode?.toString());
+//       if(findCustomer){
+//         emiBulk.push({
+//           updateOne: {
+//             filter: { _id: emi._id },
+//             update: {
+//               $set: {
+//                 customer: findCustomer._id
+//               }
+//             }
+//           }
+//         })
+//       }else{
+//         emiNot.push(emi.customerCode)
+//       }
+//     }
+//     let getAllBill = await Billing.find({customerCode: {$in:id }}).lean();
+//     for(let bill of getAllBill){
+//       let findCustomer = customerMap.get(bill.customerCode?.toString());
+//       if(findCustomer){
+//         billBulk.push({
+//           updateOne: {
+//             filter: { _id: bill._id },
+//             update: {
+//               $set: {
+//                 customer: findCustomer._id
+//               }
+//             }
+//           }
+//         })
+//       }else{
+//         billNot.push(bill.customerCode)
+//       }
+//     }
+
+//     let getAllgen = await General.find({supplierCode: {$in:id }}).lean();
+//     for(let gen of getAllgen){
+//       let findCustomer = customerMap.get(gen.supplierCode?.toString());
+//       console.log(gen.supplierCode,findCustomer, customerMap.size)
+//       if(findCustomer){
+//         genBulk.push({
+//           updateOne: {
+//             filter: { _id: gen._id },
+//             update: {
+//               $set: {
+//                 customer: findCustomer._id
+//               }
+//             }
+//           }
+//         })
+//       }else{
+//         genNot.push(gen.supplierCode)
+//       }
+//     }
+
+//     console.log(getAllBill.length," emi ",getAllEmi.length, " egn " , getAllgen.length)
+
+//     const BATCH_SIZE = 1000;
+
+//     for (let i = 0; i < emiBulk.length; i += BATCH_SIZE) {
+//       const batch = emiBulk.slice(i, i + BATCH_SIZE);
+//       let update = await Emi.bulkWrite(batch, { ordered: false });
+//       console.log(`✅ Updated emi ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+//     }
+//     for (let i = 0; i < billBulk.length; i += BATCH_SIZE) {
+//       const batch = billBulk.slice(i, i + BATCH_SIZE);
+//       let update = await Billing.bulkWrite(batch, { ordered: false });
+//       console.log(`✅ Updated bill ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+//     }
+//     for (let i = 0; i < genBulk.length; i += BATCH_SIZE) {
+//       const batch = genBulk.slice(i, i + BATCH_SIZE);
+//       let update = await General.bulkWrite(batch, { ordered: false });
+//       console.log(`✅ Updated general ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+//     }
+
+//     const outputDir = "./src/uploads/generated";
+//     const jsonPath = path.join(outputDir, `emi${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath, JSON.stringify(emiBulk))
+//     const jsonPath1 = path.join(outputDir, `emiNot${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath1, JSON.stringify(emiNot))
+//     const jsonPath2 = path.join(outputDir, `gen${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath2, JSON.stringify(genBulk))
+//     const jsonPath3= path.join(outputDir, `gen${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath3, JSON.stringify(genNot))
+//     const jsonPath4 = path.join(outputDir, `bill${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath4, JSON.stringify(billBulk))
+//     const jsonPath5 = path.join(outputDir, `bill${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath5, JSON.stringify(billNot))
+
+//     res.json({emi:emiBulk.length,emiNot:emiNot.length,gen:genBulk.length,genNot:genNot.length,bill:billBulk.length,billNot:billNot.length})
+//   } catch (err) {
+//     ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
+//   }
+// })
+
+//step 5
+// app.get("/update/bill",  async (req: Request, res: Response) => {
+//   try {
+//     let id= [
+//       "LSSP(2)1744",
+//       "LIP-4C-0008",
+//       "LSSP(2)2858",
+//       "LSSP(5)0035",
+//       "NVT0313",
+//       "LSG0041",
+//       "NVT1340",
+//       "LSSP(6)0004"
+//     ]
+//     let getAllCustomer = await General.find({supplierCode:{$in:id}}).lean();
+//     let genMap = new Map();
+//     let dupCus = []
+//     for (let index = 0; index < getAllCustomer.length; index++) {
+//       const element = getAllCustomer[index];
+//       if (element.supplierCode && !genMap.has(element.supplierCode.toString())) {
+//         genMap.set(element.supplierCode.toString(), element);
+//       }
+//     }
+
+//     let billBulk :any[] = []
+//     let billNot: any[] =[]
+
+//     let getAllBill = await Billing.find({customerCode: {$in:id }}).lean();
+//     for(let bill of getAllBill){
+//       let findgen = genMap.get(bill.customerCode?.toString());
+//       if(findgen){
+//         billBulk.push({
+//           updateOne: {
+//             filter: { _id: bill._id },
+//             update: {
+//               $set: {
+//                 general: findgen._id
+//               }
+//             }
+//           }
+//         })
+//       }else{
+//         billNot.push(bill.customerCode)
+//       }
+//     }
+
+//     const BATCH_SIZE = 1000;
+
+//     for (let i = 0; i < billBulk.length; i += BATCH_SIZE) {
+//       const batch = billBulk.slice(i, i + BATCH_SIZE);
+//       let update = await Billing.bulkWrite(batch, { ordered: false });
+//       console.log(`✅ Updated bill ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`);
+//     }
+
+//     const outputDir = "./src/uploads/generated";
+//     const jsonPath4 = path.join(outputDir, `bill${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath4, JSON.stringify(billBulk))
+//     const jsonPath5 = path.join(outputDir, `bill${Date.now()}.json`);
+//     fs.writeFileSync(jsonPath5, JSON.stringify(billNot))
+
+//     res.json({bill:billBulk.length,billNot:billNot.length})
+//   } catch (err) {
+//     ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
+//   }
+// })
+
+
+//step 6
+// app.get("/get/emi/null", async (req, res) => {
+//   try {
+//     console.log("start")
+//     let getAllEmi = await General.aggregate([
+//   {
+//     $lookup: {
+//       from: "emis",
+//       localField: "_id",
+//       foreignField: "general",
+//       as: "emiData"
+//     }
+//   },
+//   {
+//     $match: {
+//       emiData: { $eq: [] }
+//     }
+//   },
+//   {
+//     $project: {
+//       _id: 1
+//     }
+//   }
+// ])
+
+    // let deleteEmi = await Emi.deleteMany({
+    //   _id: {
+    //     $in: getAllEmi.map((emi) => emi._id)
+    //   }
+    // })
+
+    // console.log(getAllEmi.length,"getAllEmi")
+
+    // let getAllEmis = await Emi.find({}).lean();
+
+    // let emiMap = new Map();
+    // for (let index = 0; index < getAllEmis.length; index++) {
+    //   const element = getAllEmis[index];
+    //   if(element.customer && element.emiNo){
+    //     emiMap.set(element.customer.toString()+"|"+element.emiNo.toString(), element);
+    //   }
+    // }
+
+    // console.log(`process starting emi ${getAllEmi.length} , emiMap ${emiMap.size}`)
+    // let bulkOperations: any[] = [];
+    // let notFound: any[] = [];
+    // for (let index = 0; index < getAllEmi.length; index++) {
+    //   const element = getAllEmi[index];
+
+    //   let findEmi = emiMap.get(element.customer?.toString()+"|"+element.emiNo?.toString());
+    //   if(findEmi){
+    //     bulkOperations.push({
+    //       updateOne: {
+    //         filter: { _id: element._id },
+    //         update: {
+    //           $set: {
+    //             emi: findEmi._id
+    //           }
+    //         }
+    //       }
+    //     })
+    //   }else{
+    //     notFound.push({customer:element.customer,emiNo:element.emi, customerCode:element.customerCode})
+    //   }
+    // }
+
+    // let batchSize = 1000;
+    // for (let i = 0; i < bulkOperations.length; i += batchSize) {
+    //   const batch = bulkOperations.slice(i, i + batchSize);
+    //   let update = await Billing.bulkWrite(batch, { ordered: false });
+    //   console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+    // }
+
+    // let outputDir = "./src/uploads/generated";
+    // let jsonPath4 = path.join(outputDir, `emi-found${Date.now()}.json`);
+    // fs.writeFileSync(jsonPath4, JSON.stringify(bulkOperations))
+    // let jsonPath5 = path.join(outputDir, `emi-not-found${Date.now()}.json`);
+    // fs.writeFileSync(jsonPath5, JSON.stringify(notFound))
+
+  //   res.json(getAllEmi.map(ele=>ele._id))
+  // } catch (err) {
+  //   ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
+  // }
+// })
+
+// app.get("/cus/dup", async(req,res)=>{
+//   try {
+//     let getAllCustomer = await Customer.aggregate([
+//       {
+//         $group: {
+//           _id: "$id",
+//           count: { $sum: 1 },
+//           docs: { $push: "$$ROOT" }
+//         }
+//       },
+//       {
+//         $match: {
+//           count: { $gt: 1 }
+//         }
+//       }
+//     ])
+
+
+
+//     res.json({dup:getAllCustomer.map(ele=>ele._id)})
+//   } catch (err) {
+//     ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
+//   }
+// })
+
 
 app.listen(port, () => console.log("Server running on port " + port));
