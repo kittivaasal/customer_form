@@ -346,7 +346,7 @@ export const createCommonData = async (req: Request, res: Response) => {
     );
   let createGeneral;
   [err, createGeneral] = await toAwait(
-    General.create({ ...general, customer: customerId }),
+    General.create({ ...general, customer: customerId, supplierCode: checkCustomer.id }),
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!createGeneral) {
@@ -381,6 +381,10 @@ export const createCommonData = async (req: Request, res: Response) => {
         emiNo: index + 1,
         emiAmt: general.emiAmount,
         general: id,
+        paidDate: null,
+        paidAmt: 0,
+        customerCode: checkCustomer.id,
+        supplierCode: checkCustomer.id,
       };
       await tryCreate(Emi, emi, "emi");
     }
@@ -870,7 +874,7 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
                 emiNo: lastEmiNo + i,
                 emiAmt: getGeneral.emiAmount,
                 date: getEmiDate(i, new Date(lastDueDate)),
-                paidDate: null,
+                paidDate: null
               });
             }
             await Emi.insertMany(newEmis);

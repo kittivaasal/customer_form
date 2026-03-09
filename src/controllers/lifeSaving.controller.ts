@@ -165,6 +165,7 @@ export const createLifeSaving = async (req: Request, res: Response) => {
                 project: projectData?._id,
                 customer: createCustomer._id,
                 emiAmount: projectData?.emiAmount,
+                supplierCode: createCustomer.id,    
                 noOfInstallments: projectData?.duration ? Number(projectData?.duration) : null
             }))
     
