@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import e, { Request, Response } from "express";
 import { Types } from "mongoose";
 import {CustomerEmiModel } from "../models/commision.model";
 
@@ -38,3 +38,33 @@ export const getCommissionByCustomer = async (
     });
   }
 };
+
+export const getCommissionByMarkerId = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // 1️⃣ Validate marketerId
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid marketer id",
+      });
+    }
+  
+    const data = await CustomerEmiModel.find({
+      "marketer.marketerId": id
+    }).lean();
+
+    return res.status(200).json({
+      success: true,
+      count: data.length,
+      data: data,
+    });
+  } catch (error:any) {
+    console.error("Get commission by marketer error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error Error : "+ error.message,
+    });
+  }
+}
