@@ -2956,7 +2956,7 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
         obj.remarks = null;
       }
       obj.modeOfPayment = modeOfPayment;
-      if (obj.modeOfPayment !== "Cash") {
+      if (obj.modeOfPayment !== "Cash" && obj.modeOfPayment !== "Others") {
         if (!referenceId) {
           return ReE(
             res,
