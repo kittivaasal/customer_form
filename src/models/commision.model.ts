@@ -190,6 +190,12 @@ const allianceCommissionSchema = new Schema<IAllianceCommission>(
 );
 
 /* ================================
+   Indexes
+================================ */
+
+allianceCommissionSchema.index({ "marketer.marketerId": 1 })
+
+/* ================================
    Model Export
 ================================ */
 
