@@ -276,13 +276,13 @@ export const getAllProject = async (req: Request, res: Response) => {
     total = count as number;
     totalPages = Math.ceil(total / limit);
 
-    if (page > totalPages) {
-      return ReE(
-        res,
-        { message: `Page no ${page} not available. The last page no is ${totalPages}.` },
-        httpStatus.NOT_FOUND
-      );
-    }
+    // if (page > totalPages) {
+    //   return ReE(
+    //     res,
+    //     { message: `Page no ${page} not available. The last page no is ${totalPages}.` },
+    //     httpStatus.NOT_FOUND
+    //   );
+    // }
   }
 
   [err, getProject] = await toAwait(query);
