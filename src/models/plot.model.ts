@@ -3,11 +3,11 @@ import { IPlot } from "../type/plot";
 
 const PlotSchema = new Schema({
     customer: {
-        type: mongoose.Schema.Types.String,
+        type: mongoose.Schema.Types.ObjectId,
         ref: "Customer",
     },
     general: {
-        type: mongoose.Schema.Types.String,
+        type: mongoose.Schema.Types.ObjectId,
         ref: "General",
     },
     guideRatePerSqFt: {

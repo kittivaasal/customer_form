@@ -5,7 +5,7 @@ const FlatSchema: Schema = new Schema(
   {
     customer: { type: Schema.Types.ObjectId, ref: "Customer" },
     general: {
-      type: mongoose.Schema.Types.String,
+      type: mongoose.Schema.Types.ObjectId,
       ref: "General",
     },
     flat: { type: String, required: true, trim: true },

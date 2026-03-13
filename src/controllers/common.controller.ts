@@ -432,15 +432,15 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     flat,
   }: { customerId: any; general: any; plot: any; flat: any } = body;
 
-  if (user) {
-    if (user.isAdmin === false) {
-      return ReE(
-        res,
-        { message: "You are not access this api" },
-        httpStatus.UNAUTHORIZED,
-      );
-    }
-  }
+  // if (user) {
+  //   if (user.isAdmin === false) {
+  //     return ReE(
+  //       res,
+  //       { message: "You are not access this api" },
+  //       httpStatus.UNAUTHORIZED,
+  //     );
+  //   }
+  // }
 
   let fields = ["general", "plot", "flat"];
   let inVaildFields = fields.filter((x) => !isNull(body[x]));
@@ -790,6 +790,17 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     }
 
     getGeneral = getGeneral as IGeneral;
+
+    if(general.totalAmount){
+
+      if(isNaN(general.totalAmount)){
+        return ReE(res, { message: "totalAmount should be a number" }, httpStatus.BAD_REQUEST);
+      }
+
+      if(general.totalAmount < 0){
+        return ReE(res, { message: "totalAmount can't be negative" }, httpStatus.BAD_REQUEST);
+      }
+    }
 
     if (general.startDate) {
 
