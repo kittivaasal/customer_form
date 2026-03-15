@@ -92,7 +92,7 @@ initializeFirebase();
 //       for (const doc of duplicates) {
 //         // keep first id, remove rest
 //         const idsToDelete = doc.ids.slice(1);
-  
+
 //         await Billing.deleteMany({
 //           _id: { $in: idsToDelete }
 //         });
@@ -100,7 +100,7 @@ initializeFirebase();
 //     }
 
 //     console.log("Duplicates removed successfully");
-    
+
 //     ReS(res, { data: duplicates }, 200)
 
 //   } catch (error) {
@@ -201,9 +201,9 @@ cron.schedule("02 00 * * *", async () => {
     // Calculate the cutoff date: EMIs whose date + 2 months <= today
     let sub = 2;
     let getDb;
-    if(process.env.DBURL){
+    if (process.env.DBURL) {
       getDb = process.env.DBURL
-      if(getDb.includes("/housing")){
+      if (getDb.includes("/housing")) {
         sub = 3;
       }
     }
@@ -223,7 +223,7 @@ cron.schedule("02 00 * * *", async () => {
       if (duePlus2Months <= today) {
         await General.findByIdAndUpdate(
           emi.general,
-          { status: "blocked" },
+          { status: "Blocked" },
           { new: true }
         );
       }
@@ -1652,7 +1652,7 @@ cron.schedule("02 00 * * *", async () => {
 //   try {
 //     console.log("🚀 Starting bill processing...");
 
-//     const excelPath = "./src/uploads/HB.xlsx";
+//     const excelPath = "./src/uploads/HosuingBillingMass.xlsx";
 //     const outputDir = "./src/uploads/generated";
 
 //     if (!fs.existsSync(outputDir)) {
@@ -1731,7 +1731,12 @@ cron.schedule("02 00 * * *", async () => {
 
 //       const payDateF = row["PaidDate"];
 
-//       let payDate = typeof payDateF === "string" ? payDateF : excelDateToJSDate(payDateF)
+//       function parseDDMMYYYY(dateString: string) {
+//         const [day, month, year] = dateString.split("-").map(Number);
+//         return new Date(year, month - 1, day);
+//       }
+
+//       let payDate = typeof payDateF === "string" ? parseDDMMYYYY(payDateF) : excelDateToJSDate(payDateF)
 
 //       bills.push({
 //         general: emi?.general || null,
@@ -1840,13 +1845,13 @@ cron.schedule("02 00 * * *", async () => {
 //     let getAllEmi = await Emi.find({
 //   $or: [
 //     { paidDate: { $type: "number" } },
-    
-    
+
+
 //     { paidDate: null }
-    
+
 //   ]
 // }).lean();
-    
+
 //     for (let index = 0; index < getAllEmi.length; index++) {
 //       const element = getAllEmi[index];
 
@@ -1901,14 +1906,14 @@ cron.schedule("02 00 * * *", async () => {
 // app.get("/bulk/emi/paid",async(req,res)=>{
 //   try{
 //     let data=  [
-      
+
 // ]
 //   let update = await Emi.bulkWrite(data)
 
 //   console.log(update)
 
 //   res.json("update")
-  
+
 // }catch(err){
 //     res.json(err)
 
@@ -1925,7 +1930,7 @@ cron.schedule("02 00 * * *", async () => {
 //     let totalUpdated = 0;
 
 //     const cursor = Billing.find({
-      
+
 //     })
 //       .select("emi paymentDate amountPaid")
 //       .lean()
@@ -2033,12 +2038,12 @@ cron.schedule("02 00 * * *", async () => {
 //       if(getAllEmi.length === 0){
 //         customerNoEmi.push(element._id)
 //       }
-      
+
 //     }
 
 //     // let deleteBulk;
 //     // [err,deleteBulk] = await toAwait(Billing.deleteMany({customer: {$in: customerNoBill}}))
-    
+
 //     let deleteCus;
 //     [err,deleteCus] = await toAwait(Customer.deleteMany({_id: {$in: customerNoBill}}))
 
@@ -2047,7 +2052,7 @@ cron.schedule("02 00 * * *", async () => {
 
 //     ReS(res, { message: "customer updated successfully", data: {   customerNoBill, customerNoGen, customerNoEmi } }, httpStatus.OK);
 //   } catch (error) {
-    
+
 //   }
 // })
 
@@ -2088,7 +2093,7 @@ cron.schedule("02 00 * * *", async () => {
 //       if(index % 1000 === 0){
 //         console.log("🚀 ~ file: index.ts:429 ~ app.get ~ element:", index);
 //       }
-      
+
 //     }
 
 //     let BATCH_SIZE = 1000;
@@ -2115,38 +2120,38 @@ cron.schedule("02 00 * * *", async () => {
 // })
 
 //step 1
-app.get("/update/customer",  async (req: Request, res: Response) => {
-  try {
-    let id= [
-      "LSSP(2)1744",
-      "LIP-4C-0008",
-      "LSSP(2)2858",
-      "LSSP(5)0035",
-      "NVT0313",
-      "LSG0041",
-      "NVT1340",
-      "LSSP(6)0004"
-    ]
-    let getAllCustomer = await Customer.find({id:{$in:id}}).lean();
-    let customerMap = new Map();
-    let dupCus = []
-    for (let index = 0; index < getAllCustomer.length; index++) {
-      const element = getAllCustomer[index];
-      if (element.id && !customerMap.has(element.id.toString())) {
-        customerMap.set(element.id.toString(), element);
-      }else if(element.id && customerMap.has(element.id.toString())){
-        dupCus.push(element._id)
-      }
-    }
+// app.get("/update/customer", async (req: Request, res: Response) => {
+//   try {
+//     let id = [
+//       "LSSP(2)1744",
+//       "LIP-4C-0008",
+//       "LSSP(2)2858",
+//       "LSSP(5)0035",
+//       "NVT0313",
+//       "LSG0041",
+//       "NVT1340",
+//       "LSSP(6)0004"
+//     ]
+//     let getAllCustomer = await Customer.find({ id: { $in: id } }).lean();
+//     let customerMap = new Map();
+//     let dupCus = []
+//     for (let index = 0; index < getAllCustomer.length; index++) {
+//       const element = getAllCustomer[index];
+//       if (element.id && !customerMap.has(element.id.toString())) {
+//         customerMap.set(element.id.toString(), element);
+//       } else if (element.id && customerMap.has(element.id.toString())) {
+//         dupCus.push(element._id)
+//       }
+//     }
 
-    // let bulk = await Customer.deleteMany({ _id: { $in: dupCus } });
+//     // let bulk = await Customer.deleteMany({ _id: { $in: dupCus } });
 
-    // console.log(`update ${bulk.deletedCount}`)
-    res.json({dupCus,getAllCustomer:customerMap.size, get:getAllCustomer.length})
-  } catch (err) {
-    ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
-  }
-})
+//     // console.log(`update ${bulk.deletedCount}`)
+//     res.json({ dupCus, getAllCustomer: customerMap.size, get: getAllCustomer.length })
+//   } catch (err) {
+//     ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
+//   }
+// })
 
 //step 3 skip for alliance
 // app.get("/update/general1",  async (req: Request, res: Response) => {
@@ -2616,87 +2621,124 @@ app.get("/update/customer",  async (req: Request, res: Response) => {
 //   }
 // ])
 
-    // let deleteEmi = await Emi.deleteMany({
-    //   _id: {
-    //     $in: getAllEmi.map((emi) => emi._id)
-    //   }
-    // })
-
-    // console.log(getAllEmi.length,"getAllEmi")
-
-    // let getAllEmis = await Emi.find({}).lean();
-
-    // let emiMap = new Map();
-    // for (let index = 0; index < getAllEmis.length; index++) {
-    //   const element = getAllEmis[index];
-    //   if(element.customer && element.emiNo){
-    //     emiMap.set(element.customer.toString()+"|"+element.emiNo.toString(), element);
-    //   }
-    // }
-
-    // console.log(`process starting emi ${getAllEmi.length} , emiMap ${emiMap.size}`)
-    // let bulkOperations: any[] = [];
-    // let notFound: any[] = [];
-    // for (let index = 0; index < getAllEmi.length; index++) {
-    //   const element = getAllEmi[index];
-
-    //   let findEmi = emiMap.get(element.customer?.toString()+"|"+element.emiNo?.toString());
-    //   if(findEmi){
-    //     bulkOperations.push({
-    //       updateOne: {
-    //         filter: { _id: element._id },
-    //         update: {
-    //           $set: {
-    //             emi: findEmi._id
-    //           }
-    //         }
-    //       }
-    //     })
-    //   }else{
-    //     notFound.push({customer:element.customer,emiNo:element.emi, customerCode:element.customerCode})
-    //   }
-    // }
-
-    // let batchSize = 1000;
-    // for (let i = 0; i < bulkOperations.length; i += batchSize) {
-    //   const batch = bulkOperations.slice(i, i + batchSize);
-    //   let update = await Billing.bulkWrite(batch, { ordered: false });
-    //   console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
-    // }
-
-    // let outputDir = "./src/uploads/generated";
-    // let jsonPath4 = path.join(outputDir, `emi-found${Date.now()}.json`);
-    // fs.writeFileSync(jsonPath4, JSON.stringify(bulkOperations))
-    // let jsonPath5 = path.join(outputDir, `emi-not-found${Date.now()}.json`);
-    // fs.writeFileSync(jsonPath5, JSON.stringify(notFound))
-
-  //   res.json(getAllEmi.map(ele=>ele._id))
-  // } catch (err) {
-  //   ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
-  // }
+// let deleteEmi = await Emi.deleteMany({
+//   _id: {
+//     $in: getAllEmi.map((emi) => emi._id)
+//   }
 // })
 
-// app.get("/cus/dup", async(req,res)=>{
+// console.log(getAllEmi.length,"getAllEmi")
+
+// let getAllEmis = await Emi.find({}).lean();
+
+// let emiMap = new Map();
+// for (let index = 0; index < getAllEmis.length; index++) {
+//   const element = getAllEmis[index];
+//   if(element.customer && element.emiNo){
+//     emiMap.set(element.customer.toString()+"|"+element.emiNo.toString(), element);
+//   }
+// }
+
+// console.log(`process starting emi ${getAllEmi.length} , emiMap ${emiMap.size}`)
+// let bulkOperations: any[] = [];
+// let notFound: any[] = [];
+// for (let index = 0; index < getAllEmi.length; index++) {
+//   const element = getAllEmi[index];
+
+//   let findEmi = emiMap.get(element.customer?.toString()+"|"+element.emiNo?.toString());
+//   if(findEmi){
+//     bulkOperations.push({
+//       updateOne: {
+//         filter: { _id: element._id },
+//         update: {
+//           $set: {
+//             emi: findEmi._id
+//           }
+//         }
+//       }
+//     })
+//   }else{
+//     notFound.push({customer:element.customer,emiNo:element.emi, customerCode:element.customerCode})
+//   }
+// }
+
+// let batchSize = 1000;
+// for (let i = 0; i < bulkOperations.length; i += batchSize) {
+//   const batch = bulkOperations.slice(i, i + batchSize);
+//   let update = await Billing.bulkWrite(batch, { ordered: false });
+//   console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+// }
+
+// let outputDir = "./src/uploads/generated";
+// let jsonPath4 = path.join(outputDir, `emi-found${Date.now()}.json`);
+// fs.writeFileSync(jsonPath4, JSON.stringify(bulkOperations))
+// let jsonPath5 = path.join(outputDir, `emi-not-found${Date.now()}.json`);
+// fs.writeFileSync(jsonPath5, JSON.stringify(notFound))
+
+//   res.json(getAllEmi.map(ele=>ele._id))
+// } catch (err) {
+//   ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
+// }
+// })
+
+// app.get("/cus/dup", async (req, res) => {
 //   try {
-//     let getAllCustomer = await Customer.aggregate([
+//     let getAllCustomer = await Billing.aggregate([
 //       {
 //         $group: {
-//           _id: "$id",
-//           count: { $sum: 1 },
-//           docs: { $push: "$$ROOT" }
+//           _id: "$emi",
+//           count: { $sum: 1 }
 //         }
 //       },
 //       {
-//         $match: {
-//           count: { $gt: 1 }
+//         $match: { count: { $gt: 1 } }
+//       },
+//       {
+//         $lookup: {
+//           from: "billings",
+//           localField: "_id",
+//           foreignField: "emi",
+//           as: "billingDocs"
 //         }
-//       }
+//       },
+//       // {
+//       //   $lookup: {
+//       //     from: "emis",
+//       //     localField: "_id",
+//       //     foreignField: "_id",
+//       //     as: "emiDocs"
+//       //   }
+//       // },
+//       // {
+//       //   $lookup: {
+//       //     from: "customers",
+//       //     localField: "emiDocs.customer",
+//       //     foreignField: "_id",
+//       //     as: "customerDocs"
+//       //   }    
+//       // }
 //     ])
 
 
+//     let deletedBill:any = []
 
-//     res.json({dup:getAllCustomer.map(ele=>ele._id)})
+//     for (let index = 0; index < getAllCustomer.length; index++) {
+//       const element = getAllCustomer[index];
+
+//       let billCount1 = element.billingDocs[0]
+//       let billCount2 = element.billingDocs[1]
+//       if(billCount1.customer.toString() === billCount2.customer.toString() && billCount1.emiNo.toString() === billCount2.emiNo.toString() && billCount1.paymentDate.toString().split("T")[0] === billCount2.paymentDate.toString().split("T")[0] && billCount1.amountPaid === billCount2.amountPaid ){
+//         console.log(billCount1.customer.toString() , billCount2.customer.toString(), billCount1.customer.toString() === billCount2.customer.toString() ,"mass", billCount1.emiNo , billCount2.emiNo , billCount1.emiNo === billCount2.emiNo ,"mass", billCount1.paymentDate.toString().split("T")[0] , billCount2.paymentDate.toString().split("T")[0] , billCount1.paymentDate.toString().split("T")[0] === billCount2.paymentDate.toString().split("T")[0],"mass", billCount1.amountPaid , billCount2.amountPaid ,billCount1.amountPaid === billCount2.amountPaid ,"mass")
+//         deletedBill.push(billCount1)
+//       }else{
+//         console.log(billCount1.customer.toString() , billCount2.customer.toString(), billCount1.customer.toString() === billCount2.customer.toString() ,"mass", billCount1.emiNo , billCount2.emiNo , billCount1.emiNo === billCount2.emiNo ,"mass", billCount1.paymentDate.toString().split("T")[0] , billCount2.paymentDate.toString().split("T")[0] , billCount1.paymentDate.toString().split("T")[0] === billCount2.paymentDate.toString().split("T")[0],"mass", billCount1.amountPaid , billCount2.amountPaid ,billCount1.amountPaid === billCount2.amountPaid ,"mass")
+
+//       }     
+//     }
+
+//     res.json({ dup: getAllCustomer , deletedBill })
 //   } catch (err) {
+//     console.log(err)
 //     ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
 //   }
 // })

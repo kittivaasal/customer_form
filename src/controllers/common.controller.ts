@@ -3508,7 +3508,8 @@ export const getDataBasedOnGeneralById = async (
     [err, objEmi] = await toAwait(
       Emi.find({ general: general._id })
         .populate("customer")
-        .populate("general"),
+        .populate("general")
+        .sort({ emiNo: 1 })
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
@@ -3525,7 +3526,7 @@ export const getDataBasedOnGeneralById = async (
           populate: [{ path: "cedId" }, { path: "ddId" }],
         })
         .populate("createdBy", "-password -fcmToken")
-        .sort({ createdAt: -1 }),
+        .sort({ emiNo: -1 }),
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   }
