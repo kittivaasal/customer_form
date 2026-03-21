@@ -9,6 +9,7 @@ import { IEditRequest } from "../type/editRequest";
 import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
+import { BillingRequest } from "../models/billingRequest.model";
 export const createPercentage = async (req: Request, res: Response) => {
     let body = req.body, err;
     let { name, rate } = body;
@@ -240,13 +241,43 @@ export const getAllPercentage = async (req: Request, res: Response) => {
     }, httpStatus.OK)
 }
 
-export const deletePercentage = async (req: Request, res: Response) => {
-    let err, { _id } = req.body;
+export const deletePercentage = async (req: CustomRequest, res: Response) => {
+    let err, { _id, reason } = req.body, user = req.user as IUser;
     if (!_id) {
         return ReE(res, { message: `Percentage _id is required!` }, httpStatus.BAD_REQUEST);
     }
     if (!mongoose.isValidObjectId(_id)) {
         return ReE(res, { message: `Invalid percentage id!` }, httpStatus.BAD_REQUEST);
+    }
+    
+    if(!user.isAdmin) {
+        if(!reason) {
+            return ReE(
+            res,
+            { message: `Please enter reason for delete!` },
+            httpStatus.BAD_REQUEST,
+            );
+        }
+        let createBillingRequest;
+        [err, createBillingRequest] = await toAwait(
+            BillingRequest.create({
+            userId: user._id,
+            targetId: _id,
+            targetModel: "Percentage",
+            requestFor: "delete",
+            status: "pending",
+            }),
+        );
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!createBillingRequest) {
+            return ReE(
+            res,
+            { message: "percentage delete request not created please try again later" },
+            httpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+        return ReS(res, { message: "percentage delete request created" }, httpStatus.OK);
+    
     }
 
     let checkUser;

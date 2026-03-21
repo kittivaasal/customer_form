@@ -10,6 +10,6 @@ router.put("/update", verifyToken , updateMarketingHead);
 router.get("/get/all", getAllMarketingHead);
 router.get("/get/:id", getByIdMarketingHead);
 router.get('/get/:id/estimates', getMarketingHeadEstimates);
-router.delete("/delete",[verifyToken,isAdmin(true)], deleteMarketingHead);
+router.delete("/delete",[verifyToken], deleteMarketingHead);
 
 export default router;

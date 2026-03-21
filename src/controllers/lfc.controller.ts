@@ -14,6 +14,7 @@ import { IEditRequest } from "../type/editRequest";
 import CustomRequest from "../type/customRequest";
 import { sendPushNotificationToSuperAdmin } from "./common";
 import { Project } from "../models/project.model";
+import { BillingRequest } from "../models/billingRequest.model";
 
 export const createLfc = async (req: Request, res: Response) => {
   let body = req.body, err;
@@ -379,13 +380,43 @@ export const getAllLfc = async (req: Request, res: Response) => {
   ReS(res, { message: "lfc found", data: getLfc }, httpStatus.OK)
 }
 
-export const deleteLfc = async (req: Request, res: Response) => {
-  let err, { _id } = req.body;
+export const deleteLfc = async (req: CustomRequest, res: Response) => {
+  let err, { _id, reason } = req.body, user = req.user as IUser;
   if (!_id) {
     return ReE(res, { message: `Lfc _id is required!` }, httpStatus.BAD_REQUEST);
   }
   if (!mongoose.isValidObjectId(_id)) {
     return ReE(res, { message: `Invalid lfc id!` }, httpStatus.BAD_REQUEST);
+  }
+
+  if (!user.isAdmin) {
+    if (!reason) {
+      return ReE(
+        res,
+        { message: `Please enter reason for delete!` },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+    let createBillingRequest;
+    [err, createBillingRequest] = await toAwait(
+      BillingRequest.create({
+        userId: user._id,
+        targetId: _id,
+        targetModel: "Lfc",
+        requestFor: "delete",
+        status: "pending",
+      }),
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!createBillingRequest) {
+      return ReE(
+        res,
+        { message: "Lfc delete request not created please try again later" },
+        httpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+    return ReS(res, { message: "Lfc delete request created" }, httpStatus.OK);
+    
   }
 
   let checkLfc: any;

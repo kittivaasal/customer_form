@@ -12,6 +12,7 @@ import CustomRequest from "../type/customRequest";
 import { IUser } from "../type/user";
 import { IEditRequest } from "../type/editRequest";
 import { sendPushNotificationToSuperAdmin } from "./common";
+import { BillingRequest } from "../models/billingRequest.model";
 
 export const createNvt = async (req: Request, res: Response) => {
     let body = req.body, err;
@@ -319,13 +320,44 @@ export const getAllNvtCustomer = async (req: Request, res: Response) => {
     ReS(res, { message: "nvt found", data: getNvt }, httpStatus.OK)
 }
 
-export const deleteNvt = async (req: Request, res: Response) => {
-    let err, { _id } = req.body;
+export const deleteNvt = async (req: CustomRequest, res: Response) => {
+
+    let err, { _id, reason } = req.body, user = req.user as IUser;
     if (!_id) {
-        return ReE(res, { message: `Nvt _id is required!` }, httpStatus.BAD_REQUEST);
-    }
+            return ReE(res, { message: `Nvt _id is required!` }, httpStatus.BAD_REQUEST);
+        }
     if (!mongoose.isValidObjectId(_id)) {
         return ReE(res, { message: `Invalid nvt id!` }, httpStatus.BAD_REQUEST);
+    }
+
+    if (!user.isAdmin) {
+        if (!reason) {
+            return ReE(
+                res,
+                { message: `Please enter reason for delete!` },
+                httpStatus.BAD_REQUEST,
+            );
+        }
+        let createBillingRequest;
+        [err, createBillingRequest] = await toAwait(
+            BillingRequest.create({
+                userId: user._id,
+                targetId: _id,
+                targetModel: "Nvt",
+                requestFor: "delete",
+                status: "pending",
+            }),
+        );
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!createBillingRequest) {
+            return ReE(
+                res,
+                { message: "Nvt delete request not created please try again later" },
+                httpStatus.INTERNAL_SERVER_ERROR,
+            );
+        }
+        return ReS(res, { message: "Nvt delete request created" }, httpStatus.OK);
+
     }
 
     let checkNvt: any;

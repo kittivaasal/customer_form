@@ -27,6 +27,7 @@ import CustomRequest from "../type/customRequest";
 import { IGeneral } from "../type/general";
 import { IProject } from "../type/project";
 import { IUser } from "../type/user";
+import { BillingRequest } from "../models/billingRequest.model";
 
 export const createCustomer = async (req: CustomRequest, res: Response) => {
   let body = req.body,
@@ -618,7 +619,7 @@ export const getAllCustomer = async (req: Request, res: Response) => {
   const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
   // const search = (req.query.search as string) || "";
   const searchConditions: any[] = [];
-  
+
   const rawSearch = (req.query.search as string) || "";
   const search = escapeRegex(rawSearch);
 
@@ -686,23 +687,22 @@ export const getAllCustomer = async (req: Request, res: Response) => {
       data: customers,
       ...(page &&
         limit && {
-          pagination: {
-            page,
-            limit,
-            total,
-            totalPages,
-            hasNextPage: page < totalPages,
-            hasPreviousPage: page > 1,
-          },
-        }),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      }),
     },
     httpStatus.OK,
   );
 };
 
-export const deleteCustomer = async (req: Request, res: Response) => {
-  let err,
-    { _id } = req.body;
+export const deleteCustomer = async (req: CustomRequest, res: Response) => {
+  let err, { _id, reason } = req.body, user = req.user as IUser;
   if (!_id) {
     return ReE(
       res,
@@ -718,6 +718,36 @@ export const deleteCustomer = async (req: Request, res: Response) => {
     );
   }
 
+  if (!user.isAdmin) {
+    if (!reason) {
+      return ReE(
+        res,
+        { message: `Please enter reason for delete!` },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+    let createBillingRequest;
+    [err, createBillingRequest] = await toAwait(
+      BillingRequest.create({
+        userId: user._id,
+        targetId: _id,
+        targetModel: "Customer",
+        requestFor: "delete",
+        status: "pending",
+      }),
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!createBillingRequest) {
+      return ReE(
+        res,
+        { message: "Customer delete request not created please try again later" },
+        httpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+    return ReS(res, { message: "Customer delete request created" }, httpStatus.OK);
+    
+  }
+  
   let checkUser;
   [err, checkUser] = await toAwait(Customer.findOne({ _id: _id }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);

@@ -3077,9 +3077,7 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
 };
 
 export const deleteBilling = async (req: CustomRequest, res: Response) => {
-  let err,
-    { _id } = req.body,
-    user = req.user as IUser;
+  let err, { _id, reason } = req.body, user = req.user as IUser;
   if (!_id) {
     return ReE(
       res,
@@ -3089,6 +3087,36 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
   }
   if (!mongoose.isValidObjectId(_id)) {
     return ReE(res, { message: `Invalid billing id!` }, httpStatus.BAD_REQUEST);
+  }
+
+  if(!user.isAdmin) {
+    if(!reason) {
+      return ReE(
+        res,
+        { message: `Please enter reason for delete!` },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+    let createBillingRequest;
+    [err, createBillingRequest] = await toAwait(
+      BillingRequest.create({
+        userId: user._id,
+        targetId: _id,
+        targetModel: "Billing",
+        requestFor: "delete",
+        status: "pending",
+      }),
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!createBillingRequest) {
+      return ReE(
+        res,
+        { message: "Billing delete billing request not created please try again later" },
+        httpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+    return ReS(res, { message: "Billing delete request created" }, httpStatus.OK);
+    
   }
 
   let getBilling;

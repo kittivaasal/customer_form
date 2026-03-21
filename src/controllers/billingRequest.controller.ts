@@ -439,15 +439,48 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
       }
 
     }
+    
+    if(getBillingRequest.requestFor === "delete" && status === "approved"){
+
+      let targetModel =  getBillingRequest.targetModel;
+      let targetId =  getBillingRequest.targetId;
+
+      if(!targetModel || !targetId){
+        return ReE(res, { message: "target model or target id not found" }, httpStatus.BAD_REQUEST);
+      }
+
+      let updateTarget;
+      [err, updateTarget] = await toAwait(
+        targetModel.findOne(
+          { _id: targetId }
+        )
+      );
+
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+      if(!updateTarget){
+        return ReE(res, { message: ` ${targetId} not found for this ${targetModel} table`}, httpStatus.BAD_REQUEST);
+      }
+
+      let deleteGive;
+      [err, deleteGive] = await toAwait(
+        targetModel.findOneAndDelete(
+          { _id: targetId }
+        )
+      )
+
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+      if(!deleteGive){
+        return ReE(res, { message: ` ${targetId} not found for this ${targetModel} table`}, httpStatus.BAD_REQUEST);
+      }
+      
+    }
 
     if (status === "rejected") {
       approvedDate = null;
       approvedTime = null;
       approvedHours = null;
-    }
-
-    if(getBillingRequest.requestFor === "delete" && status === "approved"){
-      
     }
 
     let updateRequest;

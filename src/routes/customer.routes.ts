@@ -8,6 +8,6 @@ router.post("/create", verifyToken,createCustomer);
 router.put("/update",verifyToken, updateCustomer);
 router.get("/get/all", getAllCustomer);
 router.get("/get/:id", getByIdCustomer);
-router.delete("/delete",[verifyToken,isAdmin(true)], deleteCustomer);
+router.delete("/delete",[verifyToken], deleteCustomer);
 
 export default router;

@@ -9,7 +9,7 @@ router.put("/update", verifyToken ,updateMod);
 router.get("/get/all", getAllMod);
 router.get("/get/all-customer", getAllModCustomer);
 router.get("/get/:id", getByIdMod);
-router.delete("/delete",[verifyToken,isAdmin(true)], deleteMod);
+router.delete("/delete",[verifyToken], deleteMod);
 
 export default router;
 

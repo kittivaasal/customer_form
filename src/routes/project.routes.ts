@@ -8,6 +8,6 @@ router.post("/create", createProject);
 router.put("/update",verifyToken, updateProject);
 router.get("/get/all", getAllProject);
 router.get("/get/:id", getByIdProject);
-router.delete("/delete",[verifyToken,isAdmin(true)], deleteProject);
+router.delete("/delete",[verifyToken], deleteProject);
 
 export default router;

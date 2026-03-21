@@ -3,12 +3,13 @@ import httpStatus from "http-status";
 import mongoose from "mongoose";
 import EditRequest from "../models/editRequest.model";
 import { Mod } from "../models/mod.model";
-import { escapeRegex, isNull, ReE, ReS } from "../services/util.service";
+import { escapeRegex, isNull, ReE, ReS, toAwait } from "../services/util.service";
 import CustomRequest from "../type/customRequest";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
 
 import { ModCustomer } from "../models/modCustomer.model";
+import { BillingRequest } from "../models/billingRequest.model";
 
 export const createMod = async (req: CustomRequest, res: Response) => {
     try {
@@ -115,11 +116,11 @@ export const updateMod = async (req: CustomRequest, res: Response) => {
 
         // Mod Fields
         const modFields = [
-            "paidDate", "projectId", "plotNo", "landCost", "ratePerSqft", 
-            "referenceId", "customerId", 
-            "introducerName", "introducerPhone", 
-            "directorName", "directorPhone", 
-            "EDName", "EDPhone", 
+            "paidDate", "projectId", "plotNo", "landCost", "ratePerSqft",
+            "referenceId", "customerId",
+            "introducerName", "introducerPhone",
+            "directorName", "directorPhone",
+            "EDName", "EDPhone",
             "totalAmount", "paidAmount", "status"
         ];
 
@@ -137,7 +138,7 @@ export const updateMod = async (req: CustomRequest, res: Response) => {
 
         const getCustomer = await ModCustomer.findOne({ _id: (getMod.customerId as any)._id });
         if (!getCustomer) {
-             return ReE(res, { message: `Linked ModCustomer not found` }, httpStatus.NOT_FOUND);
+            return ReE(res, { message: `Linked ModCustomer not found` }, httpStatus.NOT_FOUND);
         }
 
 
@@ -163,14 +164,14 @@ export const updateMod = async (req: CustomRequest, res: Response) => {
                 const newValue = body[key];
                 const oldValue = (getMod as any)[key];
                 if (isNull(newValue)) return;
-                 // Handle ObjectIds comparisons
+                // Handle ObjectIds comparisons
                 const isObjectId = mongoose.isValidObjectId(newValue) && mongoose.isValidObjectId(oldValue);
                 if (isObjectId) {
                     if (newValue.toString() !== oldValue.toString()) {
                         modChanges.push({ field: key, oldValue, newValue });
                     }
                 } else if (newValue?.toString() !== oldValue?.toString()) {
-                     modChanges.push({ field: key, oldValue, newValue });
+                    modChanges.push({ field: key, oldValue, newValue });
                 }
             });
 
@@ -193,7 +194,7 @@ export const updateMod = async (req: CustomRequest, res: Response) => {
             if (modChanges.length > 0) {
                 const existingReq = await EditRequest.findOne({ targetId: _id, targetModel: 'Mod', status: 'pending', editedBy: user._id });
                 if (existingReq) {
-                     return ReE(res, { message: "You already have a pending edit request for this mod." }, httpStatus.BAD_REQUEST);
+                    return ReE(res, { message: "You already have a pending edit request for this mod." }, httpStatus.BAD_REQUEST);
                 }
                 const createReq = await EditRequest.create({
                     targetModel: "Mod",
@@ -206,8 +207,8 @@ export const updateMod = async (req: CustomRequest, res: Response) => {
             }
 
             if (customerChanges.length > 0) {
-                 const existingReq = await EditRequest.findOne({ targetId: getCustomer._id, targetModel: 'ModCustomer', status: 'pending', editedBy: user._id });
-                 if (!existingReq) { // Only create if not exists
+                const existingReq = await EditRequest.findOne({ targetId: getCustomer._id, targetModel: 'ModCustomer', status: 'pending', editedBy: user._id });
+                if (!existingReq) { // Only create if not exists
                     const createReq = await EditRequest.create({
                         targetModel: "ModCustomer",
                         targetId: getCustomer._id,
@@ -215,8 +216,8 @@ export const updateMod = async (req: CustomRequest, res: Response) => {
                         changes: customerChanges,
                         status: "pending"
                     });
-                     await sendPushNotificationToSuperAdmin("Edit request for ModCustomer", `A new edit request for ModCustomer has been created by ${user.name}`, createReq._id.toString());
-                 }
+                    await sendPushNotificationToSuperAdmin("Edit request for ModCustomer", `A new edit request for ModCustomer has been created by ${user.name}`, createReq._id.toString());
+                }
             }
 
             return ReS(res, { message: "Edit request(s) created successfully, Awaiting for approval." }, httpStatus.OK);
@@ -269,7 +270,7 @@ export const getAllMod = async (req: Request, res: Response) => {
         const searchConditions: any[] = [];
 
         if (search) {
-             // 1. Search in Mod Fields
+            // 1. Search in Mod Fields
             searchConditions.push(
                 { plotNo: { $regex: search, $options: "i" } },
                 { introducerName: { $regex: search, $options: "i" } },
@@ -278,7 +279,7 @@ export const getAllMod = async (req: Request, res: Response) => {
                 { referenceId: { $regex: search, $options: "i" } }
             );
 
-             if (mongoose.Types.ObjectId.isValid(search)) {
+            if (mongoose.Types.ObjectId.isValid(search)) {
                 searchConditions.push({ _id: new mongoose.Types.ObjectId(search) });
             }
 
@@ -334,11 +335,11 @@ export const getAllMod = async (req: Request, res: Response) => {
         // Group by Project if customerId is present and pagination is disabled (Export Case)
         if (customerId && !page && !limit) {
             const projectMap = new Map<string, any>();
-            
+
             getMod.forEach((mod: any) => {
                 const project = mod.projectId;
                 if (!project) return;
-                
+
                 const projectIdStr = project._id ? project._id.toString() : 'unknown';
 
                 if (!projectMap.has(projectIdStr)) {
@@ -354,7 +355,7 @@ export const getAllMod = async (req: Request, res: Response) => {
             const groupedData = Array.from(projectMap.values());
             return ReS(res, { message: "Mod found", data: groupedData }, httpStatus.OK);
         }
-        
+
         return ReS(
             res,
             {
@@ -379,10 +380,9 @@ export const getAllMod = async (req: Request, res: Response) => {
     }
 }
 
-export const deleteMod = async (req: Request, res: Response) => {
+export const deleteMod = async (req: CustomRequest, res: Response) => {
     try {
-        const { _id } = req.body;
-
+        let err, { _id, reason } = req.body, user = req.user as IUser;
         if (!_id) {
             return ReE(res, { message: `Mod _id is required!` }, httpStatus.BAD_REQUEST);
         }
@@ -390,19 +390,49 @@ export const deleteMod = async (req: Request, res: Response) => {
             return ReE(res, { message: `Invalid mod id!` }, httpStatus.BAD_REQUEST);
         }
 
+        if (!user.isAdmin) {
+            if (!reason) {
+                return ReE(
+                    res,
+                    { message: `Please enter reason for delete!` },
+                    httpStatus.BAD_REQUEST,
+                );
+            }
+            let createBillingRequest;
+            [err, createBillingRequest] = await toAwait(
+                BillingRequest.create({
+                    userId: user._id,
+                    targetId: _id,
+                    targetModel: "Mod",
+                    requestFor: "delete",
+                    status: "pending",
+                }),
+            );
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            if (!createBillingRequest) {
+                return ReE(
+                    res,
+                    { message: "mod delete request not created please try again later" },
+                    httpStatus.INTERNAL_SERVER_ERROR,
+                );
+            }
+            return ReS(res, { message: "mod delete request created" }, httpStatus.OK);
+
+        }
+
         const modToDelete = await Mod.findOne({ _id });
 
         if (!modToDelete) {
-             return ReE(res, { message: `Mod not found for given id!` }, httpStatus.NOT_FOUND);
+            return ReE(res, { message: `Mod not found for given id!` }, httpStatus.NOT_FOUND);
         }
 
-        const customerId = modToDelete.customerId; 
-        
+        const customerId = modToDelete.customerId;
+
         let message = "Mod deleted successfully.";
 
         if (customerId) {
             const count = await Mod.countDocuments({ customerId: customerId });
-            
+
             // Delete the Mod entry
             await Mod.deleteOne({ _id });
 
@@ -412,8 +442,8 @@ export const deleteMod = async (req: Request, res: Response) => {
                 message = "Mod and associated Customer deleted successfully.";
             }
         } else {
-             // Fallback if no customerId (shouldn't happen with strict schema but good for safety)
-             await Mod.deleteOne({ _id });
+            // Fallback if no customerId (shouldn't happen with strict schema but good for safety)
+            await Mod.deleteOne({ _id });
         }
 
         return ReS(res, { message }, httpStatus.OK);
@@ -464,7 +494,7 @@ export const getAllModCustomer = async (req: Request, res: Response) => {
             totalPages = Math.ceil(total / limit);
 
             if (page > totalPages && totalPages > 0) {
-                 return ReE(
+                return ReE(
                     res,
                     { message: `Page no ${page} not available. The last page no is ${totalPages}.` },
                     httpStatus.NOT_FOUND
@@ -473,7 +503,7 @@ export const getAllModCustomer = async (req: Request, res: Response) => {
         }
 
         const getCustomers = await query;
-        
+
         return ReS(
             res,
             {

@@ -33,4 +33,6 @@ export interface IBillingRequest {
         parciallyPaid?: boolean
         balanceAmount?: number
     },
+    targetModel?: string
+    targetId?: mongoose.Types.ObjectId,
 }

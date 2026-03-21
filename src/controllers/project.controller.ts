@@ -11,17 +11,18 @@ import { IEditRequest } from "../type/editRequest";
 import { IProject } from "../type/project";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
+import { BillingRequest } from "../models/billingRequest.model";
 
 export const createProject = async (req: Request, res: Response) => {
   let body = req.body, err;
   let { projectName, description, shortName, duration, emiAmount, marketer, schema, returns, intrest, totalInvestimate, totalReturnAmount } = body;
-  if(duration){
-    if(isNaN(duration)){
+  if (duration) {
+    if (isNaN(duration)) {
       return ReE(res, { message: "Duration should be in number" }, httpStatus.BAD_REQUEST);
     }
   }
-  if(projectName){
-    
+  if (projectName) {
+
     let checkProjectName;
     [err, checkProjectName] = await toAwait(Project.findOne({ projectName: projectName }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -76,41 +77,41 @@ export const updateProject = async (req: CustomRequest, res: Response) => {
   }
 
   let getGeneral;
-  if(updateFields.duration || updateFields.emiAmount){
+  if (updateFields.duration || updateFields.emiAmount) {
 
-    if(user.isAdmin === false){
-      return ReE(res, {message:"You can't update the duration, emiAmount fields"}, httpStatus.BAD_REQUEST)
+    if (user.isAdmin === false) {
+      return ReE(res, { message: "You can't update the duration, emiAmount fields" }, httpStatus.BAD_REQUEST)
     }
 
-    [err,getGeneral] = await toAwait(General.findOne({project:_id}))
+    [err, getGeneral] = await toAwait(General.findOne({ project: _id }))
 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (getGeneral) {
       return ReE(
         res,
-        {message:"You can't update the duration, emiAmount for this project, because this project based detail already created"},
+        { message: "You can't update the duration, emiAmount for this project, because this project based detail already created" },
         httpStatus.BAD_REQUEST
       )
     }
 
   }
 
-  if(updateFields.projectName){
-    
+  if (updateFields.projectName) {
+
     let checkProjectName;
     [err, checkProjectName] = await toAwait(Project.findOne({ projectName: updateFields.projectName, _id: { $ne: _id } }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (checkProjectName) return ReE(res, { message: "Project name already exist" }, httpStatus.BAD_REQUEST);
-    
+
   }
-  
-  if(updateFields.duration){
-    if(isNaN(updateFields.duration)){
+
+  if (updateFields.duration) {
+    if (isNaN(updateFields.duration)) {
       return ReE(res, { message: "Duration should be in number" }, httpStatus.BAD_REQUEST);
     }
   }
-  if(updateFields.emiAmount){
-    if(isNaN(updateFields.emiAmount)){
+  if (updateFields.emiAmount) {
+    if (isNaN(updateFields.emiAmount)) {
       return ReE(res, { message: "emiAmount should be in number" }, httpStatus.BAD_REQUEST);
     }
   }
@@ -119,7 +120,7 @@ export const updateProject = async (req: CustomRequest, res: Response) => {
   [err, checkBilling] = await toAwait(Billing.findOne({ project: _id }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (checkBilling) {
-    if(updateFields.emiAmount || updateFields.duration){
+    if (updateFields.emiAmount || updateFields.duration) {
       return ReE(res, { message: "EMI amount and project duration cannot be modified once the customer has been billed based on this project." }, httpStatus.BAD_REQUEST);
     }
   }
@@ -315,13 +316,44 @@ export const getAllProject = async (req: Request, res: Response) => {
 }
 
 
-export const deleteProject = async (req: Request, res: Response) => {
-  let err, { _id } = req.body;
+export const deleteProject = async (req: CustomRequest, res: Response) => {
+
+  let err, { _id, reason } = req.body, user = req.user as IUser;
   if (!_id) {
     return ReE(res, { message: `Project _id is required!` }, httpStatus.BAD_REQUEST);
   }
   if (!mongoose.isValidObjectId(_id)) {
     return ReE(res, { message: `Invalid project id!` }, httpStatus.BAD_REQUEST);
+  }
+
+  if (!user.isAdmin) {
+    if (!reason) {
+      return ReE(
+        res,
+        { message: `Please enter reason for delete!` },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+    let createBillingRequest;
+    [err, createBillingRequest] = await toAwait(
+      BillingRequest.create({
+        userId: user._id,
+        targetId: _id,
+        targetModel: "Project",
+        requestFor: "delete",
+        status: "pending",
+      }),
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!createBillingRequest) {
+      return ReE(
+        res,
+        { message: "Project delete request not created please try again later" },
+        httpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+    return ReS(res, { message: "Project delete request created" }, httpStatus.OK);
+
   }
 
   let checkUser;

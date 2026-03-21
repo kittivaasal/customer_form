@@ -2681,67 +2681,62 @@ cron.schedule("02 00 * * *", async () => {
 // }
 // })
 
-// app.get("/cus/dup", async (req, res) => {
-//   try {
-//     let getAllCustomer = await Billing.aggregate([
-//       {
-//         $group: {
-//           _id: "$emi",
-//           count: { $sum: 1 }
-//         }
-//       },
-//       {
-//         $match: { count: { $gt: 1 } }
-//       },
-//       {
-//         $lookup: {
-//           from: "billings",
-//           localField: "_id",
-//           foreignField: "emi",
-//           as: "billingDocs"
-//         }
-//       },
-//       // {
-//       //   $lookup: {
-//       //     from: "emis",
-//       //     localField: "_id",
-//       //     foreignField: "_id",
-//       //     as: "emiDocs"
-//       //   }
-//       // },
-//       // {
-//       //   $lookup: {
-//       //     from: "customers",
-//       //     localField: "emiDocs.customer",
-//       //     foreignField: "_id",
-//       //     as: "customerDocs"
-//       //   }    
-//       // }
-//     ])
+app.get("/cus/dup", async (req, res) => {
+  try {
+    let getAllCustomer = await Billing.aggregate([
+  {
+    $lookup: {
+      from: "emis",
+      localField: "emi",
+      foreignField: "_id",
+      as: "emiData"
+    }
+  },
+  {
+    $unwind: {
+      path: "$emiData",
+      preserveNullAndEmptyArrays: true
+    }
+  },
+  {
+    $match: {
+      $or: [
+        { "emiData.paidDate": { $exists: false } },
+        { "emiData.paidDate": null }
+      ]
+    }
+  }
+]);
 
 
-//     let deletedBill:any = []
+    // let deletedBill:any = []
 
-//     for (let index = 0; index < getAllCustomer.length; index++) {
-//       const element = getAllCustomer[index];
+    // for (let index = 0; index < getAllCustomer.length; index++) {
+    //   const element = getAllCustomer[index];
 
-//       let billCount1 = element.billingDocs[0]
-//       let billCount2 = element.billingDocs[1]
-//       if(billCount1.customer.toString() === billCount2.customer.toString() && billCount1.emiNo.toString() === billCount2.emiNo.toString() && billCount1.paymentDate.toString().split("T")[0] === billCount2.paymentDate.toString().split("T")[0] && billCount1.amountPaid === billCount2.amountPaid ){
-//         console.log(billCount1.customer.toString() , billCount2.customer.toString(), billCount1.customer.toString() === billCount2.customer.toString() ,"mass", billCount1.emiNo , billCount2.emiNo , billCount1.emiNo === billCount2.emiNo ,"mass", billCount1.paymentDate.toString().split("T")[0] , billCount2.paymentDate.toString().split("T")[0] , billCount1.paymentDate.toString().split("T")[0] === billCount2.paymentDate.toString().split("T")[0],"mass", billCount1.amountPaid , billCount2.amountPaid ,billCount1.amountPaid === billCount2.amountPaid ,"mass")
-//         deletedBill.push(billCount1)
-//       }else{
-//         console.log(billCount1.customer.toString() , billCount2.customer.toString(), billCount1.customer.toString() === billCount2.customer.toString() ,"mass", billCount1.emiNo , billCount2.emiNo , billCount1.emiNo === billCount2.emiNo ,"mass", billCount1.paymentDate.toString().split("T")[0] , billCount2.paymentDate.toString().split("T")[0] , billCount1.paymentDate.toString().split("T")[0] === billCount2.paymentDate.toString().split("T")[0],"mass", billCount1.amountPaid , billCount2.amountPaid ,billCount1.amountPaid === billCount2.amountPaid ,"mass")
+    //   let billCount1 = element.billingDocs[0]
+    //   let billCount2 = element.billingDocs[1]
+    //   if(billCount1.customer.toString() === billCount2.customer.toString() && billCount1.emiNo.toString() === billCount2.emiNo.toString() && billCount1.paymentDate.toString().split("T")[0] === billCount2.paymentDate.toString().split("T")[0] && billCount1.amountPaid === billCount2.amountPaid ){
+    //     console.log(billCount1.customer.toString() , billCount2.customer.toString(), billCount1.customer.toString() === billCount2.customer.toString() ,"mass", billCount1.emiNo , billCount2.emiNo , billCount1.emiNo === billCount2.emiNo ,"mass", billCount1.paymentDate.toString().split("T")[0] , billCount2.paymentDate.toString().split("T")[0] , billCount1.paymentDate.toString().split("T")[0] === billCount2.paymentDate.toString().split("T")[0],"mass", billCount1.amountPaid , billCount2.amountPaid ,billCount1.amountPaid === billCount2.amountPaid ,"mass")
+    //     deletedBill.push(billCount1)
+    //   }else{
+    //     console.log(billCount1.customer.toString() , billCount2.customer.toString(), billCount1.customer.toString() === billCount2.customer.toString() ,"mass", billCount1.emiNo , billCount2.emiNo , billCount1.emiNo === billCount2.emiNo ,"mass", billCount1.paymentDate.toString().split("T")[0] , billCount2.paymentDate.toString().split("T")[0] , billCount1.paymentDate.toString().split("T")[0] === billCount2.paymentDate.toString().split("T")[0],"mass", billCount1.amountPaid , billCount2.amountPaid ,billCount1.amountPaid === billCount2.amountPaid ,"mass")
 
-//       }     
-//     }
+    //   }     
+    // }
 
-//     res.json({ dup: getAllCustomer , deletedBill })
-//   } catch (err) {
-//     console.log(err)
-//     ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
-//   }
-// })
+    let outputDir = "./src/uploads/generated";
+    let jsonPath4 = path.join(outputDir, `emi-found${Date.now()}.json`);
+    fs.writeFileSync(jsonPath4, JSON.stringify(getAllCustomer))
+
+    console.log(getAllCustomer.length)
+
+    res.json({ dup: getAllCustomer })
+  } catch (err) {
+    console.log(err)
+    ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
+  }
+})
 
 
 app.listen(port, () => console.log("Server running on port " + port));

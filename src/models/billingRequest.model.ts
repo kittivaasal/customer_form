@@ -79,6 +79,8 @@ const BillingRequestSchema: Schema = new Schema<IBillingRequest>(
                 type: Number
             }
         },
+        targetModel: { type: String },
+        targetId: { type: Schema.Types.ObjectId },
         reason: {
             type: String
         },

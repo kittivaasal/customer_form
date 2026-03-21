@@ -8,6 +8,6 @@ router.post("/create", createLfc);
 router.put("/update",verifyToken, updateLfc);
 router.get("/get/all", getAllLfc);
 router.get("/get/:id", getByIdLfc);
-router.delete("/delete",[verifyToken,isAdmin(true)], deleteLfc);
+router.delete("/delete",[verifyToken], deleteLfc);
 
 export default router;

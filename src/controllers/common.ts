@@ -5,6 +5,8 @@ import { IUser } from "../type/user";
 import { sendNotificationsToMultipleDevices } from "../util/firebaseNotificationService";
 
 import * as XLSX from "xlsx";
+import activityLogModel from "../models/activityLog.model";
+import { IActivityLog } from "../type/activityLog";
 
 export const DATE_FIELDS = [
   "date",
@@ -173,4 +175,22 @@ export const sendPushNotificationToSuperAdmin = async (title: string, body: stri
     message: sendPushNotification.message
   };
 
+}
+
+export const addActivityLog = async (data:IActivityLog) => {
+  try {
+    data.action = data.action.toUpperCase() as "CREATE" | "UPDATE" | "DELETE" | "BILLING REQUEST";
+    data.date = new Date();
+    let activityLog = new activityLogModel(data);
+    await activityLog.save();
+    return {
+      success: true,
+      message: "Activity log added successfully"
+    }
+  } catch (error:any) {
+    return {
+      success: false,
+      message: error.message
+    }
+  }
 }

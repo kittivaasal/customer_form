@@ -11,6 +11,6 @@ router.get("/get/all/both", getBothMarketerMarketerHead)
 router.get("/get/:id", getByIdMarketDetail);
 router.get("/get/full/:id", getFullHierarchy);
 router.get("/get/all/up/down/:id", getUplineDownline);
-router.delete("/delete",[verifyToken,isAdmin(true)], deleteMarketDetail);
+router.delete("/delete",[verifyToken], deleteMarketDetail);
 
 export default router;

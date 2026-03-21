@@ -8,6 +8,6 @@ router.post("/create", createPercentage);
 router.put("/update",verifyToken, updatePercentage);
 router.get("/get/all", getAllPercentage);
 router.get("/get/:id", getByIdPercentage);
-router.delete("/delete",[verifyToken,isAdmin(true)], deletePercentage);
+router.delete("/delete",[verifyToken], deletePercentage);
 
 export default router;
