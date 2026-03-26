@@ -18,8 +18,11 @@ import { IGeneral } from "../type/general";
 import { IUser } from "../type/user";
 import { get } from "http";
 import { convertCommissionToMarketer } from "./common.controller";
-import { CustomerEmiModel } from "../models/commision.model";
+import { Commission } from "../models/commision.model";
 import { modelMap } from "./modelMap";
+import { addActivityLog } from "./common";
+import { IActivityLog } from "../type/activityLog";
+import ActivityLogError from "../models/activityLogError.model";
 
 
 export const approvedBillingRequest = async (req: CustomRequest, res: Response) => {
@@ -161,7 +164,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
           let createCommission;
           [err, createCommission] = await toAwait(
-            CustomerEmiModel.create({
+            Commission.create({
               bill: createBill?._id,
               customer: customerId,
               emiId: null,
@@ -351,10 +354,13 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
             let createCommission;
             [err, createCommission] = await toAwait(
-              CustomerEmiModel.create({
+              Commission.create({
                 bill: billing?._id,
                 customer: customerId,
                 emiId: element?._id,
+                emiNo: element?.emiNo,
+                paymentDate: billing?.paymentDate,
+                customerCode: checkCustomer.id,
                 amount: am,
                 marketer: getCommission.data
               })
@@ -380,6 +386,34 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                 return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
               }
             }
+
+            let obj = {
+              userId: user._id,
+              action: "BILLING REQUEST",
+              billingRequestAction: "CREATE",
+              collectionName: "Billing",
+              documentId: billing._id,
+              oldData: null,
+              newData: null,
+              createdBy: user._id,
+              requestBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
+              message: `Create billing request approved by ${user.name}`,
+              date: new Date()
+            } as unknown as IActivityLog
+
+            let createLog = await addActivityLog(obj)
+
+            if (createLog.success === false) {
+              let createErrorLog;
+              [err, createErrorLog] = await toAwait(
+                ActivityLogError.create({
+                  data: obj,
+                  errorMsg: createLog.message,
+                  date: new Date(),
+                })
+              );
+            }
+
           }
 
         }
@@ -439,18 +473,43 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
         );
       }
 
+      let obj = {
+        userId: user._id,
+        action: "BILLING REQUEST",
+        billingRequestAction: "DOWNLOAD",
+        collectionName: "BillingRequest",
+        documentId: getBillingRequest._id,
+        oldData: null,
+        newData: null,
+        createdBy: user._id,
+        requestBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
+        message: getBillingRequest.message,
+        date: new Date()
+      } as unknown as IActivityLog
+
+      let createLog = await addActivityLog(obj)
+
+      if (createLog.success === false) {
+        let createErrorLog;
+        [err, createErrorLog] = await toAwait(
+          ActivityLogError.create({
+            data: obj,
+            errorMsg: createLog.message,
+            date: new Date(),
+          })
+        );
+      }
+
     }
-console.log("getBillingRequest.requestFor", getBillingRequest.requestFor);
+
     if (getBillingRequest.requestFor === "delete" && status === "approved") {
-        console.log("getBillingRequest.requestFor1", getBillingRequest.requestFor);
+      console.log("getBillingRequest.requestFor1", getBillingRequest.requestFor);
       const targetModel = modelMap[getBillingRequest.targetModel];
       let targetId = getBillingRequest.targetId;
 
       if (!targetModel || !targetId) {
         return ReE(res, { message: "target model or target id not found" }, httpStatus.BAD_REQUEST);
       }
-
-      console.log("targetModel",   targetId);
 
       let updateTarget;
       [err, updateTarget] = await toAwait(
@@ -461,10 +520,10 @@ console.log("getBillingRequest.requestFor", getBillingRequest.requestFor);
 
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-      return ReE(
+      return ReS(
         res,
-        { message: `${targetId} not found for this ${getBillingRequest.targetModel} table` },
-        httpStatus.BAD_REQUEST
+        { message: `${targetId} not found for this ${getBillingRequest.targetModel} table`, data:updateTarget },
+        httpStatus.OK
       );
 
       // let deleteGive;

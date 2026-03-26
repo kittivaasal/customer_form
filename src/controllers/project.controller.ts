@@ -334,6 +334,18 @@ export const deleteProject = async (req: CustomRequest, res: Response) => {
         httpStatus.BAD_REQUEST,
       );
     }
+    let checkBillingRequest;
+    [err, checkBillingRequest] = await toAwait(
+      BillingRequest.findOne({ targetId: _id, requestFor: "delete", status: "pending" })
+    )
+    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if(checkBillingRequest) {
+      return ReE(
+        res,
+        { message: "Project delete request already pending for this billing id!" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
     let createBillingRequest;
     [err, createBillingRequest] = await toAwait(
       BillingRequest.create({

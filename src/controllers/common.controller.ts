@@ -6,7 +6,7 @@ import mongoose, { isValidObjectId } from "mongoose";
 import * as XLSX from "xlsx";
 import { Billing } from "../models/billing.model";
 import { BillingRequest } from "../models/billingRequest.model";
-import { CustomerEmiModel } from "../models/commision.model";
+import { Commission } from "../models/commision.model";
 import { Customer } from "../models/customer.model";
 import { Emi } from "../models/emi.model";
 import { Flat } from "../models/flat.model";
@@ -42,7 +42,7 @@ import { IProject } from "../type/project";
 import { IUser } from "../type/user";
 import { addActivityLog, sendPushNotificationToSuperAdmin } from "./common";
 import { IActivityLog } from "../type/activityLog";
-import activityLogErrorModel from "../models/activityLogError.model";
+import ActivityLogError from "../models/activityLogError.model";
 
 export const uploadImages = async (req: Request, res: Response) => {
   try {
@@ -2501,10 +2501,12 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
           let createCommission;
           [err, createCommission] = await toAwait(
-            CustomerEmiModel.create({
+            Commission.create({
               bill: createBill?._id,
               customer: customerId,
               emiId: null,
+              paymentDate: createBill?.paymentDate,
+              customerCode: checkCustomer.id,
               amount: enteredAmount,
               marketer: getCommission.data,
             }),
@@ -2824,10 +2826,13 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
         let createCommission;
         [err, createCommission] = await toAwait(
-          CustomerEmiModel.create({
+          Commission.create({
             bill: billing?._id,
             customer: customerId,
             emiId: element?._id ? element._id : null,
+            emiNo: element?.emiNo ? element.emiNo : null,
+            paymentDate: billing?.paymentDate,
+            customerCode: checkCustomer?.id,
             amount: !housing ? amount : enteredAmount,
             marketer: getCommission.data,
           }),
@@ -2856,8 +2861,34 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
             return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
           }
         }
+
+        let obj = {
+          userId: user._id,
+          action: "CREATE",
+          collectionName: "Billing",
+          documentId: billing._id,
+          oldData: null,
+          newData: null,
+          createdBy: user._id,
+          message: `Billing created by ${user.name}`,
+          date: new Date()
+        } as unknown as IActivityLog
+    
+        let createLog = await addActivityLog(obj)
+    
+        if(createLog.success === false) {
+          let createErrorLog;
+          [err, createErrorLog] = await toAwait(
+            ActivityLogError.create({
+              data: obj,
+              errorMsg: createLog.message,
+              date: new Date(),
+            })
+          );
+        }
       }
     }
+
 
     return ReS(
       res,
@@ -3178,49 +3209,6 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
     
   }
 
-  let checkBillRequest;
-  [err, checkBillRequest] = await toAwait(
-    BillingRequest.findOne({
-      customerId: getBilling.customer,
-      requestFor: "create",
-      status: "pending",
-    }),
-  );
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  if (checkBillRequest) {
-    return ReE(
-      res,
-      { message: "create bill request already pending for this customer!" },
-      httpStatus.BAD_REQUEST,
-    );
-  }
-
-  if (!user.isAdmin) {
-    let createBillingRequest;
-    [err, createBillingRequest] = await toAwait(
-      BillingRequest.create({
-        customerId: getBilling.customer,
-        requestFor: "delete",
-        status: "pending",
-        createdBy: user._id,
-        billId: getBilling._id,
-      }),
-    );
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!createBillingRequest) {
-      return ReE(
-        res,
-        { message: "billing request not created!" },
-        httpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
-    return ReS(
-      res,
-      { message: "billing delete request created successfully!" },
-      httpStatus.OK,
-    );
-  }
-
   let updateEmi;
   if (getBilling.emi) {
     [err, updateEmi] = await toAwait(
@@ -3268,16 +3256,17 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
     documentId: getBilling._id,
     oldData: getBilling,
     newData: null,
+    createdBy: user._id,
     message: `Billing deleted by ${user.name}`,
     date: new Date()
-  } as IActivityLog
+  } as unknown as IActivityLog
 
   let createLog = await addActivityLog(obj)
 
   if(createLog.success === false) {
     let createErrorLog;
     [err, createErrorLog] = await toAwait(
-      activityLogErrorModel.create({
+      ActivityLogError.create({
         data: obj,
         errorMsg: createLog.message,
         date: new Date(),
@@ -3497,7 +3486,7 @@ export const getAllDataBasedOnGeneral = async (req: Request, res: Response) => {
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
       [err, objMarketer] = await toAwait(
-        CustomerEmiModel.find({ customer: customerId })
+        Commission.find({ customer: customerId })
           // .populate("customer")
           // .populate("generalId")
           // .populate("emiId")

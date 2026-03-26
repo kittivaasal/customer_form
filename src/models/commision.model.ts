@@ -14,38 +14,17 @@ export interface IMarketerCommission {
   commAmount: string;   // "10"
 }
 
-/** EMI embedded object */
-export interface IEmiInfo {
-  _id: string;
-  push: boolean;
-  general: string;
-  customer: string;
-  emiNo: number;
-  date: Date;
-  paidDate?: Date;
-  paidAmt?: number;
-  payRef?: string;
-  oldData: boolean;
-  oldDate: boolean;
-  emiAmt: number;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
-
 /** Main document */
-export interface IAllianceCommission {
+export interface ICommission {
   customer: Schema.Types.ObjectId;
   name: string;          // customer name
   customerCode: string;
   bill: Schema.Types.ObjectId;
-  emiId:Schema.Types.ObjectId;
-  emi: IEmiInfo;
+  emiId: Schema.Types.ObjectId;
+  emiNo: Number;
+  paymentDate: Date;
   marketer: IMarketerCommission[];
 }
-
-/* ================================
-   Sub Schemas
-================================ */
 
 /** Marketer sub-schema */
 const marketerSchema = new Schema<IMarketerCommission>(
@@ -83,71 +62,7 @@ const marketerSchema = new Schema<IMarketerCommission>(
   }
 );
 
-/** EMI sub-schema */
-const emiSchema = new Schema<IEmiInfo>(
-  {
-    _id: {
-      type: String,
-      required: true,
-    },
-    push: {
-      type: Boolean,
-      required: true,
-    },
-    general: {
-      type: String,
-      required: true,
-    },
-    customer: {
-      type: String,
-      required: true,
-    },
-    emiNo: {
-      type: Number,
-      required: true,
-    },
-    date: {
-      type: Date,
-      required: true,
-    },
-    paidDate: {
-      type: Date,
-    },
-    paidAmt: {
-      type: Number,
-    },
-    payRef: {
-      type: String,
-    },
-    oldData: {
-      type: Boolean,
-      default: false,
-    },
-    oldDate: {
-      type: Boolean,
-      default: false,
-    },
-    emiAmt: {
-      type: Number,
-      required: true,
-    },
-    createdAt: {
-      type: Date,
-    },
-    updatedAt: {
-      type: Date,
-    },
-  },
-  {
-    _id: false,
-  }
-);
-
-/* ================================
-   Main Schema
-================================ */
-
-const allianceCommissionSchema = new Schema<IAllianceCommission>(
+const allianceCommissionSchema = new Schema<ICommission>(
   {
     customer: {
       type: Schema.Types.ObjectId,
@@ -170,13 +85,15 @@ const allianceCommissionSchema = new Schema<IAllianceCommission>(
       ref: "Billing",
       required: true,
     },
-    emi: {
-      type: emiSchema,
-      // required: true,
-    },
     emiId: {
       type: Schema.Types.ObjectId,
       ref: "Emi"
+    },
+    emiNo: {
+      type: Number,
+    },
+    paymentDate: {
+      type: Date
     },
     marketer: {
       type: [marketerSchema],
@@ -199,7 +116,7 @@ allianceCommissionSchema.index({ "marketer.marketerId": 1 })
    Model Export
 ================================ */
 
-export const CustomerEmiModel = model<IAllianceCommission>(
-  "AllianceCommission",
+export const Commission = model<ICommission>(
+  "Commission",
   allianceCommissionSchema
 );

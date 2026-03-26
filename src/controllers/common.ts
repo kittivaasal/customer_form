@@ -5,7 +5,7 @@ import { IUser } from "../type/user";
 import { sendNotificationsToMultipleDevices } from "../util/firebaseNotificationService";
 
 import * as XLSX from "xlsx";
-import activityLogModel from "../models/activityLog.model";
+import ActivityLog from "../models/activityLog.model";
 import { IActivityLog } from "../type/activityLog";
 
 export const DATE_FIELDS = [
@@ -181,7 +181,7 @@ export const addActivityLog = async (data:IActivityLog) => {
   try {
     data.action = data.action.toUpperCase() as "CREATE" | "UPDATE" | "DELETE" | "BILLING REQUEST";
     data.date = new Date();
-    let activityLog = new activityLogModel(data);
+    let activityLog = new ActivityLog(data);
     await activityLog.save();
     return {
       success: true,

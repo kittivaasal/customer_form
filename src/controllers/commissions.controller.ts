@@ -1,6 +1,6 @@
 import e, { Request, Response } from "express";
 import { Types } from "mongoose";
-import {CustomerEmiModel } from "../models/commision.model";
+import {Commission } from "../models/commision.model";
 
 /**
  * GET /api/commission/customer/:customerId
@@ -22,7 +22,7 @@ export const getCommissionByCustomer = async (
     }
 
     // 2️⃣ Aggregation pipeline
-    const commissions = await CustomerEmiModel.find({ customer: customerId })
+    const commissions = await Commission.find({ customer: customerId })
 
     // 3️⃣ Response
     return res.status(200).json({
@@ -51,7 +51,7 @@ export const getCommissionByMarkerId = async (req: Request, res: Response) => {
       });
     }
   
-    const data = await CustomerEmiModel.find({
+    const data = await Commission.find({
       "marketer.marketerId": id
     }).lean();
 

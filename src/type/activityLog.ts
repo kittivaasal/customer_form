@@ -5,6 +5,8 @@ export interface IActivityLog extends Document {
   billingRequestAction?: "CREATE" | "UPDATE" | "DOWNLOAD";
   collectionName: string;
   documentId: mongoose.Types.ObjectId;
+  createdBy: mongoose.Types.ObjectId;
+  requestBy: mongoose.Types.ObjectId;
   oldData?: any;
   newData?: any;
   userId?: mongoose.Types.ObjectId;

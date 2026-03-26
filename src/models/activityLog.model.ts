@@ -28,6 +28,14 @@ const ActivityLogSchema = new Schema<IActivityLog>(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    requestBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
     date: {
       type: Date,
       default: Date.now()
