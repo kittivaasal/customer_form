@@ -99,7 +99,26 @@ const BillingRequestSchema: Schema = new Schema<IBillingRequest>(
         billId : {
             type: Schema.Types.ObjectId,
             ref: "Billing"
-        }
+        },
+        basedIdDelete: [
+            {
+                _id: { type: Schema.Types.ObjectId },
+                targetModel: { type: String }
+            }
+        ],
+        deleteBasedUpdate : [
+            {
+                _id: mongoose.Types.ObjectId,
+                targetModel: String,
+                changes: [
+                    {
+                        field: { type: String },
+                        oldValue: { type: Schema.Types.Mixed },
+                        newValue: { type: Schema.Types.Mixed }
+                    }
+                ]
+            }
+        ]
     },
     { timestamps: true }
 );

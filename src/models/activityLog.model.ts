@@ -14,11 +14,9 @@ const ActivityLogSchema = new Schema<IActivityLog>(
     },
     collectionName: {
       type: String,
-      required: true,
     },
     documentId: {
-      type: String,
-      required: true,
+      type: Schema.Types.Mixed,
     },
     oldData: {
       type: Schema.Types.Mixed,
@@ -27,11 +25,12 @@ const ActivityLogSchema = new Schema<IActivityLog>(
       type: Schema.Types.Mixed,
     },
     userId: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "User",
     },
     date: {
       type: Date,
-      default: Date.now
+      default: Date.now()
     },
     message: {
       type: String
