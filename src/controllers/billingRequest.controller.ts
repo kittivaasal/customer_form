@@ -19,12 +19,13 @@ import { IUser } from "../type/user";
 import { get } from "http";
 import { convertCommissionToMarketer } from "./common.controller";
 import { CustomerEmiModel } from "../models/commision.model";
+import { modelMap } from "./modelMap";
 
 
 export const approvedBillingRequest = async (req: CustomRequest, res: Response) => {
 
   try {
-
+    console.log(req.body)
     let err, user = req.user as IUser, body = req.body;
 
     if (!user) {
@@ -65,7 +66,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
     if (getBillingRequest.requestFor === "create") {
 
-      if (getBillingRequest.status === "approved" ) {
+      if (getBillingRequest.status === "approved") {
         return ReE(res, { message: "billing request already approved" }, httpStatus.BAD_REQUEST);
       }
 
@@ -79,12 +80,12 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
       let checkGeneral;
       let customerId;
 
-      if(getBillingRequest?.customerId){
+      if (getBillingRequest?.customerId) {
         customerId = getBillingRequest.customerId
-      }else{
+      } else {
         customerId = (getBillingRequest.emi[0]?.customer && (getBillingRequest.emi[0]?.customer as any)._id) ? (getBillingRequest.emi[0].customer as any)._id : getBillingRequest.emi[0]?.customer;
       }
-      
+
 
       let getCustomer;
       [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
@@ -104,15 +105,15 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
         if (getBillingRequest.billingDetails?.housing && getBillingRequest.billingDetails?.parciallyPaid === true) {
 
-          let am=0
-          if(getBillingRequest.billingDetails?.enteredAmount){
-            am=getBillingRequest.billingDetails.enteredAmount
-          }else if(getBillingRequest.billingDetails?.amountPaid){
-            am=getBillingRequest.billingDetails.amountPaid
+          let am = 0
+          if (getBillingRequest.billingDetails?.enteredAmount) {
+            am = getBillingRequest.billingDetails.enteredAmount
+          } else if (getBillingRequest.billingDetails?.amountPaid) {
+            am = getBillingRequest.billingDetails.amountPaid
           }
 
           let getCommission = await convertCommissionToMarketer(checkCustomer, am)
-  
+
           if (!getCommission.success) {
             // return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
           }
@@ -135,7 +136,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               remarks: getBillingRequest.billingDetails.remarks,
               referenceId: getBillingRequest.billingDetails.referenceId,
               customerName: checkCustomer?.name,
-              oldData : oldData ? oldData : checkCustomer?.oldData,
+              oldData: oldData ? oldData : checkCustomer?.oldData,
               billFor: getBillingRequest.billingDetails.billFor,
               balanceAmount: getBillingRequest.billingDetails?.balanceAmount,
               customerCode: checkCustomer.id,
@@ -163,16 +164,16 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             CustomerEmiModel.create({
               bill: createBill?._id,
               customer: customerId,
-              emiId:  null,
+              emiId: null,
               amount: am,
               marketer: getCommission.data
             })
           );
-  
+
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
           if (!createCommission) {
-            return ReE(res,{ message: "commission not created" },httpStatus.INTERNAL_SERVER_ERROR);
+            return ReE(res, { message: "commission not created" }, httpStatus.INTERNAL_SERVER_ERROR);
           }
 
           let updateBillRequest;
@@ -194,7 +195,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
           }
 
           return ReS(res, { message: "billing approved successfully" }, httpStatus.OK);
-          
+
         }
 
         for (let i = 0; i < readyForBill.length; i++) {
@@ -216,9 +217,9 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
 
           let totalAmount = 0;
-          if(checkGeneral.totalAmount && checkGeneral.totalAmount > 0){
+          if (checkGeneral.totalAmount && checkGeneral.totalAmount > 0) {
             totalAmount = checkGeneral.totalAmount;
-          }else if(!getBillingRequest.billingDetails?.housing && checkGeneral.emiAmount && checkGeneral.noOfInstallments){
+          } else if (!getBillingRequest.billingDetails?.housing && checkGeneral.emiAmount && checkGeneral.noOfInstallments) {
             totalAmount = checkGeneral.emiAmount * checkGeneral.noOfInstallments;
           }
 
@@ -227,7 +228,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
           if (getAllBill.length === 0) {
             balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
           } else {
-            let total = getAllBill.reduce((acc, curr:any) => acc + curr.enteredAmount  ? curr.enteredAmount : curr.amountPaid , 0);
+            let total = getAllBill.reduce((acc, curr: any) => acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid, 0);
             balanceAmount = totalAmount - (total + amount);
           }
 
@@ -326,34 +327,34 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             // }
 
 
-            let am=0;
+            let am = 0;
 
             if (getBillingRequest.billingDetails?.housing) {
               am = getBillingRequest.billingDetails.enteredAmount;
-            }else{
+            } else {
               am = getBillingRequest.billingDetails.enteredAmount
             }
 
             let getCommission = await convertCommissionToMarketer(checkCustomer, am)
 
-            if (!getCommission.success){
+            if (!getCommission.success) {
               createBill.commissionErrorMsg = getCommission.message
               // return ReE(res, { message: getCommission.message }, httpStatus.INTERNAL_SERVER_ERROR);
-            } 
-            
+            }
+
 
             [err, billing] = await toAwait(Billing.create(createBill));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);            
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
             billing = billing as IBilling;
             getMarketer = getMarketer as any;
-          
+
             let createCommission;
             [err, createCommission] = await toAwait(
               CustomerEmiModel.create({
                 bill: billing?._id,
                 customer: customerId,
-                emiId:  element?._id,
+                emiId: element?._id,
                 amount: am,
                 marketer: getCommission.data
               })
@@ -362,7 +363,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
             if (!createCommission) {
-              return ReE(res,{ message: "commission not created" },httpStatus.INTERNAL_SERVER_ERROR);
+              return ReE(res, { message: "commission not created" }, httpStatus.INTERNAL_SERVER_ERROR);
             }
 
             let updateEmi;
@@ -439,15 +440,17 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
       }
 
     }
-    
-    if(getBillingRequest.requestFor === "delete" && status === "approved"){
+console.log("getBillingRequest.requestFor", getBillingRequest.requestFor);
+    if (getBillingRequest.requestFor === "delete" && status === "approved") {
+        console.log("getBillingRequest.requestFor1", getBillingRequest.requestFor);
+      const targetModel = modelMap[getBillingRequest.targetModel];
+      let targetId = getBillingRequest.targetId;
 
-      let targetModel =  getBillingRequest.targetModel;
-      let targetId =  getBillingRequest.targetId;
-
-      if(!targetModel || !targetId){
+      if (!targetModel || !targetId) {
         return ReE(res, { message: "target model or target id not found" }, httpStatus.BAD_REQUEST);
       }
+
+      console.log("targetModel",   targetId);
 
       let updateTarget;
       [err, updateTarget] = await toAwait(
@@ -458,23 +461,54 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-      if(!updateTarget){
-        return ReE(res, { message: ` ${targetId} not found for this ${targetModel} table`}, httpStatus.BAD_REQUEST);
+      return ReE(
+        res,
+        { message: `${targetId} not found for this ${getBillingRequest.targetModel} table` },
+        httpStatus.BAD_REQUEST
+      );
+
+      // let deleteGive;
+      // [err, deleteGive] = await toAwait(
+      //   targetModel.findOneAndDelete(
+      //     { _id: targetId }
+      //   )
+      // )
+
+      // console.log("deleteGive", deleteGive, err);
+
+      // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+      // if (!deleteGive) {
+      //   return ReE(res, { message: `Failed to delete this ${targetId} please try again` }, httpStatus.BAD_REQUEST);
+      // }
+
+      if (getBillingRequest.deleteBasedUpdate?.length > 0) {
+
+        for (let index = 0; index < getBillingRequest.deleteBasedUpdate.length; index++) {
+          const element = getBillingRequest.deleteBasedUpdate[index];
+          let object = element.changes.map((item: any) => { return { [item.field]: item.newValue } });
+          let updateDb = modelMap[element.targetModel];
+
+          console.log(object, updateDb, element.targetModel, index);
+
+          let updateTarget;
+          [err, updateTarget] = await toAwait(
+            updateDb.findOneAndUpdate(
+              { _id: element._id },
+              { $set: object },
+              { new: true }
+            )
+          );
+
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+          if (!updateTarget) {
+            return ReE(res, { message: ` ${targetId} not found for this ${targetModel} table` }, httpStatus.BAD_REQUEST);
+          }
+        }
+
       }
 
-      let deleteGive;
-      [err, deleteGive] = await toAwait(
-        targetModel.findOneAndDelete(
-          { _id: targetId }
-        )
-      )
-
-      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-
-      if(!deleteGive){
-        return ReE(res, { message: ` ${targetId} not found for this ${targetModel} table`}, httpStatus.BAD_REQUEST);
-      }
-      
     }
 
     if (status === "rejected") {
