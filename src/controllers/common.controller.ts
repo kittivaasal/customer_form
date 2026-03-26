@@ -314,7 +314,7 @@ export const createCommonData = async (req: Request, res: Response) => {
         return ReE(
           res,
           { message: "total amount must be number in general" },
-          httpStatus.BAD_REQUEST
+          httpStatus.BAD_REQUEST,
         );
       }
     }
@@ -324,7 +324,8 @@ export const createCommonData = async (req: Request, res: Response) => {
         return ReE(
           res,
           {
-            message: "Invalid date format for dateFrom valid format is (YYYY-MM-DD)!",
+            message:
+              "Invalid date format for dateFrom valid format is (YYYY-MM-DD)!",
           },
           httpStatus.BAD_REQUEST,
         );
@@ -346,7 +347,11 @@ export const createCommonData = async (req: Request, res: Response) => {
     );
   let createGeneral;
   [err, createGeneral] = await toAwait(
-    General.create({ ...general, customer: customerId, supplierCode: checkCustomer.id }),
+    General.create({
+      ...general,
+      customer: customerId,
+      supplierCode: checkCustomer.id,
+    }),
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!createGeneral) {
@@ -556,7 +561,9 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     }
 
     let checkAlreadyExist;
-    [err, checkAlreadyExist] = await toAwait(General.findOne({ _id: general._id }));
+    [err, checkAlreadyExist] = await toAwait(
+      General.findOne({ _id: general._id }),
+    );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!checkAlreadyExist) {
       return ReE(
@@ -568,15 +575,19 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
 
     checkAlreadyExist = checkAlreadyExist as IGeneral;
 
-    //compare start date and existing start date ifequal dkeklete the gener.start 
-    let exStartDateYear = new Date(checkAlreadyExist.startDate).getFullYear(); 
+    //compare start date and existing start date ifequal dkeklete the gener.start
+    let exStartDateYear = new Date(checkAlreadyExist.startDate).getFullYear();
     let exStartDateMonth = new Date(checkAlreadyExist.startDate).getMonth() + 1;
     let exStartDateDate = new Date(checkAlreadyExist.startDate).getDate();
     let currentStartDateYear = new Date(general.startDate).getFullYear();
     let currentStartDateMonth = new Date(general.startDate).getMonth() + 1;
     let currentStartDateDate = new Date(general.startDate).getDate();
-    if(exStartDateYear === currentStartDateYear && exStartDateMonth === currentStartDateMonth && exStartDateDate === currentStartDateDate){
-      delete general.startDate
+    if (
+      exStartDateYear === currentStartDateYear &&
+      exStartDateMonth === currentStartDateMonth &&
+      exStartDateDate === currentStartDateDate
+    ) {
+      delete general.startDate;
     }
 
     // let getProject;
@@ -781,40 +792,51 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
   }
 
   if (general) {
-
     let getGeneral;
     [err, getGeneral] = await toAwait(General.findOne({ _id: general._id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!getGeneral){
+    if (!getGeneral) {
       return ReE(res, { message: "General not found" }, httpStatus.NOT_FOUND);
     }
 
     getGeneral = getGeneral as IGeneral;
 
-    if(general.totalAmount){
-
-      if(isNaN(general.totalAmount)){
-        return ReE(res, { message: "totalAmount should be a number" }, httpStatus.BAD_REQUEST);
+    if (general.totalAmount) {
+      if (isNaN(general.totalAmount)) {
+        return ReE(
+          res,
+          { message: "totalAmount should be a number" },
+          httpStatus.BAD_REQUEST,
+        );
       }
 
-      if(general.totalAmount < 0){
-        return ReE(res, { message: "totalAmount can't be negative" }, httpStatus.BAD_REQUEST);
+      if (general.totalAmount < 0) {
+        return ReE(
+          res,
+          { message: "totalAmount can't be negative" },
+          httpStatus.BAD_REQUEST,
+        );
       }
     }
 
     if (general.startDate) {
-
       if (!isValidDate(general.startDate)) {
         return ReE(
           res,
-          { message: "start date in general is invalid date format valid date format is dd-mm-yyyy" },
+          {
+            message:
+              "start date in general is invalid date format valid date format is dd-mm-yyyy",
+          },
           httpStatus.BAD_REQUEST,
         );
       }
 
       let getBilling;
       [err, getBilling] = await toAwait(
-        Billing.find({ general: getGeneral._id, customer: getGeneral.customer }),
+        Billing.find({
+          general: getGeneral._id,
+          customer: getGeneral.customer,
+        }),
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       if (!getBilling) {
@@ -828,9 +850,15 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
       getBilling = getBilling as IBilling[];
 
       if (getBilling.length > 1 && general.startDate) {
-        return ReE(res, { message: "This customer has multiple billing so you can't update the startDate" }, httpStatus.BAD_REQUEST)
+        return ReE(
+          res,
+          {
+            message:
+              "This customer has multiple billing so you can't update the startDate",
+          },
+          httpStatus.BAD_REQUEST,
+        );
       }
-
     }
 
     if (general.noOfInstallments) {
@@ -885,7 +913,7 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
                 emiNo: lastEmiNo + i,
                 emiAmt: getGeneral.emiAmount,
                 date: getEmiDate(i, new Date(lastDueDate)),
-                paidDate: null
+                paidDate: null,
               });
             }
             await Emi.insertMany(newEmis);
@@ -911,7 +939,6 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     }
 
     if (general.startDate) {
-
       let getAllEmi;
       [err, getAllEmi] = await toAwait(
         Emi.find({ customer: getGeneral.customer }).sort({ emiNo: 1 }),
@@ -930,14 +957,13 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
               },
             },
           },
-        })
+        });
         let updateEmi;
         if (bulk.length !== 0) {
           [err, updateEmi] = await toAwait(Emi.bulkWrite(bulk));
         }
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       }
-
     }
 
     let updateGeneral;
@@ -949,7 +975,6 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     }
     results.general = updateGeneral;
     results.message = "general updated successfully";
-
   }
 
   if (plot) {
@@ -1124,7 +1149,7 @@ export const getAllBilling = async (req: Request, res: Response) => {
   let { customerId, generalId, page, limit, search } = req.query,
     option: any = {};
 
-    console.log(search, "search");
+  console.log(search, "search");
   // Existing customerId validation
   if (customerId) {
     if (mongoose.isValidObjectId(customerId)) {
@@ -2153,7 +2178,10 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     if (housing && !checkGeneral.totalAmount) {
       return ReE(
         res,
-        { message: "total amount is required for housing billing so pls update total amount in estimate" },
+        {
+          message:
+            "total amount is required for housing billing so pls update total amount in estimate",
+        },
         httpStatus.BAD_REQUEST,
       );
     }
@@ -2261,23 +2289,33 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       let totalAmount = 0;
       if (checkGeneral.totalAmount && checkGeneral.totalAmount > 0) {
         totalAmount = checkGeneral.totalAmount;
-      } else if (!housing && checkGeneral.emiAmount && checkGeneral.noOfInstallments) {
+      } else if (
+        !housing &&
+        checkGeneral.emiAmount &&
+        checkGeneral.noOfInstallments
+      ) {
         totalAmount = checkGeneral.emiAmount * checkGeneral.noOfInstallments;
       }
 
-      let totalPaid = 0
+      let totalPaid = 0;
       if (getAllBill.length === 0) {
         balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
       } else {
-        totalPaid = getAllBill.reduce((acc, curr: any) => acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid, 0);
+        totalPaid = getAllBill.reduce(
+          (acc, curr: any) =>
+            acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid,
+          0,
+        );
         balanceAmount = totalAmount - (totalPaid + amount);
       }
 
       if (housing) {
-        if ((totalPaid + amount) > totalAmount) {
+        if (totalPaid + amount > totalAmount) {
           return ReE(
             res,
-            { message: `This customer total amount: ${totalAmount} already paid ${totalPaid} balance amount is ${totalAmount - totalPaid} so amount must be less than or equal to ${totalAmount - totalPaid}!` },
+            {
+              message: `This customer total amount: ${totalAmount} already paid ${totalPaid} balance amount is ${totalAmount - totalPaid} so amount must be less than or equal to ${totalAmount - totalPaid}!`,
+            },
             httpStatus.BAD_REQUEST,
           );
         }
@@ -2296,7 +2334,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       // }
 
       readyForBill.push(getEmi);
-
     } else {
       let getAllEmiPast;
       [err, getAllEmiPast] = await toAwait(
@@ -2355,23 +2392,33 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       let totalAmount = 0;
       if (checkGeneral.totalAmount && checkGeneral.totalAmount > 0) {
         totalAmount = checkGeneral.totalAmount;
-      } else if (!housing && checkGeneral.emiAmount && checkGeneral.noOfInstallments) {
+      } else if (
+        !housing &&
+        checkGeneral.emiAmount &&
+        checkGeneral.noOfInstallments
+      ) {
         totalAmount = checkGeneral.emiAmount * checkGeneral.noOfInstallments;
       }
 
-      let totalPaid = 0
+      let totalPaid = 0;
       if (getAllBill.length === 0) {
         balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
       } else {
-        totalPaid = getAllBill.reduce((acc, curr: any) => acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid, 0);
+        totalPaid = getAllBill.reduce(
+          (acc, curr: any) =>
+            acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid,
+          0,
+        );
         balanceAmount = totalAmount - (totalPaid + amount);
       }
 
       if (housing) {
-        if ((totalPaid + amount) > totalAmount) {
+        if (totalPaid + amount > totalAmount) {
           return ReE(
             res,
-            { message: `This customer total amount: ${totalAmount} already paid ${totalPaid} balance amount is ${totalAmount - totalPaid} so amount must be less than or equal to ${totalAmount - totalPaid}!` },
+            {
+              message: `This customer total amount: ${totalAmount} already paid ${totalPaid} balance amount is ${totalAmount - totalPaid} so amount must be less than or equal to ${totalAmount - totalPaid}!`,
+            },
             httpStatus.BAD_REQUEST,
           );
         }
@@ -2379,7 +2426,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
       if (housing) {
         if (getAllEmiPast.length === 0) {
-
           let createBill;
           if (!user.isAdmin) {
             [err, checkBillingRequestForCustomer] = await toAwait(
@@ -2448,7 +2494,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           );
 
           if (!getCommission.success) {
-
             // return ReE(
             //   res,
             //   { message: getCommission.message },
@@ -2482,7 +2527,9 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               createdBy: user._id,
               enteredAmount,
               projectId: checkCustomer.projectId,
-              commissionErrorMsg: getCommission.success ? "" : getCommission.message
+              commissionErrorMsg: getCommission.success
+                ? ""
+                : getCommission.message,
             }),
           );
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -2570,7 +2617,6 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       //   Number(amount) - getAllEmiPast[0].emiAmt * noOfEmiPay;
       // amount = getAllEmiPast[0].emiAmt * noOfEmiPay;
       // }
-
     }
 
     if (!user?.isAdmin) {
@@ -2594,7 +2640,8 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           return ReE(
             res,
             {
-              message: "You already have pending billing request for existing EMIs",
+              message:
+                "You already have pending billing request for existing EMIs",
             },
             httpStatus.BAD_REQUEST,
           );
@@ -2687,14 +2734,22 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       let totalAmount = 0;
       if (checkGeneral.totalAmount && checkGeneral.totalAmount > 0) {
         totalAmount = checkGeneral.totalAmount;
-      } else if (!housing && checkGeneral.emiAmount && checkGeneral.noOfInstallments) {
+      } else if (
+        !housing &&
+        checkGeneral.emiAmount &&
+        checkGeneral.noOfInstallments
+      ) {
         totalAmount = checkGeneral.emiAmount * checkGeneral.noOfInstallments;
       }
 
       if (getAllBill.length === 0) {
         balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
       } else {
-        let total = getAllBill.reduce((acc, curr: any) => acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid, 0);
+        let total = getAllBill.reduce(
+          (acc, curr: any) =>
+            acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid,
+          0,
+        );
         balanceAmount = totalAmount - (total + amount);
       }
 
@@ -2735,9 +2790,14 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           [err, updateEmis] = await toAwait(
             Emi.updateOne(
               { _id: element._id },
-              { $set: { paidDate: new Date(paymentDate), paidAmt: enteredAmount } }
-            )
-          )
+              {
+                $set: {
+                  paidDate: new Date(paymentDate),
+                  paidAmt: enteredAmount,
+                },
+              },
+            ),
+          );
 
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
@@ -3051,7 +3111,7 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
         [err, updateEmi] = await toAwait(
           Emi.findOneAndUpdate(
             { _id: getBilling.emi },
-            { $set: { paidDate:paymentDate } },
+            { $set: { paidDate: paymentDate } },
             { new: true },
           ),
         );
@@ -3077,7 +3137,9 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
 };
 
 export const deleteBilling = async (req: CustomRequest, res: Response) => {
-  let err, { _id, reason } = req.body, user = req.user as IUser;
+  let err,
+    { _id, reason } = req.body,
+    user = req.user as IUser;
   if (!_id) {
     return ReE(
       res,
@@ -3089,8 +3151,8 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
     return ReE(res, { message: `Invalid billing id!` }, httpStatus.BAD_REQUEST);
   }
 
-  if(!user.isAdmin) {
-    if(!reason) {
+  if (!user.isAdmin) {
+    if (!reason) {
       return ReE(
         res,
         { message: `Please enter reason for delete!` },
@@ -3111,12 +3173,18 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
     if (!createBillingRequest) {
       return ReE(
         res,
-        { message: "Billing delete billing request not created please try again later" },
+        {
+          message:
+            "Billing delete billing request not created please try again later",
+        },
         httpStatus.INTERNAL_SERVER_ERROR,
       );
     }
-    return ReS(res, { message: "Billing delete request created" }, httpStatus.OK);
-    
+    return ReS(
+      res,
+      { message: "Billing delete request created" },
+      httpStatus.OK,
+    );
   }
 
   let getBilling;
@@ -3537,7 +3605,7 @@ export const getDataBasedOnGeneralById = async (
       Emi.find({ general: general._id })
         .populate("customer")
         .populate("general")
-        .sort({ emiNo: 1 })
+        .sort({ emiNo: 1 }),
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
@@ -4041,7 +4109,7 @@ export const getAllBillingReport = async (
   if (status === "unpaid" || status === "all") {
     if (status === "unpaid") {
       emiOption.paidDate = null;
-      delete emiOption.date;
+      // delete emiOption.date; // Commented out to preserve date filter
     }
     [err, getEmi] = await toAwait(
       Emi.find(emiOption)
@@ -4057,31 +4125,33 @@ export const getAllBillingReport = async (
     );
   }
 
-  let general
+  let general;
   if (status === "blocked") {
-    [err,general] = await toAwait(
-      General.find(generalOption).populate("project").populate({
-        path: "customer",
-        populate: [
-          {
-            path: "ddId", // populate cedId first
-            populate: {
-              path: "percentageId", // then populate marketerId inside cedId
-            },
-          },
-          {
-            path: "cedId",
-            populate: [
-              { path: "percentageId" },
-              {
-                path: "overAllHeadBy.headBy", // populate headBy inside overAllHeadBy array
-                populate: { path: "percentageId" }, // populate headBy.percentageId
+    [err, general] = await toAwait(
+      General.find(generalOption)
+        .populate("project")
+        .populate({
+          path: "customer",
+          populate: [
+            {
+              path: "ddId", // populate cedId first
+              populate: {
+                path: "percentageId", // then populate marketerId inside cedId
               },
-            ],
-          },
-        ],
-      })
-    )
+            },
+            {
+              path: "cedId",
+              populate: [
+                { path: "percentageId" },
+                {
+                  path: "overAllHeadBy.headBy", // populate headBy inside overAllHeadBy array
+                  populate: { path: "percentageId" }, // populate headBy.percentageId
+                },
+              ],
+            },
+          ],
+        }),
+    );
   }
 
   if (err) {
@@ -4186,7 +4256,7 @@ export const convertCommissionToMarketer = async (
         if (
           !isNaN(
             emiAmount *
-            (Number(getMarketer.percentageId.rate.split("%")[0]) / 100),
+              (Number(getMarketer.percentageId.rate.split("%")[0]) / 100),
           )
         ) {
           comm.commAmount =
@@ -4360,20 +4430,19 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
       let emiNo = element["EMI No"];
 
       getBilling = getBilling as any;
-      let emiId=""
-      if(mongoose.isValidObjectId(emiNo)){
-        emiId=emiNo
-      }else{
-        emiId=getBilling.emi._id
+      let emiId = "";
+      if (mongoose.isValidObjectId(emiNo)) {
+        emiId = emiNo;
+      } else {
+        emiId = getBilling.emi._id;
       }
 
       updateEmi.push({
         updateOne: {
           filter: { _id: emiId },
           update: { $set: { paidDate: changePaymentDate } },
-        }
-      })
-
+        },
+      });
     }
 
     let BATCH_SIZE = 1000;
