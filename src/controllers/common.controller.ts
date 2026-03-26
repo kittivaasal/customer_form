@@ -40,7 +40,9 @@ import IMarketer from "../type/Marketer";
 import { IPlot } from "../type/plot";
 import { IProject } from "../type/project";
 import { IUser } from "../type/user";
-import { sendPushNotificationToSuperAdmin } from "./common";
+import { addActivityLog, sendPushNotificationToSuperAdmin } from "./common";
+import { IActivityLog } from "../type/activityLog";
+import activityLogErrorModel from "../models/activityLogError.model";
 
 export const uploadImages = async (req: Request, res: Response) => {
   try {
@@ -3089,6 +3091,19 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
     return ReE(res, { message: `Invalid billing id!` }, httpStatus.BAD_REQUEST);
   }
 
+  let getBilling;
+  [err, getBilling] = await toAwait(Billing.findOne({ _id: _id }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (!getBilling) {
+    return ReE(
+      res,
+      { message: "billing not found given id" },
+      httpStatus.NOT_FOUND,
+    );
+  }
+
+  getBilling = getBilling as IBilling;
+
   if(!user.isAdmin) {
     if(!reason) {
       return ReE(
@@ -3097,6 +3112,31 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
         httpStatus.BAD_REQUEST,
       );
     }
+    let checkBillingRequest;
+    [err, checkBillingRequest] = await toAwait(
+      BillingRequest.findOne({ targetId: _id, requestFor: "delete", status: "pending" })
+    )
+    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if(checkBillingRequest) {
+      return ReE(
+        res,
+        { message: "Billing delete request already pending for this billing id!" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+    let getEmi;
+    [err, getEmi] = await toAwait(
+      Emi.findOne({ _id: getBilling.emi })
+    )
+    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if(!getEmi) {
+      return ReE(
+        res,
+        { message: "No EMI found mapped to the given billing ID." },
+        httpStatus.NOT_FOUND,
+      );
+    }
+    getEmi = getEmi as IEmi;
     let createBillingRequest;
     [err, createBillingRequest] = await toAwait(
       BillingRequest.create({
@@ -3105,6 +3145,25 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
         targetModel: "Billing",
         requestFor: "delete",
         status: "pending",
+        reason: reason,
+        deleteBasedUpdate: [
+          {
+            _id : getBilling.emi,  
+            targetModel: "Emi",
+            changes: [
+              {
+                field: "paidDate",
+                oldValue: getEmi.paidDate,
+                newValue: null
+              },
+              {
+                field: "paidAmt",
+                oldValue: getEmi.paidAmt,
+                newValue: 0
+              }
+            ]
+          }
+        ]
       }),
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -3118,19 +3177,6 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
     return ReS(res, { message: "Billing delete request created" }, httpStatus.OK);
     
   }
-
-  let getBilling;
-  [err, getBilling] = await toAwait(Billing.findOne({ _id: _id }));
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  if (!getBilling) {
-    return ReE(
-      res,
-      { message: "billing not found given id" },
-      httpStatus.NOT_FOUND,
-    );
-  }
-
-  getBilling = getBilling as IBilling;
 
   let checkBillRequest;
   [err, checkBillRequest] = await toAwait(
@@ -3214,6 +3260,30 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
   let deleteBilling;
   [err, deleteBilling] = await toAwait(Billing.findOneAndDelete({ _id: _id }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+  let obj = {
+    userId: user._id,
+    action: "DELETE",
+    collectionName: "Billing",
+    documentId: getBilling._id,
+    oldData: getBilling,
+    newData: null,
+    message: `Billing deleted by ${user.name}`,
+    date: new Date()
+  } as IActivityLog
+
+  let createLog = await addActivityLog(obj)
+
+  if(createLog.success === false) {
+    let createErrorLog;
+    [err, createErrorLog] = await toAwait(
+      activityLogErrorModel.create({
+        data: obj,
+        errorMsg: createLog.message,
+        date: new Date(),
+      })
+    );
+  }
 
   return ReS(res, { message: "billing deleted successfully!" }, httpStatus.OK);
 };
@@ -4096,8 +4166,7 @@ export const convertCommissionToMarketer = async (
   emiAmount: number,
 ) => {
   try {
-    let getHead,
-      commision: any[] = [];
+    let getHead, commision: any[] = [];
     if (customer.ddId) {
       getHead = await MarketingHead.findOne({ _id: customer.ddId }).populate(
         "percentageId",
@@ -4117,25 +4186,26 @@ export const convertCommissionToMarketer = async (
         marketerModel: "MarketingHead",
         emiAmount: emiAmount,
       };
-      if (
-        !customer.cedId ||
-        customer.cedId.toString() === customer.ddId.toString()
-      ) {
-        comm.commAmount =
-          emiAmount * (Number(getHead.percentageId.rate.split("%")[0]) / 100);
+
+      if (!customer.cedId || customer.cedId?.toString() === customer.ddId?.toString() ) {
+        comm.commAmount =  Math.round(emiAmount * (Number(getHead.percentageId.rate.split("%")[0]) / 100));
         comm.percentage = getHead.percentageId.rate;
       } else {
-        comm.commAmount = emiAmount * (1 / 100);
+        comm.commAmount = Math.round(emiAmount * (1 / 100));
         comm.percentage = "1%";
       }
       commision.push(comm);
+      if (!customer.cedId || customer.cedId?.toString() === customer.ddId?.toString() ) {
+        return {
+          success: true,
+          message: "success",
+          data: commision,
+        }
+      }
     }
 
     let getMarketer;
-    if (
-      customer.cedId &&
-      customer.ddId.toString() !== customer.cedId.toString()
-    ) {
+    if (customer.cedId && customer.ddId?.toString() !== customer.cedId?.toString()) {
       getMarketer = await MarketDetail.findOne({ _id: customer.cedId })
         .populate("overAllHeadBy")
         .populate({
@@ -4168,14 +4238,14 @@ export const convertCommissionToMarketer = async (
           marketerId: element.headBy._id,
           marketerModel: "MarketDetail",
           emiAmount: emiAmount,
-          commAmount: emiAmount * (Number(1) / 100),
+          commAmount: Math.round(emiAmount * (Number(1) / 100)),
           percentage: "1%",
         };
         commision.push(comm);
       }
     }
 
-    if (customer.ddId.toString() !== customer.cedId.toString()) {
+    if (customer.ddId?.toString() !== customer.cedId?.toString()) {
       let comm: any = {
         marketerId: getMarketer._id,
         marketerModel: "MarketDetail",
@@ -4183,15 +4253,8 @@ export const convertCommissionToMarketer = async (
       };
 
       if (getMarketer.percentageId?.rate) {
-        if (
-          !isNaN(
-            emiAmount *
-            (Number(getMarketer.percentageId.rate.split("%")[0]) / 100),
-          )
-        ) {
-          comm.commAmount =
-            emiAmount *
-            (Number(getMarketer.percentageId.rate.split("%")[0]) / 100);
+        if (!isNaN(emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100))) {
+          comm.commAmount = Math.round(emiAmount * (Number(getMarketer.percentageId.rate.split("%")[0]) / 100));
         }
         comm.percentage = getMarketer.percentageId.rate;
       }
