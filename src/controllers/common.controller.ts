@@ -1775,15 +1775,11 @@ export const getByIdBilling = async (req: Request, res: Response) => {
     }
     let getAllPaid;
     [err, getAllPaid] = await toAwait(
-      Billing.find({ general: generalId, customer: customerId })
-        .populate("customer")
-        .populate("general"),
+      Billing.find({ general: generalId, customer: customerId, emiNo: {$lte: getBilling.emiNo} }).populate("customer").populate("general")
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
     getAllPaid = getAllPaid as IBilling[];
-
-    // console.log("getAllPaid", getAllPaid)
 
     let totalPaid = getAllPaid.reduce(
       (total, current) =>
