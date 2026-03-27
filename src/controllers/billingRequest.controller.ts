@@ -520,35 +520,27 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-      return ReS(
-        res,
-        { message: `${targetId} not found for this ${getBillingRequest.targetModel} table`, data:updateTarget },
-        httpStatus.OK
-      );
+      let deleteGive;
+      [err, deleteGive] = await toAwait(
+        targetModel.findOneAndDelete(
+          { _id: targetId }
+        )
+      )
 
-      // let deleteGive;
-      // [err, deleteGive] = await toAwait(
-      //   targetModel.findOneAndDelete(
-      //     { _id: targetId }
-      //   )
-      // )
 
-      // console.log("deleteGive", deleteGive, err);
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-      // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-
-      // if (!deleteGive) {
-      //   return ReE(res, { message: `Failed to delete this ${targetId} please try again` }, httpStatus.BAD_REQUEST);
-      // }
+      if (!deleteGive) {
+        return ReE(res, { message: `Failed to delete this ${targetId} please try again` }, httpStatus.BAD_REQUEST);
+      }
 
       if (getBillingRequest.deleteBasedUpdate?.length > 0) {
 
         for (let index = 0; index < getBillingRequest.deleteBasedUpdate.length; index++) {
           const element = getBillingRequest.deleteBasedUpdate[index];
-          let object = element.changes.map((item: any) => { return { [item.field]: item.newValue } });
+          let object: any = {};
+          element.changes.forEach((item: any) => { object[item.field] = item.newValue; });
           let updateDb = modelMap[element.targetModel];
-
-          console.log(object, updateDb, element.targetModel, index);
 
           let updateTarget;
           [err, updateTarget] = await toAwait(
@@ -558,7 +550,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               { new: true }
             )
           );
-
+          console.log("updateTarget", err);
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
           if (!updateTarget) {
@@ -566,6 +558,46 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
           }
         }
 
+      }
+      
+      if (getBillingRequest.basedIdDelete?.length > 0) {
+
+        for (let index = 0; index < getBillingRequest.basedIdDelete.length; index++) {
+          const element = getBillingRequest.basedIdDelete[index];
+          let targetDb = modelMap[element.targetModel];
+          let updateTarget;
+          [err, updateTarget] = await toAwait(targetDb.findOneAndDelete({ _id: element._id }));
+          console.log("updateTarget", err);
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+      }
+
+      let obj = {
+        userId: user._id,
+        action: "BILLING REQUEST",
+        billingRequestAction: "DELETE",
+        collectionName: "BillingRequest",
+        documentId: getBillingRequest._id,
+        oldData: null,
+        newData: null,
+        createdBy: user._id,
+        requestBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
+        message: getBillingRequest.message,
+        date: new Date()
+      } as unknown as IActivityLog
+
+      let createLog = await addActivityLog(obj)
+
+      if (createLog.success === false) {
+        let createErrorLog;
+        [err, createErrorLog] = await toAwait(
+          ActivityLogError.create({
+            data: obj,
+            errorMsg: createLog.message,
+            date: new Date(),
+          })
+        );
       }
 
     }

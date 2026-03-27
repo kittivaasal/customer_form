@@ -3177,6 +3177,7 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
         requestFor: "delete",
         status: "pending",
         reason: reason,
+        message: `Delete billing request by ${user.name} with reason ${reason} based on this delete some updated in 'Emi' table fields are (paidDate: '${getEmi.paidDate}' to 'null' paidAmt: '${getEmi.paidAmt}' to '0')`,
         deleteBasedUpdate: [
           {
             _id : getBilling.emi,  
