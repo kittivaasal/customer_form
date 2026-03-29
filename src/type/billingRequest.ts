@@ -36,7 +36,7 @@ export interface IBillingRequest {
     targetModel?: string
     targetId?: mongoose.Types.ObjectId,
     basedIdDelete: {
-        _id: mongoose.Types.ObjectId,
+        _id: [mongoose.Types.ObjectId],
         targetModel: String
     }[],
     deleteBasedUpdate : {

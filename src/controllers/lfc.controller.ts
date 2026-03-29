@@ -417,6 +417,7 @@ export const deleteLfc = async (req: CustomRequest, res: Response) => {
         targetModel: "Lfc",
         requestFor: "delete",
         status: "pending",
+        reason
       }),
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);

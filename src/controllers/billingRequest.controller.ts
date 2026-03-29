@@ -392,6 +392,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               action: "BILLING REQUEST",
               billingRequestAction: "CREATE",
               collectionName: "Billing",
+              approvalStatus: "approved",
               documentId: billing._id,
               oldData: null,
               newData: null,
@@ -476,14 +477,15 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
       let obj = {
         userId: user._id,
         action: "BILLING REQUEST",
-        billingRequestAction: "DOWNLOAD",
+        billingRequestAction: "GET REPORT",
         collectionName: "BillingRequest",
+        approvalStatus: "APPROVED",
         documentId: getBillingRequest._id,
         oldData: null,
         newData: null,
         createdBy: user._id,
         requestBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
-        message: getBillingRequest.message,
+        message: `Download excel report request approved by ${user.name}`,
         date: new Date()
       } as unknown as IActivityLog
 
@@ -520,13 +522,16 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
 
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
+      if (!updateTarget) {
+        return ReE(res, { message: `Given target id ${targetId} not found or already deleted` }, httpStatus.BAD_REQUEST);
+      }
+
       let deleteGive;
       [err, deleteGive] = await toAwait(
         targetModel.findOneAndDelete(
           { _id: targetId }
         )
       )
-
 
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
@@ -566,7 +571,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
           const element = getBillingRequest.basedIdDelete[index];
           let targetDb = modelMap[element.targetModel];
           let updateTarget;
-          [err, updateTarget] = await toAwait(targetDb.findOneAndDelete({ _id: element._id }));
+          [err, updateTarget] = await toAwait(targetDb.deleteMany({ _id: { $in: element._id } }));
           console.log("updateTarget", err);
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -578,12 +583,13 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
         action: "BILLING REQUEST",
         billingRequestAction: "DELETE",
         collectionName: "BillingRequest",
+        approvalStatus: "approved",
         documentId: getBillingRequest._id,
         oldData: null,
         newData: null,
         createdBy: user._id,
         requestBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
-        message: getBillingRequest.message,
+        message: `Delete ${getBillingRequest?.targetModel} request approved by ${user.name}`,
         date: new Date()
       } as unknown as IActivityLog
 
@@ -606,6 +612,34 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
       approvedDate = null;
       approvedTime = null;
       approvedHours = null;
+      let action =  getBillingRequest.requestFor === 'excel' ? 'GET REPORT' : getBillingRequest.requestFor.toUpperCase()
+      let obj = {
+        userId: user._id,
+        action: "BILLING REQUEST",
+        billingRequestAction:action,
+        collectionName: "BillingRequest",
+        approvalStatus: "rejected",
+        documentId: getBillingRequest._id,
+        oldData: null,
+        newData: null,
+        createdBy: user._id,
+        requestBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
+        message: `${action} ${action === 'DELETE' ? getBillingRequest?.targetModel : ''} request rejected by ${user.name}`,
+        date: new Date()
+      } as unknown as IActivityLog
+
+      let createLog = await addActivityLog(obj)
+
+      if (createLog.success === false) {
+        let createErrorLog;
+        [err, createErrorLog] = await toAwait(
+          ActivityLogError.create({
+            data: obj,
+            errorMsg: createLog.message,
+            date: new Date(),
+          })
+        );
+      }
     }
 
     let updateRequest;

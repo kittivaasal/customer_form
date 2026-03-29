@@ -354,6 +354,7 @@ export const deleteProject = async (req: CustomRequest, res: Response) => {
         targetModel: "Project",
         requestFor: "delete",
         status: "pending",
+        reason
       }),
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);

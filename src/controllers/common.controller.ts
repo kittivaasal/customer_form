@@ -6,7 +6,7 @@ import mongoose, { isValidObjectId } from "mongoose";
 import * as XLSX from "xlsx";
 import { Billing } from "../models/billing.model";
 import { BillingRequest } from "../models/billingRequest.model";
-import { Commission } from "../models/commision.model";
+import { Commission, ICommission } from "../models/commision.model";
 import { Customer } from "../models/customer.model";
 import { Emi } from "../models/emi.model";
 import { Flat } from "../models/flat.model";
@@ -2176,7 +2176,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
     let checkBillingRequestForCustomer;
     [err, checkBillingRequestForCustomer] = await toAwait(
       BillingRequest.findOne({
-        requestFor: "create",
+        requestFor: {$in: ["create","delete"] },
         customerId: customerId,
         status: "pending",
       }),
@@ -2187,7 +2187,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         res,
         {
           message:
-            "create bill billing request already pending for this customer so you can't create bill",
+            "create bill or delete billing request already pending for this customer so you can't create bill",
         },
         httpStatus.BAD_REQUEST,
       );
@@ -2579,7 +2579,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         [err, checkBillingRequest] = await toAwait(
           BillingRequest.findOne({
             userId: user._id,
-            requestFor: "create",
+            requestFor: { $in: ["create", "delete"] },
             customerId: customerId,
             status: "pending",
           }),
@@ -2594,7 +2594,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           return ReE(
             res,
             {
-              message: "You already have pending billing request for existing EMIs",
+              message: "You already have pending create or delete billing request for existing EMIs",
             },
             httpStatus.BAD_REQUEST,
           );
@@ -2636,6 +2636,37 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
             { message: "Failed to create billing request" },
             httpStatus.INTERNAL_SERVER_ERROR,
           );
+        }
+
+        createBillRequest = createBillRequest as IBillingRequest;
+
+        let obj = {
+          userId: user._id,
+          action: "BILLING REQUEST",
+          billingRequestAction: "CREATE",
+          collectionName: "BillingRequest",
+          documentId: createBillRequest._id,
+          oldData: null,
+          newData: null,
+          createdBy: user._id,
+          message: `Billing created request by ${user.name} for this ${checkCustomer?.name} customer, for ${readyForBill.length} EMIs`,
+          date: new Date()
+        } as unknown as IActivityLog
+    
+        let createLog = await addActivityLog(obj)
+    
+        if(createLog.success === false) {
+          let createErrorLog;
+          [err, createErrorLog] = await toAwait(
+            ActivityLogError.create({
+              data: obj,
+              errorMsg: createLog.message,
+              date: new Date(),
+            })
+          );
+          if (err) {
+            return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+          }
         }
 
         ReS(
@@ -2791,7 +2822,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
         getEmi = getEmi as IEmi;
         if (getEmi?.paidDate) {
           if (i === readyForBill.length - 1) {
-            return ReS(
+            return ReE(
               res,
               {
                 message: `billing already exist for this emi no ${readyForBill.map((element) => element.emiNo)} for this customer, please try again!`,
@@ -2866,7 +2897,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           oldData: null,
           newData: null,
           createdBy: user._id,
-          message: `Billing created by ${user.name}`,
+          message: `Billing created by ${user.name} for ${checkCustomer?.name} with emi no ${element.emiNo}`,
           date: new Date()
         } as unknown as IActivityLog
     
@@ -2881,10 +2912,12 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               date: new Date(),
             })
           );
+          if (err) {
+            return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+          }
         }
       }
     }
-
 
     return ReS(
       res,
@@ -3093,6 +3126,58 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
           );
         }
       }
+      let updateCommission;
+      [err, updateCommission] = await toAwait(
+        Commission.findOneAndUpdate(
+          { _id: getBilling._id },
+          { $set: { paymentDate:paymentDate } },
+          { new: true }
+        )
+      )
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!updateCommission) {
+        return ReE(
+          res,
+          { message: "commission not found given id" },
+          httpStatus.NOT_FOUND,
+        );
+      }
+    }
+
+    let getNewValue = Object.keys(obj);
+
+    let oldValue:any = {};
+    getBilling = getBilling as IBilling;
+    for (const key of getNewValue) {
+      oldValue[key] = (getBilling as any)[key];
+    }
+
+    let objActivity = {
+      userId: user._id,
+      action: "UPDATE",
+      collectionName: "Billing",
+      documentId: _id,
+      oldData: oldValue,
+      newData: obj,
+      createdBy: user._id,
+      message: `Billing updated by ${user.name}`,
+      date: new Date()
+    } as unknown as IActivityLog
+
+    let createLog = await addActivityLog(objActivity)
+
+    if(createLog.success === false) {
+      let createErrorLog;
+      [err, createErrorLog] = await toAwait(
+        ActivityLogError.create({
+          data: obj,
+          errorMsg: createLog.message,
+          date: new Date(),
+        })
+      );
+      if (err) {
+        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      }
     }
 
     return ReS(
@@ -3151,6 +3236,18 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
         httpStatus.BAD_REQUEST,
       );
     }
+    let checkCreateBillingRequest;
+    [err, checkCreateBillingRequest] = await toAwait(
+      BillingRequest.findOne({ customerId: getBilling.customer, requestFor: "create", status: "pending" })
+    )
+    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if(checkCreateBillingRequest) {
+      return ReE(
+        res,
+        { message: "Billing create request already pending for this customer!" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
     let getEmi;
     [err, getEmi] = await toAwait(
       Emi.findOne({ _id: getBilling.emi })
@@ -3164,35 +3261,55 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
       );
     }
     getEmi = getEmi as IEmi;
+    let commisionGet;
+    [err, commisionGet] = await toAwait(
+      Commission.findOne({ bill: getBilling._id })
+    )
+    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    commisionGet = commisionGet as ICommission ;
+
+    let obj:any={
+      userId: user._id,
+      targetId: _id,
+      targetModel: "Billing",
+      requestFor: "delete",
+      status: "pending",
+      reason: reason,
+      createdBy: user._id,
+      customerId: getBilling.customer,
+      message: `Delete billing request by ${user.name} with reason ${reason} based on this delete some updated in 'Emi' table fields are (paidDate: '${getEmi.paidDate}' to 'null' paidAmt: '${getEmi.paidAmt}' to '0')`,
+      deleteBasedUpdate: [
+        {
+          _id : getBilling.emi,  
+          targetModel: "Emi",
+          changes: [
+            {
+              field: "paidDate",
+              oldValue: getEmi.paidDate,
+              newValue: null
+            },
+            {
+              field: "paidAmt",
+              oldValue: getEmi.paidAmt,
+              newValue: 0
+            }
+          ]
+        }
+      ]
+    }
+
+    if(commisionGet) {
+      obj.basedIdDelete = [{
+        _id : [commisionGet._id],  
+        targetModel: "Commission"
+      }]
+    }
+
+    console.log(obj, "obj");
+
     let createBillingRequest;
     [err, createBillingRequest] = await toAwait(
-      BillingRequest.create({
-        userId: user._id,
-        targetId: _id,
-        targetModel: "Billing",
-        requestFor: "delete",
-        status: "pending",
-        reason: reason,
-        message: `Delete billing request by ${user.name} with reason ${reason} based on this delete some updated in 'Emi' table fields are (paidDate: '${getEmi.paidDate}' to 'null' paidAmt: '${getEmi.paidAmt}' to '0')`,
-        deleteBasedUpdate: [
-          {
-            _id : getBilling.emi,  
-            targetModel: "Emi",
-            changes: [
-              {
-                field: "paidDate",
-                oldValue: getEmi.paidDate,
-                newValue: null
-              },
-              {
-                field: "paidAmt",
-                oldValue: getEmi.paidAmt,
-                newValue: 0
-              }
-            ]
-          }
-        ]
-      }),
+      BillingRequest.create(obj),
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!createBillingRequest) {
@@ -3202,8 +3319,36 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
         httpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+
+    createBillingRequest = createBillingRequest as IBillingRequest;
+    let objAct = {
+      userId: user._id,
+      action: "BILLING REQUEST",
+      billingRequestAction: "DELETE",
+      collectionName: "BillingRequest",
+      documentId: createBillingRequest._id,
+      oldData: getBilling,
+      newData: null,
+      createdBy: user._id,
+      message: `Billing delete request created by ${user.name}`,
+      date: new Date()
+    } as unknown as IActivityLog
+
+    let createLog = await addActivityLog(objAct)
+
+    if(createLog.success === false) {
+      let createErrorLog;
+      [err, createErrorLog] = await toAwait(
+        ActivityLogError.create({
+          data: obj,
+          errorMsg: createLog.message,
+          date: new Date(),
+        })
+      );
+    }
+
     return ReS(res, { message: "Billing delete request created" }, httpStatus.OK);
-    
+
   }
 
   let updateEmi;
@@ -3993,6 +4138,32 @@ export const getAllBillingReport = async (
 
         createRequest = createRequest as IBillingRequest;
 
+        let obj = {
+          userId: user._id,
+          action: "BILLING REQUEST",
+          billingRequestAction: "GET REPORT",
+          collectionName: "Billing",
+          documentId: createRequest._id,
+          oldData: null,
+          newData: null,
+          createdBy: user._id,
+          message: createRequest.message,
+          date: new Date()
+        } as unknown as IActivityLog
+
+        let createLog = await addActivityLog(obj)
+
+        if(createLog.success === false) {
+          let createErrorLog;
+          [err, createErrorLog] = await toAwait(
+            ActivityLogError.create({
+              data: obj,
+              errorMsg: createLog.message,
+              date: new Date(),
+            })
+          );
+        }
+
         ReS(
           res,
           { message: "Request created successfully please wait for approval" },
@@ -4144,6 +4315,32 @@ export const getAllBillingReport = async (
     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   }
 
+  let obj = {
+    userId: user._id,
+    action: "BILLING REQUEST",
+    billingRequestAction: "DOWNLOAD",
+    collectionName: null,
+    documentId: null,
+    oldData: null,
+    newData: null,
+    createdBy: user._id,
+    message: `${user.name} download billing report from ${dateFrom} to ${dateTo} at ${new Date()}`,
+    date: new Date()
+  } as unknown as IActivityLog
+
+  let createLog = await addActivityLog(obj)
+
+  if(createLog.success === false) {
+    let createErrorLog;
+    [err, createErrorLog] = await toAwait(
+      ActivityLogError.create({
+        data: obj,
+        errorMsg: createLog.message,
+        date: new Date(),
+      })
+    );
+  }
+
   return ReS(res, { billing: getBilling, emi: getEmi, general }, httpStatus.OK);
 };
 
@@ -4274,11 +4471,11 @@ export const excelToJson = (filePath: string): Promise<any> => {
   });
 };
 
-export const bulkUpdateEmi = async (req: Request, res: Response) => {
+export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
   try {
     let body = req.body,
       err;
-    let file = req.file as Express.Multer.File;
+    let file = req.file as Express.Multer.File, user = req.user as IUser;
 
     //file validation accept only excel file
     if (!file.originalname.match(/\.(xlsx|xls)$/)) {
@@ -4444,6 +4641,36 @@ export const bulkUpdateEmi = async (req: Request, res: Response) => {
           `✅ Updated emi ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`,
         );
       }
+    }
+
+    let obj = {
+      userId: user?._id,
+      action: "UPDATE",
+      collectionName: "Billing",
+      documentId: null,
+      oldData: json[0],
+      newData: json[0]["Payment Date Change"],
+      createdBy: user?._id,
+      message: `${user?.name} has do bulk payment date change in billing table`,
+      date: new Date()
+    } as unknown as IActivityLog
+
+    if(json.length > 0) {
+      obj.oldData = json[0]
+      obj.newData = json[0]["Payment Date Change"]
+    }
+
+    let createLog = await addActivityLog(obj)
+
+    if(createLog.success === false) {
+      let createErrorLog;
+      [err, createErrorLog] = await toAwait(
+        ActivityLogError.create({
+          data: obj,
+          errorMsg: createLog.message,
+          date: new Date(),
+        })
+      );
     }
 
     return ReS(

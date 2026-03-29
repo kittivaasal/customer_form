@@ -50,6 +50,9 @@ export interface ICustomer {
   marketerPercent?: string
   marketerId?: string
   balanceAmount?: number
+
+  offered?: string
+  offers?: string
 }
 
 

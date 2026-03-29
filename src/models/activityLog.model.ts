@@ -10,7 +10,10 @@ const ActivityLogSchema = new Schema<IActivityLog>(
     },
     billingRequestAction: {
       type: String,
-      enum: ["CREATE", "UPDATE", "DOWNLOAD", "DELETE"],
+      enum: ["CREATE", "UPDATE", "DOWNLOAD", "DELETE", "GET REPORT"],
+    },
+    approvalStatus: {
+      type: String
     },
     collectionName: {
       type: String,

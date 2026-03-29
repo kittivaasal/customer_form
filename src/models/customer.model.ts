@@ -68,7 +68,9 @@ const customerSchema = new mongoose.Schema({
   balanceAmount: {
     type: Number,
     default: 0
-  }
+  },
+  offered: String,
+  offers: String,
 }, { timestamps: true });
 
 export const Customer = mongoose.model("Customer", customerSchema);

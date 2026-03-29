@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import httpStatus from "http-status";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { Counter } from "../models/counter.model";
 import EditRequest from "../models/editRequest.model";
 import { MarketingHead } from "../models/marketingHead.model";
@@ -13,6 +13,9 @@ import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
 import { BillingRequest } from "../models/billingRequest.model";
+import { Marketer } from "../models/marketer";
+import { MarketDetail } from "../models/marketDetail.model";
+import { IMarketDetail } from "../type/marketDetail";
 
 export const createMarketingHead = async (req: CustomRequest, res: Response) => {
     let body = req.body, err, user = req.user as IUser;
@@ -396,7 +399,11 @@ export const deleteMarketingHead = async (req: CustomRequest, res: Response) => 
     );
     }
     if (!mongoose.isValidObjectId(_id)) {
-    return ReE(res, { message: `Invalid MarketingHead id!` }, httpStatus.BAD_REQUEST);
+        return ReE(res, { message: `Invalid MarketingHead id!` }, httpStatus.BAD_REQUEST);
+    }
+
+    if(!user.isAdmin){
+        return ReE(res, {message:"you can not access this api"}, httpStatus.UNAUTHORIZED)
     }
 
     if(!user.isAdmin) {
@@ -422,11 +429,12 @@ export const deleteMarketingHead = async (req: CustomRequest, res: Response) => 
         let createBillingRequest;
         [err, createBillingRequest] = await toAwait(
             BillingRequest.create({
-            userId: user._id,
-            targetId: _id,
-            targetModel: "MarketingHead",
-            requestFor: "delete",
-            status: "pending",
+                userId: user._id,
+                targetId: _id,
+                targetModel: "MarketingHead",
+                requestFor: "delete",
+                status: "pending",
+                reason
             }),
         );
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -447,6 +455,31 @@ export const deleteMarketingHead = async (req: CustomRequest, res: Response) => 
     if (!checkUser) {
         return ReE(res, { message: `marketing_head not found for given id!.` }, httpStatus.NOT_FOUND)
     }
+
+    // checkUser = checkUser as IMarketingHead;
+    // console.log({
+    //     leaderID: checkUser.id
+    // })
+
+    // let getAllMarketer;
+    // [err, getAllMarketer] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": _id }));
+
+    // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    // getAllMarketer = getAllMarketer as IMarketDetail[]
+    // console.log(getAllMarketer.length)
+
+    // if (getAllMarketer.length > 0) {
+    //     let deleteMarketer;
+    //     [err, deleteMarketer] = await toAwait(Marketer.deleteMany({ leaderID: checkUser.id }));
+    //     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+    // }
+
+
+    // let deleteUser;
+    // [err, deleteUser] = await toAwait(MarketingHead.deleteOne({ _id: _id }));
+    // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+    // ReS(res, { message: "marketing_head deleted" }, httpStatus.OK)
 
     let deleteUser;
     [err, deleteUser] = await toAwait(MarketingHead.deleteOne({ _id: _id }));

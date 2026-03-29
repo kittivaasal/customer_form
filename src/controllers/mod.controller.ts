@@ -418,6 +418,7 @@ export const deleteMod = async (req: CustomRequest, res: Response) => {
                     targetModel: "Mod",
                     requestFor: "delete",
                     status: "pending",
+                    reason
                 }),
             );
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);

@@ -358,6 +358,7 @@ export const deleteNvt = async (req: CustomRequest, res: Response) => {
                 targetModel: "Nvt",
                 requestFor: "delete",
                 status: "pending",
+                reason
             }),
         );
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);

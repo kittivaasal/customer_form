@@ -102,7 +102,9 @@ const BillingRequestSchema: Schema = new Schema<IBillingRequest>(
         },
         basedIdDelete: [
             {
-                _id: { type: Schema.Types.ObjectId },
+                _id: [
+                    { type: Schema.Types.ObjectId }
+                ],
                 targetModel: { type: String }
             }
         ],

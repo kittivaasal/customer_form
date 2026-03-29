@@ -4,6 +4,7 @@ export interface IActivityLog extends Document {
   action: "CREATE" | "UPDATE" | "DELETE" | "BILLING REQUEST" ;
   billingRequestAction?: "CREATE" | "UPDATE" | "DOWNLOAD" | "DELETE";
   collectionName: string;
+  approvalStatus?: string;
   documentId: mongoose.Types.ObjectId;
   createdBy: mongoose.Types.ObjectId;
   requestBy: mongoose.Types.ObjectId;

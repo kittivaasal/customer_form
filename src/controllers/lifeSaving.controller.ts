@@ -91,7 +91,7 @@ export const createLifeSaving = async (req: Request, res: Response) => {
 
     for (let i = 0; i < data.length; i++) {
         let element = data[i], cusAutoId = '';
-        let { mobileNo, email, pincode, communicationAddress, nameOfCustomer } = element;
+        let { mobileNo, email, pincode, communicationAddress, offered, offers, nameOfCustomer } = element;
         let projectData = element.projectData
         delete element.projectData;
         let cretaeLSS;
@@ -138,7 +138,9 @@ export const createLifeSaving = async (req: Request, res: Response) => {
             ddId: element.ddId,
             nomineeName: element.nomineeName,
             nomineeAge: element.nomineeAge,
-            address: element.communicationAddress
+            address: element.communicationAddress,
+            offered,
+            offers,
         }))
 
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);

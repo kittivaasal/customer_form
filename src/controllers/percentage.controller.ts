@@ -273,11 +273,12 @@ export const deletePercentage = async (req: CustomRequest, res: Response) => {
         let createBillingRequest;
         [err, createBillingRequest] = await toAwait(
             BillingRequest.create({
-            userId: user._id,
-            targetId: _id,
-            targetModel: "Percentage",
-            requestFor: "delete",
-            status: "pending",
+                userId: user._id,
+                targetId: _id,
+                targetModel: "Percentage",
+                requestFor: "delete",
+                status: "pending",
+                reason
             }),
         );
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);

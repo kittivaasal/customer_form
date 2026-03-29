@@ -6,6 +6,7 @@ const MarketerSchema = new Schema(
   {
     customer: { type: Types.ObjectId, ref: "Customer"},
     emi: { type: Types.ObjectId, ref: "EMI" },
+    id: { type: String },
     bill: { type: Types.ObjectId, ref: "Billing" },
     marketer:[
       {

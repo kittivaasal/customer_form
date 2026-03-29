@@ -16,6 +16,7 @@ export interface IMarketerCommission {
 
 /** Main document */
 export interface ICommission {
+  _id: Schema.Types.ObjectId;
   customer: Schema.Types.ObjectId;
   name: string;          // customer name
   customerCode: string;

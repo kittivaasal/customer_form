@@ -28,6 +28,7 @@ import { IGeneral } from "../type/general";
 import { IProject } from "../type/project";
 import { IUser } from "../type/user";
 import { BillingRequest } from "../models/billingRequest.model";
+import { IEmi } from "../type/emi";
 
 export const createCustomer = async (req: CustomRequest, res: Response) => {
   let body = req.body,
@@ -255,6 +256,8 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     "ddId",
     "cedId",
     "panNo",
+    "offered",
+    "offers"
   ];
 
   const updateFields: Record<string, any> = {};
@@ -296,6 +299,10 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
         httpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  if(body.cedId === null){
+    updateFields.cedId = null
   }
 
   if (!isNull(updateFields.ddId)) {
@@ -718,6 +725,17 @@ export const deleteCustomer = async (req: CustomRequest, res: Response) => {
     );
   }
 
+  let getBilling;
+  [err, getBilling] = await toAwait(Billing.findOne({ customer: _id }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (getBilling) {
+    return ReE(
+      res,
+      { message: "customer has billing data so please delete all billing first" },
+      httpStatus.BAD_REQUEST,
+    );
+  }
+
   if (!user.isAdmin) {
     if (!reason) {
       return ReE(
@@ -738,16 +756,23 @@ export const deleteCustomer = async (req: CustomRequest, res: Response) => {
         httpStatus.BAD_REQUEST,
       );
     }
+    let getAllEmi;
+    [err, getAllEmi] = await toAwait(Emi.find({ customerId: _id }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllEmi = getAllEmi as IEmi[];
+    let obj:any={
+      userId: user._id,
+      targetId: _id,
+      targetModel: "Customer",
+      requestFor: "delete",
+      status: "pending",
+      reason: reason
+    }
+    if(getAllEmi.length > 0) {
+      obj.basedIdDelete = [{ _id: getAllEmi.map((emi) => emi._id), targetModel: "Emi" }]
+    }
     let createBillingRequest;
-    [err, createBillingRequest] = await toAwait(
-      BillingRequest.create({
-        userId: user._id,
-        targetId: _id,
-        targetModel: "Customer",
-        requestFor: "delete",
-        status: "pending",
-      }),
-    );
+    [err, createBillingRequest] = await toAwait(BillingRequest.create(obj));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!createBillingRequest) {
       return ReE(
@@ -771,27 +796,16 @@ export const deleteCustomer = async (req: CustomRequest, res: Response) => {
     );
   }
 
-  let getBilling;
-  [err, getBilling] = await toAwait(Billing.findOne({ customer: _id }));
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  if (getBilling) {
-    return ReE(
-      res,
-      { message: "customer has billing please delete billing first" },
-      httpStatus.BAD_REQUEST,
-    );
-  }
-
-  let getEmi;
-  [err, getEmi] = await toAwait(Emi.findOne({ customer: _id }));
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  if (getEmi) {
-    return ReE(
-      res,
-      { message: "customer has emi so can't delete this customer" },
-      httpStatus.BAD_REQUEST,
-    );
-  }
+  // let getEmi;
+  // [err, getEmi] = await toAwait(Emi.findOne({ customer: _id }));
+  // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  // if (getEmi) {
+  //   return ReE(
+  //     res,
+  //     { message: "customer has emi so can't delete this customer" },
+  //     httpStatus.BAD_REQUEST,
+  //   );
+  // }
 
   let deleteUser;
   [err, deleteUser] = await toAwait(Customer.deleteOne({ _id: _id }));
