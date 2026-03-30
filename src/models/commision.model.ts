@@ -20,6 +20,7 @@ export interface ICommission {
   customer: Schema.Types.ObjectId;
   name: string;          // customer name
   customerCode: string;
+  amount: number;
   bill: Schema.Types.ObjectId;
   emiId: Schema.Types.ObjectId;
   emiNo: Number;
@@ -75,6 +76,9 @@ const allianceCommissionSchema = new Schema<ICommission>(
       type: String,
       // required: true,
       trim: true,
+    },
+    amount: {
+      type: Number,
     },
     customerCode: {
       type: String,

@@ -2507,3 +2507,47 @@
 //     ReE(res, { message: "Error fetching data" }, httpStatus.INTERNAL_SERVER_ERROR);
 //   }
 // })
+
+
+// app.get("/emi/test", async (req, res) => {
+//   try {
+//     const emis = await Billing.find({ customerCode: "LAC-P2-0030" }).populate("customer");
+//     let err, app = [];
+//     for (let index = 0; index < emis.length; index++) {
+//       const element = emis[index];
+
+//       let getCommission = await convertCommissionToMarketer(
+//         element.customer,
+//         element.amountPaid,
+//       );
+
+//       if (!getCommission.success) {
+
+//         // return ReE(
+//         //   res,
+//         //   { message: getCommission.message },
+//         //   httpStatus.INTERNAL_SERVER_ERROR,
+//         // );
+//       }
+
+//       app.push({
+//         bill: element?._id,
+//         customer: element.customer?._id,
+//         emiId: element.emi,
+//         paymentDate: element?.paymentDate,
+//         customerCode: element.customerCode,
+//         amount: element.amountPaid,
+//         marketer: getCommission.data,
+//       })
+
+//       // res.json(app);
+//     }
+
+
+//     let bulk = await Commission.insertMany(app);
+//     return res.json({ success: true, data: app });
+//   } catch (err) {
+//     console.error("EMI test error:", err);
+//     return res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// })

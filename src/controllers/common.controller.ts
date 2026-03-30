@@ -2967,6 +2967,7 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
       cardHolderName,
       remarks,
       referenceId,
+      balanceAmount
     } = body;
 
     if (!_id) {
@@ -3083,6 +3084,10 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
       }
       paymentDate = new Date(paymentDate);
       obj.paymentDate = paymentDate;
+    }
+
+    if (balanceAmount) {
+      obj.balanceAmount = balanceAmount;
     }
 
     let getBilling;
@@ -4710,3 +4715,196 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
     );
   }
 };
+
+export const updateEmi = async (req: CustomRequest, res: Response) => {
+  let body = req.body, user = req.user as IUser, err;
+  let { emiId, date, paidDate, paidAmt, emiAmt } = body;
+
+  if(!emiId) {
+    return ReE(res, { message: "emiId is required!" }, httpStatus.BAD_REQUEST);
+  }
+
+  if(!mongoose.isValidObjectId(emiId)) {
+    return ReE(res, { message: "Invalid emi id!" }, httpStatus.BAD_REQUEST);
+  }
+
+  let getEmi;
+  [err, getEmi] = await toAwait(Emi.findOne({ _id: emiId }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+  if(!getEmi) {
+    return ReE(res, { message: "Emi not found!" }, httpStatus.NOT_FOUND);
+  }
+
+  getEmi = getEmi as IEmi;
+
+  let updateData: any = {};
+
+  if(date) {
+    if (!isValidDate(date)) {
+      return ReE(
+        res,
+        { message: "Invalid date format for date valid format is (YYYY-MM-DD)!" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+    date = new Date(date);
+    if(getEmi.paidDate?.toDateString() !== paidDate?.toDateString()) {
+      updateData.date = date;
+    }
+  }
+
+  if(paidDate) {
+    if (!isValidDate(paidDate)) {
+      return ReE(
+        res,
+        { message: "Invalid date format for paidDate valid format is (YYYY-MM-DD)!" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+    paidDate = new Date(paidDate);
+    if(getEmi.paidDate?.toDateString() !== paidDate.toDateString()) {
+      updateData.paidDate = paidDate;
+    }
+  }
+
+  if(paidAmt) {
+    if(isNaN(paidAmt)) {
+      return ReE(res, { message: "paidAmt must be a number!" }, httpStatus.BAD_REQUEST);
+    }
+    if(getEmi.paidAmt !== paidAmt) {
+      updateData.paidAmt = paidAmt;
+    }
+  }
+
+  if(emiAmt) {
+    if(isNaN(emiAmt)) {
+      return ReE(res, { message: "emiAmt must be a number!" }, httpStatus.BAD_REQUEST);
+    }
+    if(getEmi.emiAmt !== emiAmt) {
+      updateData.emiAmt = emiAmt;
+    }
+  }
+
+  if(Object.keys(updateData).length === 0) {
+    return ReE(res, { message: "No changes detected to update!" }, httpStatus.BAD_REQUEST);
+  }
+
+  let updatedEmi;
+  [err, updatedEmi] = await toAwait(
+    Emi.findOneAndUpdate({ _id: emiId }, { $set: updateData }, { new: true })
+  );
+
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+  if(!updatedEmi) {
+    return ReE(res, { message: "Failed to update emi!" }, httpStatus.INTERNAL_SERVER_ERROR);
+  }
+
+  let logMessage = `${user.name} has updated emi, id is ${emiId} and updated fields are: ${Object.keys(updateData).join(", ")} with values: ${Object.values(updateData).join(", ")} `;
+
+  if(updateData.paidDate || updateData.paidAmt){
+    let billObj:any={}
+    let comObj:any={}
+    if(updateData.paidDate){
+      billObj.paymentDate = updateData.paidDate;
+      comObj.paymentDate = updateData.paidDate;
+    }
+    if(updateData.paidAmt){
+      billObj.amountPaid = updateData.paidAmt;
+      billObj.enteredAmount = updateData.paidAmt;
+      comObj.amount = updateData.paidAmt;
+      let getCustomer;
+      [err, getCustomer] = await toAwait(Customer.findOne({ _id: getEmi.customer }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+      if(!getCustomer) {
+        return ReE(res, { message: "Customer not found inside mapping for this emi!" }, httpStatus.NOT_FOUND);
+      }
+      let getCommission = await convertCommissionToMarketer(
+        getCustomer,
+        updateData.paidAmt,
+      );
+
+      if (getCommission.success) {
+        comObj.marketer = getCommission.data;
+      }else if(!getCommission.success ) {
+        billObj.commissionErrorMsg = getCommission.message;
+      }
+    }
+    // console.log(billObj, comObj)
+    logMessage += `, and this emi belongs to billing i so updated billing fields are: ${Object.keys(billObj).join(", ")} with values: ${Object.values(billObj).join(", ")}`;
+    logMessage += `, and updated commission fields are also updated`;
+    let updateBilling;
+    [err, updateBilling] = await toAwait(
+      Billing.findOneAndUpdate({ emi: emiId }, { $set: billObj }, { new: true })
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    if(!updateBilling) {
+      return ReE(res, { message: "Failed to update billing when edit emi!" }, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+    let updateCommission;
+    [err, updateCommission] = await toAwait(
+      Commission.updateOne({ emiId: emiId }, { $set: comObj })
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+    if(!updateCommission) {
+      return ReE(res, { message: "Failed to update commission when edit emi!" }, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  let oldData:any={}
+  Object.keys(updateData).map((key) => {
+    oldData[key] = getEmi[key as keyof IEmi];
+  })
+
+  let newEmi;
+  [err, newEmi] = await toAwait(Emi.findOne({ _id: emiId }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (!newEmi) {
+    return ReE(
+      res,
+      { message: `Emi not found for given id!.` },
+      httpStatus.NOT_FOUND,
+    );
+  }
+  newEmi = newEmi as IEmi;
+
+  let newData:any = {}
+  Object.keys(updateData).map((key) => {
+    newData[key] = newEmi[key as keyof IEmi];
+  })
+
+  console.log(oldData, newData)
+
+  let obj = {
+    userId: user._id,
+    action: "UPDATE",
+    collectionName: "Emi",
+    documentId: emiId,
+    oldData: oldData,
+    newData: newData,
+    createdBy: user._id,
+    message: logMessage,
+    date: new Date()
+  } as unknown as IActivityLog
+
+  let createLog = await addActivityLog(obj)
+
+  if(createLog.success === false) {
+    let createErrorLog;
+    [err, createErrorLog] = await toAwait(
+      ActivityLogError.create({
+        data: obj,
+        errorMsg: createLog.message,
+        date: new Date(),
+      })
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  }
+
+  return ReS(res, { message: "Emi updated successfully", data: updatedEmi }, httpStatus.OK);
+
+}

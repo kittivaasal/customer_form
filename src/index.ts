@@ -27,6 +27,11 @@ import { General } from "./models/general.model";
 import cron from "node-cron";
 import { initializeFirebase } from './util/firebaseConfig';
 import commissionRoutes from "./routes/commission.routes";
+import { Billing } from "./models/billing.model";
+import { ReE, toAwait } from "./services/util.service";
+import { Commission } from "./models/commision.model";
+import { convertCommissionToMarketer } from "./controllers/common.controller";
+import httpStatus from "http-status";
 
 const app = express();
 app.use(express.json());
@@ -108,7 +113,7 @@ cron.schedule("02 00 * * *", async () => {
     let ids = generalIds.map((item: any) => item?.general?._id);
 
     // 🚀 Step 2: Block those generals (skip already blocked)
-    if(!ids.length){
+    if (!ids.length) {
       return console.log("No generals to block");
     }
 
