@@ -3129,11 +3129,11 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
       let updateCommission;
       [err, updateCommission] = await toAwait(
         Commission.findOneAndUpdate(
-          { _id: getBilling._id },
+          { bill: getBilling._id },
           { $set: { paymentDate:paymentDate } },
           { new: true }
         )
-      )
+      );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       if (!updateCommission) {
         return ReE(
