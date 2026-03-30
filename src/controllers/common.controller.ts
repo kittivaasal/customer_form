@@ -1123,10 +1123,8 @@ export const getAllGeneral = async (req: Request, res: Response) => {
 export const getAllBilling = async (req: Request, res: Response) => {
   let getBilling;
   let err;
-  let { customerId, generalId, page, limit, search } = req.query,
-    option: any = {};
+  let { customerId, generalId, page, limit, search } = req.query, option: any = {};
 
-    console.log(search, "search");
   // Existing customerId validation
   if (customerId) {
     if (mongoose.isValidObjectId(customerId)) {
@@ -1271,7 +1269,7 @@ export const getAllBilling = async (req: Request, res: Response) => {
         populate: [{ path: "cedId" }, { path: "ddId" }],
       })
       .populate("createdBy", "-password -fcmToken")
-      .sort({ createdAt: -1 })
+      .sort({ emiNo: -1 })
       .limit(setLimit)
       .skip(setOffset),
   );
@@ -3910,7 +3908,7 @@ export const getAllBillingReport = async (
   let user = req.user as IUser;
   let err;
 
-  let { dateFrom, dateTo, date, status, blocked, projectId } = req.query,
+  let { dateFrom, dateTo, date, status, blocked, projectId, customerId } = req.query,
     option: any = {},
     emiOption: any = {},
     generalOption: any = {};
@@ -3936,6 +3934,29 @@ export const getAllBillingReport = async (
     getProject = getProject as IProject;
     option.projectId = projectId;
     emiOption.projectId = projectId;
+  }
+
+  if (customerId) {
+    if (!mongoose.isValidObjectId(customerId)) {
+      return ReE(
+        res,
+        { message: "Invalid customer id" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+    let getCustomer;
+    [err, getCustomer] = await toAwait(Customer.findOne({ _id: customerId }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getCustomer) {
+      return ReE(
+        res,
+        { message: "Customer not found for given id" },
+        httpStatus.NOT_FOUND,
+      );
+    }
+    getCustomer = getCustomer as ICustomer;
+    option.customer = customerId;
+    emiOption.customer = customerId;
   }
 
   if (status) {
@@ -4238,6 +4259,8 @@ export const getAllBillingReport = async (
       }
     }
   }
+
+  console.log(option)
 
   let getBilling: any = [];
   if (status !== "unpaid") {
