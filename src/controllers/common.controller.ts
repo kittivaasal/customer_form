@@ -4749,7 +4749,7 @@ export const updateEmi = async (req: CustomRequest, res: Response) => {
       );
     }
     date = new Date(date);
-    if(getEmi.paidDate?.toDateString() !== paidDate?.toDateString()) {
+    if(getEmi.date?.toDateString() !== date.toDateString()) {
       updateData.date = date;
     }
   }
