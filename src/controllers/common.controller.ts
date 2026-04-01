@@ -1269,7 +1269,7 @@ export const getAllBilling = async (req: Request, res: Response) => {
         populate: [{ path: "cedId" }, { path: "ddId" }],
       })
       .populate("createdBy", "-password -fcmToken")
-      .sort({ emiNo: -1 })
+      .sort({ createdAt: -1 })
       .limit(setLimit)
       .skip(setOffset),
   );
