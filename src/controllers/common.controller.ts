@@ -1023,7 +1023,7 @@ export const getAllGeneral = async (req: Request, res: Response) => {
       getCustomer = getCustomer as ICustomer;
       option.$or = [{ customer: customerId }, { supplierCode: getCustomer.id }];
     } else {
-      option.supplierCode = customerId;
+      option.supplierCode = customerId?.toString()?.toUpperCase();
     }
   }
 
@@ -1141,7 +1141,7 @@ export const getAllBilling = async (req: Request, res: Response) => {
       getCustomer = getCustomer as ICustomer;
       option.$or = [{ customer: customerId }, { customerCode: getCustomer.id }];
     } else {
-      option.customerCode = customerId;
+      option.customerCode = customerId?.toString()?.toUpperCase();
     }
   }
 
@@ -1192,7 +1192,8 @@ export const getAllBilling = async (req: Request, res: Response) => {
 
   // Search logic - multi-field search
   if (search) {
-    const searchRegex = new RegExp(search as string, "i"); // case-insensitive
+    const escaped = escapeRegex(search as string);
+    const searchRegex = new RegExp(escaped, "i");
 
     option.$or = [
       { mobileNo: searchRegex },
@@ -1450,7 +1451,7 @@ export const getAllEmi = async (req: Request, res: Response) => {
         { customer: getCustomer._id },
       ];
     } else {
-      option.supplierCode = customerId;
+      option.supplierCode = customerId?.toString()?.toUpperCase();
     }
   }
 
@@ -3453,8 +3454,8 @@ export const getAllDetailsByCustomerId = async (
     } else {
       option.$or = [
         { id: customerId },
-        { customerCode: customerId },
-        { supplierCode: customerId },
+        { customerCode: customerId?.toString()?.toUpperCase() },
+        { supplierCode: customerId?.toString()?.toUpperCase() },
       ];
     }
   }
@@ -3569,7 +3570,7 @@ export const getAllTypeBasedGenId = async (req: Request, res: Response) => {
       getCustomer = getCustomer as ICustomer;
       option.$or = [{ supplierCode: getCustomer.id }, { customer: customerId }];
     } else {
-      option.supplierCode = customerId;
+      option.supplierCode = customerId?.toString()?.toUpperCase();
     }
   }
 
@@ -4739,6 +4740,15 @@ export const updateEmi = async (req: CustomRequest, res: Response) => {
   getEmi = getEmi as IEmi;
 
   let updateData: any = {};
+  
+  if(paidDate || paidAmt) {
+    let getBillForThisEmi;
+    [err, getBillForThisEmi] = await toAwait(Billing.findOne({ emi: emiId }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if(!getBillForThisEmi) {
+      return ReE(res, { message: "Billing not found for this emi id so paidDate and paidAmt can't be updated!" }, httpStatus.NOT_FOUND);
+    }
+  }
 
   if(date) {
     if (!isValidDate(date)) {
@@ -4749,7 +4759,7 @@ export const updateEmi = async (req: CustomRequest, res: Response) => {
       );
     }
     date = new Date(date);
-    if(getEmi.date?.toDateString() !== date.toDateString()) {
+    if(getEmi.date?.toDateString() !== date?.toDateString()) {
       updateData.date = date;
     }
   }
@@ -4788,17 +4798,6 @@ export const updateEmi = async (req: CustomRequest, res: Response) => {
 
   if(Object.keys(updateData).length === 0) {
     return ReE(res, { message: "No changes detected to update!" }, httpStatus.BAD_REQUEST);
-  }
-
-  let updatedEmi;
-  [err, updatedEmi] = await toAwait(
-    Emi.findOneAndUpdate({ _id: emiId }, { $set: updateData }, { new: true })
-  );
-
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-
-  if(!updatedEmi) {
-    return ReE(res, { message: "Failed to update emi!" }, httpStatus.INTERNAL_SERVER_ERROR);
   }
 
   let logMessage = `${user.name} has updated emi, id is ${emiId} and updated fields are: ${Object.keys(updateData).join(", ")} with values: ${Object.values(updateData).join(", ")} `;
@@ -4855,6 +4854,17 @@ export const updateEmi = async (req: CustomRequest, res: Response) => {
     }
   }
 
+  let updatedEmi;
+  [err, updatedEmi] = await toAwait(
+    Emi.findOneAndUpdate({ _id: emiId }, { $set: updateData }, { new: true })
+  );
+
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+  if(!updatedEmi) {
+    return ReE(res, { message: "Failed to update emi!" }, httpStatus.INTERNAL_SERVER_ERROR);
+  }
+
   let oldData:any={}
   Object.keys(updateData).map((key) => {
     oldData[key] = getEmi[key as keyof IEmi];
@@ -4876,8 +4886,6 @@ export const updateEmi = async (req: CustomRequest, res: Response) => {
   Object.keys(updateData).map((key) => {
     newData[key] = newEmi[key as keyof IEmi];
   })
-
-  console.log(oldData, newData)
 
   let obj = {
     userId: user._id,
