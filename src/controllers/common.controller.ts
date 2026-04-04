@@ -1190,6 +1190,7 @@ export const getAllBilling = async (req: Request, res: Response) => {
     );
   }
 
+  let sortObject: any = {};
   // Search logic - multi-field search
   if (search) {
     const escaped = escapeRegex(search as string);
@@ -1215,6 +1216,10 @@ export const getAllBilling = async (req: Request, res: Response) => {
         customer: new mongoose.Types.ObjectId(search as string),
       });
     }
+
+    sortObject = { emiNo : -1 };
+  }else{
+    sortObject = { createdAt: -1 };
   }
 
   // Get total count for pagination
@@ -1270,7 +1275,7 @@ export const getAllBilling = async (req: Request, res: Response) => {
         populate: [{ path: "cedId" }, { path: "ddId" }],
       })
       .populate("createdBy", "-password -fcmToken")
-      .sort({ createdAt: -1 })
+      .sort(sortObject)
       .limit(setLimit)
       .skip(setOffset),
   );
