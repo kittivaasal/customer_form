@@ -435,6 +435,15 @@ export const getAllActivityLogs = async (req: Request, res: Response) => {
 
   const totalPages = Math.ceil(total / limitValue);
 
+  if(total === 0){
+    return ReS(res, { message: "No logs found for the given date!" , data: [], pagination: {
+      currentPage,
+      limit: limitValue,
+      total: 0,
+      totalPages: 0
+    }}, httpStatus.OK);
+  }
+
   if (currentPage > totalPages) {
     return ReE(res, { message: `Page no ${page} is not available. last page no is ${totalPages}` }, httpStatus.NOT_FOUND);
   }
