@@ -11,11 +11,17 @@ import { IEditRequest } from "../type/editRequest";
 import { IMarketingHead } from "../type/marketingHead";
 import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
-import { sendPushNotificationToSuperAdmin } from "./common";
+import { addActivityLog, sendPushNotificationToSuperAdmin } from "./common";
 import { BillingRequest } from "../models/billingRequest.model";
 import { Marketer } from "../models/marketer";
 import { MarketDetail } from "../models/marketDetail.model";
 import { IMarketDetail } from "../type/marketDetail";
+import { Customer } from "../models/customer.model";
+import { ICustomer } from "../type/customer";
+import activityLogErrorModel from "../models/activityLogError.model";
+import { IActivityLog } from "../type/activityLog";
+import path from "path/win32";
+import fs from "fs";
 
 export const createMarketingHead = async (req: CustomRequest, res: Response) => {
     let body = req.body, err, user = req.user as IUser;
@@ -41,7 +47,7 @@ export const createMarketingHead = async (req: CustomRequest, res: Response) => 
     }
     checkPer = checkPer as IPercentage;
     console.log(checkPer)
-    if(checkPer.name.toUpperCase()?.trim() !== "DIAMOND DIRECTOR"){
+    if (checkPer.name.toUpperCase()?.trim() !== "DIAMOND DIRECTOR") {
         return ReE(res, { message: `Marking_head must be in DIAMOND DIRECTOR!.` }, httpStatus.BAD_REQUEST);
     }
     if (email) {
@@ -128,9 +134,9 @@ export const updateMarketingHead = async (req: CustomRequest, res: Response) => 
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
         if (!checkPer) return ReE(res, { message: "Percentage is not found for given id" }, httpStatus.NOT_FOUND)
         checkPer = checkPer as IPercentage;
-        if(checkPer.name.toUpperCase()?.trim() !== "DIAMOND DIRECTOR"){
+        if (checkPer.name.toUpperCase()?.trim() !== "DIAMOND DIRECTOR") {
             return ReE(res, { message: `Marking_head must be in DIAMOND DIRECTOR!.` }, httpStatus.BAD_REQUEST);
-        }   
+        }
     }
     if (gender) {
         gender = gender.toLowerCase();
@@ -159,7 +165,7 @@ export const updateMarketingHead = async (req: CustomRequest, res: Response) => 
 
     if (updateFields.email) {
         updateFields.email = updateFields.email.trim().toLowerCase();
-        if(!isEmail(updateFields.email)){
+        if (!isEmail(updateFields.email)) {
             return ReE(res, { message: `Invalid email!.` }, httpStatus.BAD_REQUEST)
         }
         let findEmail;
@@ -173,12 +179,6 @@ export const updateMarketingHead = async (req: CustomRequest, res: Response) => 
         if (!isPhone(updateFields.phone)) {
             return ReE(res, { message: `Invalid phone number!.` }, httpStatus.BAD_REQUEST)
         }
-        // let findPhone;
-        // [err, findPhone] = await toAwait(MarketingHead.findOne({ phone: updateFields.phone, _id: { $ne: _id } }));
-        // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        // if (findPhone) {
-        //     return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
-        // }
     }
 
     if (updateFields.percentageId) {
@@ -392,98 +392,342 @@ export const getAllMarketingHead = async (req: Request, res: Response) => {
 export const deleteMarketingHead = async (req: CustomRequest, res: Response) => {
     let err, { _id, reason } = req.body, user = req.user as IUser;
     if (!_id) {
-    return ReE(
-        res,
-        { message: `MarketingHead _id is required!` },
-        httpStatus.BAD_REQUEST,
-    );
+        return ReE(res, { message: `MarketingHead _id is required!` }, httpStatus.BAD_REQUEST);
     }
     if (!mongoose.isValidObjectId(_id)) {
         return ReE(res, { message: `Invalid MarketingHead id!` }, httpStatus.BAD_REQUEST);
     }
 
-    if(!user.isAdmin){
-        return ReE(res, {message:"you can not access this api"}, httpStatus.UNAUTHORIZED)
-    }
-
-    if(!user.isAdmin) {
-        if(!reason) {
-            return ReE(
-            res,
-            { message: `Please enter reason for delete!` },
-            httpStatus.BAD_REQUEST,
-            );
-        }
-        let checkBillingRequest;
-        [err, checkBillingRequest] = await toAwait(
-            BillingRequest.findOne({ targetId: _id, requestFor: "delete", status: "pending" })
-        )
-        if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        if(checkBillingRequest) {
-            return ReE(
-            res,
-            { message: "MarketingHead delete request already pending for this billing id!" },
-            httpStatus.BAD_REQUEST,
-            );
-        }
-        let createBillingRequest;
-        [err, createBillingRequest] = await toAwait(
-            BillingRequest.create({
-                userId: user._id,
-                targetId: _id,
-                targetModel: "MarketingHead",
-                requestFor: "delete",
-                status: "pending",
-                reason
-            }),
-        );
-        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        if (!createBillingRequest) {
-            return ReE(
-            res,
-            { message: "marketing_head delete request not created please try again later" },
-            httpStatus.INTERNAL_SERVER_ERROR,
-            );
-        }
-        return ReS(res, { message: "marketing_head delete request created" }, httpStatus.OK);
-    
-    }
-
-    let checkUser;
-    [err, checkUser] = await toAwait(MarketingHead.findOne({ _id: _id }));
+    let checkMarketingHead;
+    [err, checkMarketingHead] = await toAwait(MarketingHead.findOne({ _id: _id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!checkUser) {
+    if (!checkMarketingHead) {
         return ReE(res, { message: `marketing_head not found for given id!.` }, httpStatus.NOT_FOUND)
     }
 
-    // checkUser = checkUser as IMarketingHead;
-    // console.log({
-    //     leaderID: checkUser.id
-    // })
+    checkMarketingHead = checkMarketingHead as IMarketingHead;
 
-    // let getAllMarketer;
-    // [err, getAllMarketer] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": _id }));
+    let getAllCedCustomer;
+    [err, getAllCedCustomer] = await toAwait(Customer.find({ cedId: _id }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllCedCustomer = getAllCedCustomer as ICustomer[];
 
-    // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if(getAllCedCustomer.length !== 0) {
+        return ReE(res, { message: "Some customer not have cedId, so can not delete this marketing head!" }, httpStatus.BAD_REQUEST);
+    }
 
-    // getAllMarketer = getAllMarketer as IMarketDetail[]
-    // console.log(getAllMarketer.length)
+    let getAllCustomer;
+    [err, getAllCustomer] = await toAwait(Customer.find({ ddId: _id }).populate("cedId"));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllCustomer = getAllCustomer as ICustomer[];
 
-    // if (getAllMarketer.length > 0) {
-    //     let deleteMarketer;
-    //     [err, deleteMarketer] = await toAwait(Marketer.deleteMany({ leaderID: checkUser.id }));
-    //     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-    // }
+    let updateBulkCustomer: any = []
 
+    for (let index = 0; index < getAllCustomer.length; index++) {
+        const element = getAllCustomer[index] as any;
+        if (element.cedId && element.cedId.overAllHeadBy.length > 0) {
+            if (element.level === 2) {
+                updateBulkCustomer.push({
+                    updateOne: {
+                        filter: { _id: element._id },
+                        update: { $set: { ddId: element.cedId._id } }
+                    }
+                })
+            } else {
+                let overAllHeadBy = element.cedId.overAllHeadBy.find((i: any) => i.level === 2);
+                if (overAllHeadBy) {
+                    updateBulkCustomer.push({
+                        updateOne: {
+                            filter: { _id: element._id },
+                            update: { $set: { ddId: overAllHeadBy.headBy } }
+                        }
+                    })
+                }
+            }
+        }
+    }
 
-    // let deleteUser;
-    // [err, deleteUser] = await toAwait(MarketingHead.deleteOne({ _id: _id }));
-    // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-    // ReS(res, { message: "marketing_head deleted" }, httpStatus.OK)
+    let getAllLevel2Marketer;
+    [err, getAllLevel2Marketer] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": _id, level: 2 }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllLevel2Marketer = getAllLevel2Marketer as any[]
+
+    let bulkAddMarketHead: any = []
+    let deleteMarketer: any = []
+
+    if (getAllLevel2Marketer.length > 0) {
+        let getPercentageId;
+        [err, getPercentageId] = await toAwait(Percentage.findOne({ name: "DIAMOND DIRECTOR" }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!getPercentageId) return ReE(res, { message: "Percentage not found for DIAMOND DIRECTOR" }, httpStatus.NOT_FOUND)
+        getPercentageId = getPercentageId as IPercentage
+        for (let index = 0; index < getAllLevel2Marketer.length; index++) {
+            const element = getAllLevel2Marketer[index];
+            let obj = {
+                name: element.name,
+                phone: element.phone,
+                address: element.address,
+                email: element.email,
+                age: element.age,
+                gender: element.gender,
+                id: element.id,
+                status: element.status,
+                oldDate: element.oldDate, level: 1,
+                percentageId: getPercentageId._id,
+                _id: element._id
+            }
+            bulkAddMarketHead.push(obj);
+            deleteMarketer.push(element._id)
+        }
+    }
+
+    let getAllMarketer;
+    [err, getAllMarketer] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": _id, level: { $gt: 2 } }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllMarketer = getAllMarketer as IMarketDetail[]
+
+    let bulkUpdate: any = []
+
+    let getAllPercentage;
+    [err, getAllPercentage] = await toAwait(Percentage.find({}));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllPercentage = getAllPercentage as IPercentage[];
+
+    if (getAllPercentage.length === 0) {
+        return ReE(res, { message: "No percentage found in database" }, httpStatus.BAD_REQUEST);
+    }
+
+    for (let index = 0; index < getAllMarketer.length; index++) {
+        const element = getAllMarketer[index];
+        let overAllArray = element.overAllHeadBy.filter((i: any) => i.level > 1).map((i: any) => {
+            if (i.level > 1) {
+                return {
+                    headBy: i.headBy,
+                    level: i.level - 1,
+                    headByModel: i.level - 1 === 1 ? "MarketingHead" : "MarketDetail"
+                }
+            }
+        })
+        const lastOverAll = overAllArray.length > 0 ? overAllArray[overAllArray.length - 1] : undefined;
+        const headBy = lastOverAll ? lastOverAll.headBy : null;
+        let level = overAllArray.length + 1;
+        let headByModel = lastOverAll ? lastOverAll.headByModel : null;
+        let percentageId = getAllPercentage.find((i: any) => i.level === level)?._id;
+        bulkUpdate.push({
+            updateOne: {
+                filter: { _id: element._id },
+                update: { $set: { overAllHeadBy: overAllArray, level, headBy, headByModel, percentageId } }
+            }
+        })
+    }
+    
+    let batchSize = 500;
+
+    if (bulkAddMarketHead.length > 0) {
+        let bulkAdd;
+        for (let i = 0; i < bulkAddMarketHead.length; i += batchSize) {
+            const batch = bulkAddMarketHead.slice(i, i + batchSize);
+            [err, bulkAdd] = await toAwait(MarketingHead.insertMany(batch));
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            if (bulkAddMarketHead.length === deleteMarketer.length) {
+                let deleteM;
+                const batch = deleteMarketer.slice(i, i + batchSize);
+                [err, deleteM] = await toAwait(MarketDetail.deleteMany({ _id: { $in: batch } }));
+                if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            }
+        }
+    }
+
+    if (deleteMarketer.length > 0 && bulkAddMarketHead.length !== deleteMarketer.length) {
+        let deleteM;
+        for (let i = 0; i < deleteMarketer.length; i += batchSize) {
+            const batch = deleteMarketer.slice(i, i + batchSize);
+            [err, deleteM] = await toAwait(MarketDetail.deleteMany({ _id: { $in: batch } }));
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    if (bulkUpdate.length > 0) {
+        let bulkU;
+        for (let i = 0; i < bulkUpdate.length; i += batchSize) {
+            const batch = bulkUpdate.slice(i, i + batchSize);
+            [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch));
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    if (updateBulkCustomer.length > 0) {
+        let bulkCustomer;
+        for (let i = 0; i < updateBulkCustomer.length; i += batchSize) {
+            const batch = updateBulkCustomer.slice(i, i + batchSize);
+            [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch));
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 
     let deleteUser;
     [err, deleteUser] = await toAwait(MarketingHead.deleteOne({ _id: _id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+
+    if(!deleteUser) {
+        return ReE(res, { message: "Failed to delete marketing head!" }, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    let obj = {
+        userId: user._id,
+        action: "DELETE",
+        collectionName: "MarketingHead",
+        documentId: _id,
+        oldData: checkMarketingHead,
+        newData: null,
+        createdBy: user._id,
+        message: `MarketingHead deleted successfully. This head downline MarketDetails levels upgraded and level 2 marketers promoted to MarketingHead.`,
+        date: new Date()
+    } as unknown as IActivityLog
+
+    let createLog = await addActivityLog(obj)
+
+    if (createLog.success === false) {
+        let createErrorLog;
+        [err, createErrorLog] = await toAwait(
+            activityLogErrorModel.create({
+                data: obj,
+                errorMsg: createLog.message,
+                date: new Date(),
+            })
+        );
+    }
+
     ReS(res, { message: "marketing_head deleted" }, httpStatus.OK)
+
+}
+
+export const changeMarketingHead = async (req: Request, res: Response) => {
+    let err, { id, changeId } = req.body, marketHead = true, marketData: any;
+    let requiredFields = ["id", "changeId"];
+    let inVaildFields = requiredFields.filter(x => isNull(req.body[x]));
+    if (inVaildFields.length > 0) {
+        return ReE(res, { message: `Please enter required fields ${inVaildFields}!.` }, httpStatus.BAD_REQUEST);
+    }
+
+    if (!mongoose.isValidObjectId(id)) {
+        return ReE(res, { message: `Invalid id!` }, httpStatus.BAD_REQUEST);
+    }
+
+    if (!mongoose.isValidObjectId(changeId)) {
+        return ReE(res, { message: `Invalid changeId!` }, httpStatus.BAD_REQUEST);
+    }
+
+    if(id === changeId) {
+        return ReE(res, { message: `id and changeId can not be same!` }, httpStatus.BAD_REQUEST);
+    }
+
+    let checkId;
+    [err, checkId] = await toAwait(MarketingHead.findOne({ _id: id }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!checkId) {
+        return ReE(res, { message: `marketing_head not found for given id!.` }, httpStatus.NOT_FOUND)
+    }
+
+    let checkChangeId;
+    [err, checkChangeId] = await toAwait(MarketingHead.findOne({ _id: changeId }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!checkChangeId) {
+        [err, checkChangeId] = await toAwait(MarketDetail.findOne({ _id: changeId }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        console.log(checkChangeId)
+        if (!checkChangeId) {
+            return ReE(res, { message: `changeId not found in marketing_head and MarketDetail!.` }, httpStatus.NOT_FOUND)
+        }
+        marketHead = false;
+        checkChangeId = checkChangeId as IMarketDetail;
+        marketData = checkChangeId;
+        if(Number(checkChangeId.level) !== 2){
+            return ReE(res, { message: `Only marketer with level 2 can be changed to marketing head given change user level is ${checkChangeId.level}!.` }, httpStatus.BAD_REQUEST)
+        }
+    }
+
+    let getAllCustomer;
+    [err, getAllCustomer] = await toAwait(Customer.find({ ddId: id }).populate("cedId"));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllCustomer = getAllCustomer as ICustomer[];
+
+    let updateBulkCustomer: any = []
+
+    for (let index = 0; index < getAllCustomer.length; index++) {
+        const element = getAllCustomer[index] as any;
+        updateBulkCustomer.push({
+            updateOne: {
+                filter: { _id: element._id },
+                update: { $set: { ddId: changeId } }
+            }
+        })
+    }
+    
+    let getAllLevel1Marketer;
+    [err, getAllLevel1Marketer] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": id, level: 1 }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllLevel1Marketer = getAllLevel1Marketer as any[]
+
+    let bulkUpMarketer: any = []
+
+    for (let index = 0; index < getAllLevel1Marketer.length; index++) {
+        const element = getAllLevel1Marketer[index];
+        let obj:any = { "overAllHeadBy.headBy": changeId }
+        let overAllArrayLen = element.overAllHeadBy.length;
+        if(Number(element.level) === 2 || overAllArrayLen === 1) {
+            obj.headBy = changeId;
+        }
+        bulkUpMarketer.push({
+            updateOne: {
+                filter: { _id: element._id },
+                update: { $set: obj }
+            }
+        })
+    }
+
+    let batchSize = 500;
+
+    // if (bulkUpMarketer.length > 0) {
+    //     let bulkU;
+    //     for (let i = 0; i < bulkUpMarketer.length; i += batchSize) {
+    //         const batch = bulkUpMarketer.slice(i, i + batchSize);
+    //         [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch));
+    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //     }
+    // }
+
+    // if (updateBulkCustomer.length > 0) {
+    //     let bulkCustomer;
+    //     for (let i = 0; i < updateBulkCustomer.length; i += batchSize) {
+    //         const batch = updateBulkCustomer.slice(i, i + batchSize);
+    //         [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch));
+    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //     }
+    // }
+
+    // if(!marketHead) {
+    //     let createMHead;
+    //     [err, createMHead] = await toAwait(MarketingHead.create({
+    //         name: marketData.name,
+    //         phone: marketData.phone,
+    //         address: marketData.address,
+    //         email: marketData.email,
+    //         age: marketData.age,
+    //         level: 1,
+    //         gender: marketData.gender,
+    //         id: marketData.id,
+    //         status: marketData.status,
+    //         percentageId: marketData.percentageId,
+    //         oldDate: marketData.oldDate,
+    //         _id: changeId
+    //     }));
+    //     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //     let deleteM;
+    //     [err, deleteM] = await toAwait(MarketDetail.deleteOne({ _id: changeId }));
+    //     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    // }
+
+    return ReS(res, { message: "Marketing head updated successfully!" }, httpStatus.OK)
 
 }

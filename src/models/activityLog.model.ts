@@ -20,6 +20,7 @@ const ActivityLogSchema = new Schema<IActivityLog>(
     },
     documentId: {
       type: Schema.Types.Mixed,
+      refPath: "collectionName"
     },
     oldData: {
       type: Schema.Types.Mixed,

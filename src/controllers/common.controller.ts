@@ -4143,13 +4143,24 @@ export const getAllBillingReport = async (
         return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       }
 
+      let message = "This user ${user.name} want to get billing report ";
+
+      if(!isNull(dateFrom as string) && !isNull(dateTo as string)) {
+        message += `from ${dateFrom} to ${dateTo}`;
+      }else if(!isNull(date as string)) {
+        message += `for date ${date}`;
+      }
+
+      message += " at " + new Date().toLocaleString();
+
+
       if (!checkRequest) {
         let createRequest;
         [err, createRequest] = await toAwait(
           BillingRequest.create({
             userId: user._id,
             status: "pending",
-            message: `This user ${user.name} want to get billing report from ${dateFrom} to ${dateTo}`,
+            message: message,
             requestFor: "excel",
             excelFromDate: new Date(dateFrom as string),
             excelToDate: new Date(dateTo as string),

@@ -13,7 +13,9 @@ import LifeHousing from "../models/plotBookingForm.model";
 import { Role } from "../models/role.model";
 import { RoleMenu } from "../models/roleMenu.model";
 import { User } from "../models/user.model";
-import { isNull, ReE, ReS, toAwait } from "../services/util.service";
+import { isNull, isValidDate, ReE, ReS, toAwait } from "../services/util.service";
+import mongoose from "mongoose";
+import ActivityLogModel from "../models/activityLog.model";
 
 export const getAllLogs = async (req: Request, res: Response) => {
   let err;
@@ -379,3 +381,97 @@ export const getAllLogs = async (req: Request, res: Response) => {
     httpStatus.OK,
   );
 };
+
+export const getAllActivityLogs = async (req: Request, res: Response) => {
+  let err;
+  let { date, page = "1", limit = "10", search } = req.query;
+
+  let dateFilter: any = {};
+
+  // Only apply date filter if date is provided
+  if(date){
+    if(!isValidDate(date as string)){
+      return ReE(res, { message: "Invalid date format. Please use YYYY-MM-DD." }, httpStatus.BAD_REQUEST);
+    }
+  }else{
+    date = new Date().toISOString().split('T')[0]; // Default to today's date in YYYY-MM-DD format
+  }
+
+  
+  const start = new Date(date as string);
+  start.setUTCHours(0, 0, 0, 0);
+
+  const end = new Date(date as string);
+  end.setUTCHours(23, 59, 59, 999);
+
+  dateFilter.date = {
+    $gte: start,
+    $lte: end,
+  };
+
+  if (search && typeof search === "string") {
+    dateFilter.$or = [
+      { action: { $regex: search, $options: "i" } },
+      { collectionName: { $regex: search, $options: "i" } },
+      { message: { $regex: search, $options: "i" } },
+      { billingRegex: { $regex: search, $options: "i" } },
+    ];
+
+    if (mongoose.Types.ObjectId.isValid(search)) {
+      dateFilter.$or.push({ documentId: new mongoose.Types.ObjectId(search) });
+      dateFilter.$or.push({ userId: new mongoose.Types.ObjectId(search) });
+      dateFilter.$or.push({ requestBy: new mongoose.Types.ObjectId(search) });
+    }
+
+  }
+
+  const currentPage = parseInt(page as string);
+  const limitValue = parseInt(limit as string);
+
+  const skip = (currentPage - 1) * limitValue;
+  const limitNum = parseInt(limit as string);
+
+  const total = await ActivityLogModel.countDocuments(dateFilter);
+
+  const totalPages = Math.ceil(total / limitValue);
+
+  if (currentPage > totalPages) {
+    return ReE(res, { message: `Page no ${page} is not available. last page no is ${totalPages}` }, httpStatus.NOT_FOUND);
+  }
+
+  let getLogs;
+  [err, getLogs] = await toAwait(
+    ActivityLogModel.find(dateFilter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .populate("userId")
+      .populate("requestBy")
+      .populate("documentId")
+      .lean(),
+  );
+
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+  const totalCount = await ActivityLogModel.countDocuments(dateFilter);
+
+  return ReS(
+    res,
+    {
+      message: "Activity logs retrieved successfully",
+      data: getLogs,
+      pagination: {
+        page: currentPage,
+        limit: limitValue,
+        total: total,
+        totalPages,
+        hasNextPage: currentPage < totalPages,
+        hasPrevPage: currentPage > 1,
+        nextPage: currentPage < totalPages ? currentPage + 1 : null,
+        prevPage: currentPage > 1 ? currentPage - 1 : null
+      },
+    },
+    httpStatus.OK,
+  );
+
+}

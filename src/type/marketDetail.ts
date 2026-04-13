@@ -9,7 +9,7 @@ export interface IMarketDetail {
   address: string;
   status: string;
   oldData?:boolean    
-  levelId:Number;
+  level:Number;
   autoId:Number;
   leader: String;
   overAllHeadBy: [

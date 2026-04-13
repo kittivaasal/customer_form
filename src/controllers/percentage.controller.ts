@@ -12,7 +12,7 @@ import { sendPushNotificationToSuperAdmin } from "./common";
 import { BillingRequest } from "../models/billingRequest.model";
 export const createPercentage = async (req: Request, res: Response) => {
     let body = req.body, err;
-    let { name, rate } = body;
+    let { name, rate, level } = body;
     let fields = ["name", "rate"];
     let inVaildFields = fields.filter(x => isNull(body[x]));
     if (inVaildFields.length > 0) {
@@ -27,8 +27,20 @@ export const createPercentage = async (req: Request, res: Response) => {
             return ReE(res, { message: `percentage name already exists!.` }, httpStatus.BAD_REQUEST)
         }
     }
+    if(level) {
+        let findLevel;
+        [err, findLevel] = await toAwait(Percentage.findOne({ level }))
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (findLevel) {
+            return ReE(res, { message: `percentage level already exists!.` }, httpStatus.BAD_REQUEST)
+        }
+    }
+    let getAllPercentage;
+    [err, getAllPercentage] = await toAwait(Percentage.find({}));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllPercentage = getAllPercentage as IPercentage[];
     let percentage;
-    [err, percentage] = await toAwait(Percentage.create(body));
+    [err, percentage] = await toAwait(Percentage.create({...body, level: level ? level : getAllPercentage.length + 1}));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!percentage) {
         return ReE(res, { message: `Failed to create percentage!.` }, httpStatus.INTERNAL_SERVER_ERROR)

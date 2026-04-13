@@ -28,10 +28,14 @@ import cron from "node-cron";
 import { initializeFirebase } from './util/firebaseConfig';
 import commissionRoutes from "./routes/commission.routes";
 import { Billing } from "./models/billing.model";
-import { ReE, toAwait } from "./services/util.service";
+import { ReE, ReS, toAwait } from "./services/util.service";
 import { Commission } from "./models/commision.model";
 import { convertCommissionToMarketer } from "./controllers/common.controller";
 import httpStatus from "http-status";
+import { Percentage } from "./models/percentage.model";
+import { Customer } from "./models/customer.model";
+import { ICustomer } from "./type/customer";
+import { MarketDetail } from "./models/marketDetail.model";
 
 const app = express();
 app.use(express.json());
@@ -133,6 +137,31 @@ cron.schedule("02 00 * * *", async () => {
     console.error("Error in cron job:", err.message);
   }
 });
+
+
+// app.get("/emi/test", async (req, res) => {
+//     try {
+//       let mass =  {
+//         "updateOne": {
+//             "filter": {
+//                 "_id": "6988b5c728a4d537e7d0bf2e"
+//             },
+//             "update": {
+//                 "$set": {
+//                     "level": 5,
+//                     "status": "active"
+//                 }
+//             }
+//         }
+//     }
+
+//       let update = await MarketDetail.bulkWrite([mass]);
+//       ReS(res, { update, message: "Test successful" }, 200);
+//     }catch (err:any) {
+//         console.log(err)
+//         ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+//     }
+// })
 
 
 app.listen(port, () => console.log("Server running on port " + port));

@@ -12,6 +12,9 @@ const PercentageSchema: Schema = new Schema(
         createdBy: {
             type: Schema.Types.ObjectId,
             ref: "User",
+        },
+        level: {
+            type: Number
         }
     },
     {

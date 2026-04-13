@@ -16,7 +16,7 @@ const MarketDetailSchema: Schema = new Schema(
         address: { type: String },
         status: { type: String, default: 'active' },
         oldData:{type:Boolean,default:false},   
-        levelId:{type:Number},
+        level:{type:Number},
         autoId:{type:Number},
         leader: {type:String},
         percentageId: {type: Schema.Types.ObjectId, ref: 'Percentage' },
