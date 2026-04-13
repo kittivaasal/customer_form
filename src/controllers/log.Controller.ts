@@ -445,8 +445,9 @@ export const getAllActivityLogs = async (req: Request, res: Response) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
-      .populate("userId")
-      .populate("requestBy")
+      .populate("userId", "-password -fcmToken")
+      .populate("requestBy", "-password -fcmToken")
+      .populate("createdBy", "-password -fcmToken")
       .populate("documentId")
       .lean(),
   );
@@ -474,4 +475,35 @@ export const getAllActivityLogs = async (req: Request, res: Response) => {
     httpStatus.OK,
   );
 
+}
+
+export const getByIdLods = async (req: Request, res: Response) => {
+  let err;
+  let { id } = req.params;
+  
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return ReE(res, { message: "Invalid log ID format" }, httpStatus.BAD_REQUEST);
+  }
+
+  let getLogs;
+  [err, getLogs] = await toAwait(
+    ActivityLogModel.findById(id)
+      .populate("userId", "-password -fcmToken")
+      .populate("requestBy", "-password -fcmToken")
+      .populate("createdBy", "-password -fcmToken")
+      .populate("documentId")
+      .lean(),
+  );
+  
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (!getLogs) return ReE(res, { message: "Log not found for given id" }, httpStatus.NOT_FOUND);
+
+  return ReS(
+    res,
+    {
+      message: "Log retrieved successfully",
+      data: getLogs,
+    },
+    httpStatus.OK,
+  );
 }
