@@ -4064,6 +4064,24 @@ export const getAllBillingReport = async (
       );
     }
 
+    const diffDays = Math.ceil(
+      Math.abs(
+        new Date(dateTo as string).getTime() - new Date(dateFrom as string).getTime(),
+      ) /
+        (1000 * 60 * 60 * 24),
+    );
+    if (diffDays > 62) {
+      return ReE(
+        res,
+        {
+          message:
+            "Date range exceeds 2 months. Please use the report job endpoint for large date ranges.",
+          useJobEndpoint: true,
+        },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+
     let from = new Date(dateFrom as string);
     let to = new Date(dateTo as string);
     const start = new Date(from);

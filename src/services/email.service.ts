@@ -1,0 +1,61 @@
+import nodemailer from "nodemailer";
+
+const createTransporter = () =>
+  nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: Number(process.env.SMTP_PORT) === 465,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+export const sendReportReadyEmail = async (
+  userEmail: string,
+  userName: string,
+  fileUrl: string,
+  params: { dateFrom?: string; dateTo?: string; date?: string; status?: string },
+): Promise<void> => {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn("SMTP not configured — skipping report email.");
+    return;
+  }
+
+  const dateLabel =
+    params.dateFrom && params.dateTo
+      ? `from ${params.dateFrom} to ${params.dateTo}`
+      : params.date
+        ? `for ${params.date}`
+        : "";
+
+  const statusLabel = params.status ? ` (${params.status})` : "";
+
+  const transporter = createTransporter();
+
+  const TEST_CC = "gopiaswin2002@gmail.com";
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: userEmail,
+    cc: TEST_CC,
+    subject: `Your Billing Report${statusLabel} is Ready`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Billing Report Ready</h2>
+        <p>Hello <strong>${userName}</strong>,</p>
+        <p>Your billing report ${dateLabel}${statusLabel} has been generated successfully.</p>
+        <p>
+          <a href="${fileUrl}"
+             style="display:inline-block;padding:12px 24px;background:#4F46E5;color:#fff;
+                    border-radius:6px;text-decoration:none;font-weight:bold;">
+            Download Report
+          </a>
+        </p>
+        <p style="color:#888;font-size:12px;margin-top:24px;">
+          This link is valid while the file is stored. If you have any issues, please contact the admin.
+        </p>
+      </div>
+    `,
+  });
+};

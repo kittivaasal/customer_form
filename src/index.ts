@@ -27,6 +27,9 @@ import { General } from "./models/general.model";
 import cron from "node-cron";
 import { initializeFirebase } from './util/firebaseConfig';
 import commissionRoutes from "./routes/commission.routes";
+import reportJobRoutes from "./routes/reportJob.routes";
+import { ReportJob } from "./models/reportJob.model";
+import { processReportJob } from "./services/reportWorker.service";
 import { Billing } from "./models/billing.model";
 import { ReE, ReS, toAwait } from "./services/util.service";
 import { Commission } from "./models/commision.model";
@@ -74,6 +77,7 @@ app.use("/api/billing/request", billingRequestRoutes);
 app.use("/api/edit/request", editRequestRoutes);
 app.use("/api/logs", logRoutes)
 app.use("/api/commission", commissionRoutes)
+app.use("/api/billing/report/job", reportJobRoutes)
 
 cron.schedule("02 00 * * *", async () => {
   console.log("Running cron job - EMI Block Check");
@@ -135,6 +139,26 @@ cron.schedule("02 00 * * *", async () => {
 
   } catch (err: any) {
     console.error("Error in cron job:", err.message);
+  }
+});
+
+// Recovery cron: every 5 minutes, pick up any report jobs that are stuck
+// (queued or processing but older than 10 minutes — e.g. server restarted mid-run)
+cron.schedule("*/5 * * * *", async () => {
+  try {
+    const stuckJobs = await ReportJob.find({
+      status: { $in: ["queued", "processing"] },
+      createdAt: { $lt: new Date(Date.now() - 10 * 60 * 1000) },
+    }).lean();
+
+    for (const job of stuckJobs) {
+      console.log(`Recovering stuck report job: ${job._id}`);
+      processReportJob((job._id as any).toString()).catch((err: any) => {
+        console.error(`Recovery failed for job ${job._id}:`, err.message);
+      });
+    }
+  } catch (err: any) {
+    console.error("Report job recovery cron error:", err.message);
   }
 });
 

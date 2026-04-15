@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"ws\\\\\\\\.addRow\\\\|worksheet\\\\.addRow\\\\|addRow\\\\|ws\\\\.addRows\" /c/avvaiaravind/life_projects/customer_form/src/controllers/common.controller.ts)"
+    ]
+  }
+}
