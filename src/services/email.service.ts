@@ -23,11 +23,15 @@ const createTransporter = async () => {
   const host = await getSmtpHost();
   return nodemailer.createTransport({
     host,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: Number(process.env.SMTP_PORT) === 465,
+    port: Number(process.env.SMTP_PORT) || 2525,
+    secure:false,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
+    },
+    requireTLS: true,
+    tls: {
+      rejectUnauthorized: false,
     },
   } as any);
 };
