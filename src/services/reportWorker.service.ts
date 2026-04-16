@@ -15,15 +15,15 @@ import { s3 } from "./digitalOceanConfig";
 import { sendReportReadyEmail } from "./email.service";
 import { sendNotificationsToMultipleDevices } from "../util/firebaseNotificationService";
 
-// ─── Column definitions ───────────────────────────────────────────────────────
+// ─── Column definitions (must match frontend Excel generation exactly) ────────
 
 const PAID_HEADERS = [
-  "Project ID", "Project Name", "Project EMI Amt",
-  "Customer Name", "Customer ID", "Customer Phone",
-  "DD Name", "CED Name",
-  "Payment Amount", "Booking ID", "Plot No", "EMI No",
-  "Payment Date", "Pay Mode", "Reference ID", "Card Holder Name",
-  "Sale Type", "Status", "Remarks", "Created By",
+  "Project ID", "Project Name",
+  "Customer Name", "Customer ID", "Phone",
+  "CED Name", "CED ID", "DD Name", "DD ID",
+  "Status", "Payment Date", "Amount Paid",
+  "Booking ID", "Billing Id", "Plot No", "EMI No",
+  "Pay Mode", "Remarks", "Created By",
   "Total Amount", "Total Paid", "Total Balance",
 ];
 
@@ -31,69 +31,95 @@ const UNPAID_HEADERS = [
   "Project ID", "Project Name",
   "Customer Name", "Customer ID", "Phone",
   "CED Name", "CED ID", "DD Name", "DD ID",
-  "EMI Amount", "EMI No", "Due Date",
-  "Total Scheme Amount", "No. of Installments", "Sale Type",
-  "Customer Status", "Supplier Code", "Overdue", "Status",
+  "EMI Amount", "EMI No", "Date", "Status",
 ];
 
 const BLOCKED_HEADERS = [
-  "Project ID", "Project Name",
-  "EMI Amount", "No. of Installments",
-  "Customer Name", "Customer ID", "Customer Phone",
-  "DD Name", "DD ID", "CED Name", "CED ID",
-  "Sale Type", "Payment Terms", "Sale Booked Date",
-  "Sales No", "Status", "Total Amount", "Created On",
+  "Project ID", "Project Name", "Project EMI Amount",
+  "Customer ID", "Customer Name", "Customer Phone",
+  "DD Name", "CED Name",
 ];
 
 // ─── Row mappers ──────────────────────────────────────────────────────────────
 
 function mapBillingToRow(r: any, createdByName: string = ""): any[] {
-  const project = r.general?.project ?? {};
-  const customer = r.customer ?? {};
-  const ddId = customer.ddId ?? {};
-  const cedId = customer.cedId ?? {};
+  const project   = r.general?.project ?? {};
+  const general   = r.general ?? {};
+  const customer  = r.customer ?? {};
+  const cedId     = customer.cedId ?? {};
+  const ddId      = customer.ddId ?? {};
+
+  // Project ID: shortName preferred (matches frontend)
+  const projectId = project.shortName || project._id || "N/A";
+
+  // Status: check general.paidStauts first, then billing status (matches frontend)
+  const status = general.paidStauts || r.status || "Paid";
+
+  // Payment date formatted YYYY-MM-DD (matches frontend formatDate)
+  const paymentDate = r.paymentDate
+    ? new Date(r.paymentDate).toISOString().split("T")[0]
+    : "";
+
+  // Total Amount from general (matches frontend: general.totalAmount || plotCost || calculated)
+  const emiAmount = Number(general.emiAmount) || 0;
+  const noOfInstallments = Number(general.noOfInstallments) || 0;
+  const calculatedTotal = emiAmount * noOfInstallments;
+  const totalAmount =
+    general.totalAmount ||
+    general.plotCost ||
+    (calculatedTotal > 0 ? calculatedTotal : "");
+
+  // Total Paid calculated (matches frontend: totalAmount - balanceAmount)
+  const balanceAmount = Number(r.balanceAmount) || 0;
+  const totalPaid = totalAmount ? Number(totalAmount) - balanceAmount : "";
 
   return [
-    project.id ?? "",
+    projectId,
     project.projectName ?? "",
-    r.general?.emiAmount ?? "",
     customer.name ?? r.customerName ?? "",
-    r.customerCode ?? customer.id ?? "",
+    r.customerCode ?? "",
     r.mobileNo ?? customer.phone ?? "",
-    ddId.name ?? "",
     cedId.name ?? "",
-    r.enteredAmount ?? "",
-    r.billingId ?? "",
-    r.plotNo ?? "",
+    cedId.id ?? cedId._id?.toString() ?? "",
+    ddId.name ?? "",
+    ddId.id ?? ddId._id?.toString() ?? "",
+    status,
+    paymentDate,
+    r.amountPaid ?? "",
+    general._id?.toString() ?? "",        // Booking ID = general._id
+    r._id?.toString() ?? "",              // Billing Id  = billing._id
+    customer.plotNo ?? r.plotNo ?? "",    // Plot No from customer first
     r.emiNo ?? "",
-    r.paymentDate ? new Date(r.paymentDate).toLocaleDateString("en-IN") : "",
-    r.modeOfPayment ?? r.payMode ?? "",
-    r.referenceId ?? "",
-    r.cardHolderName ?? "",
-    r.saleType ?? "",
-    r.status ?? "",
+    r.modeOfPayment ?? "",
     r.remarks ?? "",
     createdByName,
-    r.totalAmount ?? "",
-    r.totalPaid ?? "",
-    r.totalBalance ?? "",
+    totalAmount,
+    totalPaid,
+    r.balanceAmount ?? "",
   ];
 }
 
 function mapEmiToRow(r: any): any[] {
-  const project = r.general?.project ?? {};
+  const general  = r.general ?? {};
+  const project  = general.project ?? {};
   const customer = r.customer ?? {};
-  const cedId = customer.cedId ?? {};
-  const ddId = customer.ddId ?? {};
-  const general = r.general ?? {};
-  const dueDate = r.date ? new Date(r.date) : null;
-  const overdue = dueDate ? (dueDate < new Date() ? "Overdue" : "Upcoming") : "";
+  const cedId    = customer.cedId ?? {};
+  const ddId     = customer.ddId ?? {};
+
+  // Project ID: shortName preferred (matches frontend)
+  const projectId =
+    project.shortName || project._id || customer.projectId || "N/A";
+
+  // Date formatted en-GB (matches frontend formatDate for unpaid)
+  const date = r.date
+    ? new Date(r.date).toLocaleDateString("en-GB")
+    : "";
 
   return [
-    project.id ?? "",
+    projectId,
     project.projectName ?? "",
-    customer.name ?? r.customerName ?? "",
-    r.customerCode ?? customer.id ?? "",
+    customer.name ?? "",
+    customer.id ?? "",                           // customer.id (string field, matches frontend)
     customer.phone ?? "",
     cedId.name ?? "",
     cedId.id ?? cedId._id?.toString() ?? "",
@@ -101,42 +127,32 @@ function mapEmiToRow(r: any): any[] {
     ddId.id ?? ddId._id?.toString() ?? "",
     r.emiAmt ?? "",
     r.emiNo ?? "",
-    dueDate ? dueDate.toLocaleDateString("en-IN") : "",
-    general.totalAmount ?? "",
-    general.noOfInstallments ?? "",
-    general.saleType ?? "",
-    general.status ?? "",
-    r.supplierCode ?? "",
-    overdue,
+    date,
     "Unpaid",
   ];
 }
 
 function mapGeneralToRow(r: any): any[] {
-  const project = r.project ?? {};
+  const project  = r.project ?? {};
   const customer = r.customer ?? {};
-  const ddId = customer.ddId ?? {};
-  const cedId = customer.cedId ?? {};
+  const ddId     = customer.ddId ?? {};
+  const cedId    = customer.cedId ?? {};
+
+  // Project ID: project.id string field, fallback to _id (matches frontend)
+  const projectId = project.id || project._id?.toString() || "";
+
+  // Project EMI Amount from project (matches frontend: project.emiAmount)
+  const projectEmiAmount = project.emiAmount ?? "";
 
   return [
-    project.id ?? "",
+    projectId,
     project.projectName ?? "",
-    r.emiAmount ?? "",
-    r.noOfInstallments ?? "",
-    customer.name ?? r.customerName ?? "",
-    customer.id ?? r.sPartyCode ?? "",
+    projectEmiAmount,
+    customer.id ?? "",          // Customer ID before Customer Name (matches frontend)
+    customer.name ?? "",
     customer.phone ?? "",
     ddId.name ?? "",
-    ddId.id ?? ddId._id?.toString() ?? "",
     cedId.name ?? "",
-    cedId.id ?? cedId._id?.toString() ?? "",
-    r.saleType ?? "",
-    r.paymentTerms ?? "",
-    r.sBookedDate ?? "",
-    r.sSalesNo ?? "",
-    r.status ?? "",
-    r.totalAmount ?? "",
-    r.createdOn ?? "",
   ];
 }
 
@@ -146,18 +162,30 @@ async function fetchBillingBatched(
   option: Record<string, any>,
   sheet: any,
 ): Promise<void> {
+  let lastPaymentDate: Date | null = null;
   let lastId: mongoose.Types.ObjectId | null = null;
 
   while (true) {
-    const filter = lastId ? { ...option, _id: { $gt: lastId } } : { ...option };
+    // Cursor pagination for descending paymentDate order:
+    // After first batch, fetch records with an earlier paymentDate,
+    // or same paymentDate but smaller _id (tie-break).
+    const cursorFilter = lastPaymentDate
+      ? {
+          ...option,
+          $or: [
+            { paymentDate: { $lt: lastPaymentDate } },
+            { paymentDate: lastPaymentDate, _id: { $lt: lastId } },
+          ],
+        }
+      : { ...option };
 
     // Do NOT populate createdBy inline — some records store a plain string name
     // (e.g. "PREETHIKHA") instead of an ObjectId, which causes a Mongoose CastError.
     // We resolve names separately below using only valid ObjectIds.
-    const batch: any[] = await Billing.find(filter)
+    const batch: any[] = await Billing.find(cursorFilter)
       .populate({ path: "general", populate: [{ path: "project" }] })
       .populate({ path: "customer", populate: [{ path: "cedId" }, { path: "ddId" }] })
-      .sort({ _id: 1 })
+      .sort({ paymentDate: -1, _id: -1 })
       .limit(500)
       .lean();
 
@@ -186,7 +214,12 @@ async function fetchBillingBatched(
       sheet.addRow(mapBillingToRow(record, createdByName)).commit();
     }
 
-    lastId = batch[batch.length - 1]._id;
+    const last = batch[batch.length - 1];
+    lastPaymentDate = last.paymentDate ? new Date(last.paymentDate) : null;
+    lastId = last._id;
+
+    // If the last record has no paymentDate, we can't paginate further safely — stop
+    if (!lastPaymentDate) break;
   }
 }
 
@@ -285,9 +318,7 @@ function buildFilters(params: IReportJob["params"]): {
     emiOption.customer = params.customerId;
   }
 
-  if (params.status === "paid") {
-    option.paidDate = { $ne: null };
-  } else if (params.status === "blocked") {
+  if (params.status === "blocked") {
     generalOption.status = "blocked";
   }
 
@@ -313,7 +344,9 @@ function buildFilters(params: IReportJob["params"]): {
     emiOption.date = { $gte: start, $lte: end };
   }
 
-  if (params.status === "unpaid") {
+  if (params.status === "paid") {
+    emiOption.paidDate = { $ne: null };
+  } else if (params.status === "unpaid") {
     emiOption.paidDate = null;
   }
 
@@ -387,12 +420,10 @@ export const processReportJob = async (jobId: string): Promise<void> => {
       console.warn(`ReportJob ${jobId}: userId "${job.userId}" is not a valid ObjectId — skipping notification`);
     }
     if (user) {
-      if (user.email) {
-        try {
-          await sendReportReadyEmail(user.email, user.name ?? "User", fileUrl, job.params);
-        } catch (emailErr: any) {
-          console.error("Report email failed:", emailErr.message);
-        }
+      try {
+        await sendReportReadyEmail(user?.name ?? "User", fileUrl, job.params);
+      } catch (emailErr: any) {
+        console.error("Report email failed:", emailErr.message);
       }
 
       if (user.fcmToken?.length) {

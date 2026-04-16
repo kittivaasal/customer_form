@@ -12,8 +12,7 @@ const createTransporter = () =>
   });
 
 export const sendReportReadyEmail = async (
-  userEmail: string,
-  userName: string,
+  requestedByName: string,
   fileUrl: string,
   params: { dateFrom?: string; dateTo?: string; date?: string; status?: string },
 ): Promise<void> => {
@@ -21,6 +20,10 @@ export const sendReportReadyEmail = async (
     console.warn("SMTP not configured — skipping report email.");
     return;
   }
+
+  // Fixed recipients — email always goes to company inbox regardless of who requested
+  const TO = process.env.REPORT_EMAIL_TO || "sureshkumarbhagavan@gmail.com";
+  const CC = process.env.REPORT_EMAIL_CC || "";
 
   const dateLabel =
     params.dateFrom && params.dateTo
@@ -33,18 +36,16 @@ export const sendReportReadyEmail = async (
 
   const transporter = createTransporter();
 
-  const TEST_CC = "gopiaswin2002@gmail.com";
-
   await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to: userEmail,
-    cc: TEST_CC,
-    subject: `Your Billing Report${statusLabel} is Ready`,
+    to: TO,
+    ...(CC ? { cc: CC } : {}),
+    subject: `Billing Report${statusLabel} is Ready`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>Billing Report Ready</h2>
-        <p>Hello <strong>${userName}</strong>,</p>
-        <p>Your billing report ${dateLabel}${statusLabel} has been generated successfully.</p>
+        <p>Requested by: <strong>${requestedByName}</strong></p>
+        <p>The billing report ${dateLabel}${statusLabel} has been generated successfully.</p>
         <p>
           <a href="${fileUrl}"
              style="display:inline-block;padding:12px 24px;background:#4F46E5;color:#fff;
