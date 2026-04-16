@@ -1,8 +1,26 @@
+import dns from "dns";
 import nodemailer from "nodemailer";
 
-const createTransporter = () =>
-  nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
+// Resolve SMTP hostname to IPv4 at startup to avoid IPv6 on production servers
+// that have outbound IPv6 blocked (ENETUNREACH on IPv6 address).
+let resolvedSmtpHost: string | undefined;
+async function getSmtpHost(): Promise<string> {
+  if (resolvedSmtpHost) return resolvedSmtpHost;
+  const host = process.env.SMTP_HOST;
+  if (!host) return "";
+  try {
+    const addresses = await dns.promises.resolve4(host);
+    resolvedSmtpHost = addresses[0];
+  } catch {
+    resolvedSmtpHost = host; // fallback to hostname if DNS fails
+  }
+  return resolvedSmtpHost;
+}
+
+const createTransporter = async () => {
+  const host = await getSmtpHost();
+  return nodemailer.createTransport({
+    host,
     port: Number(process.env.SMTP_PORT) || 587,
     secure: Number(process.env.SMTP_PORT) === 465,
     auth: {
@@ -10,6 +28,7 @@ const createTransporter = () =>
       pass: process.env.SMTP_PASS,
     },
   });
+};
 
 export const sendReportReadyEmail = async (
   requestedByName: string,
@@ -34,7 +53,7 @@ export const sendReportReadyEmail = async (
 
   const statusLabel = params.status ? ` (${params.status})` : "";
 
-  const transporter = createTransporter();
+  const transporter = await createTransporter();
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,

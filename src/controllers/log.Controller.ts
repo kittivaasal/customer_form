@@ -19,50 +19,55 @@ import ActivityLogModel from "../models/activityLog.model";
 
 export const getAllLogs = async (req: Request, res: Response) => {
   let err;
-  let { date, page = "1", limit = "10", export: isExport } = req.query;
+  let { date, page = "1", limit = "10", export: isExport, search } = req.query;
 
   let dateFilter: any = {};
+  const hasSearch = search && (search as string).trim() !== "";
 
-  // Only apply date filter if date is provided
-  if (date && !isNull(date as string)) {
-    const queryDate = new Date(date as string);
-    if (isNaN(queryDate.getTime())) {
-      return ReE(
-        res,
-        { message: "Invalid date format!" },
-        httpStatus.BAD_REQUEST,
-      );
+  // Skip date filter entirely if search is provided
+  if (!hasSearch) {
+    // Only apply date filter if date is provided
+    if (date && !isNull(date as string)) {
+      const queryDate = new Date(date as string);
+      if (isNaN(queryDate.getTime())) {
+        return ReE(
+          res,
+          { message: "Invalid date format!" },
+          httpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Set date range for the entire day
+      const startOfDay = new Date(queryDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(queryDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      dateFilter = {
+        createdAt: {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        },
+      };
     }
+    // If no date provided and not exporting, default to today
+    else if (isExport !== "true") {
+      const today = new Date();
+      const startOfDay = new Date(today);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(today);
+      endOfDay.setHours(23, 59, 59, 999);
 
-    // Set date range for the entire day
-    const startOfDay = new Date(queryDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(queryDate);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    dateFilter = {
-      createdAt: {
-        $gte: startOfDay,
-        $lte: endOfDay,
-      },
-    };
+      dateFilter = {
+        createdAt: {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        },
+      };
+    }
+    // If exporting without date, fetch ALL logs (no date filter)
   }
-  // If no date provided and not exporting, default to today
-  else if (isExport !== "true") {
-    const today = new Date();
-    const startOfDay = new Date(today);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(today);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    dateFilter = {
-      createdAt: {
-        $gte: startOfDay,
-        $lte: endOfDay,
-      },
-    };
-  }
-  // If exporting without date, fetch ALL logs (no date filter)
+  // If search is provided, dateFilter remains {} — fetch from all dates
 
   // Define collections with their module names
   const collections = [
@@ -343,6 +348,22 @@ export const getAllLogs = async (req: Request, res: Response) => {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
+  // Apply search filter if provided
+  if (hasSearch) {
+    const searchStr = (search as string).trim().toLowerCase();
+    allLogs = allLogs.filter((log) => {
+      const idMatch = log._id?.toString().toLowerCase().includes(searchStr);
+      const moduleMatch = log.moduleName?.toLowerCase().includes(searchStr);
+      const customerCodeMatch = log.customerCode?.toString().toLowerCase().includes(searchStr);
+      const createdByNameMatch = log.createdBy?.name?.toLowerCase().includes(searchStr);
+      const createdByEmailMatch = log.createdBy?.email?.toLowerCase().includes(searchStr);
+      const createdByPhoneMatch = log.createdBy?.phone?.toString().toLowerCase().includes(searchStr);
+      const createdByRoleMatch = log.createdBy?.role != null && log.createdBy.role.toString().toLowerCase().includes(searchStr);
+      const roleIdMatch = log.roleId?.name != null && log.roleId.name.toString().toLowerCase().includes(searchStr);
+      return idMatch || moduleMatch || customerCodeMatch || createdByNameMatch || createdByEmailMatch || createdByPhoneMatch || createdByRoleMatch || roleIdMatch;
+    });
+  }
+
   // Handle export - return all data
   if (isExport === "true") {
     return ReS(
@@ -387,42 +408,47 @@ export const getAllActivityLogs = async (req: Request, res: Response) => {
   let { date, page = "1", limit = "10", search } = req.query;
 
   let dateFilter: any = {};
+  const hasSearch = search && typeof search === "string" && (search as string).trim() !== "";
 
-  // Only apply date filter if date is provided
-  if(date){
-    if(!isValidDate(date as string)){
-      return ReE(res, { message: "Invalid date format. Please use YYYY-MM-DD." }, httpStatus.BAD_REQUEST);
+  if (!hasSearch) {
+    // Only apply date filter when no search
+    if(date){
+      if(!isValidDate(date as string)){
+        return ReE(res, { message: "Invalid date format. Please use YYYY-MM-DD." }, httpStatus.BAD_REQUEST);
+      }
+    }else{
+      date = new Date().toISOString().split('T')[0];
     }
-  }else{
-    date = new Date().toISOString().split('T')[0]; // Default to today's date in YYYY-MM-DD format
+
+    const start = new Date(date as string);
+    start.setUTCHours(0, 0, 0, 0);
+
+    const end = new Date(date as string);
+    end.setUTCHours(23, 59, 59, 999);
+
+    dateFilter.date = {
+      $gte: start,
+      $lte: end,
+    };
   }
 
-  
-  const start = new Date(date as string);
-  start.setUTCHours(0, 0, 0, 0);
-
-  const end = new Date(date as string);
-  end.setUTCHours(23, 59, 59, 999);
-
-  dateFilter.date = {
-    $gte: start,
-    $lte: end,
-  };
-
-  if (search && typeof search === "string") {
+  if (hasSearch) {
+    const searchTrimmed = (search as string).trim();
     dateFilter.$or = [
-      { action: { $regex: search, $options: "i" } },
-      { collectionName: { $regex: search, $options: "i" } },
-      { message: { $regex: search, $options: "i" } },
-      { billingRegex: { $regex: search, $options: "i" } },
+      { action: { $regex: searchTrimmed, $options: "i" } },
+      { billingRequestAction: { $regex: searchTrimmed, $options: "i" } },
+      { approvalStatus: { $regex: searchTrimmed, $options: "i" } },
+      { collectionName: { $regex: searchTrimmed, $options: "i" } },
+      { message: { $regex: searchTrimmed, $options: "i" } },
     ];
 
-    if (mongoose.Types.ObjectId.isValid(search)) {
-      dateFilter.$or.push({ documentId: new mongoose.Types.ObjectId(search) });
-      dateFilter.$or.push({ userId: new mongoose.Types.ObjectId(search) });
-      dateFilter.$or.push({ requestBy: new mongoose.Types.ObjectId(search) });
+    if (mongoose.Types.ObjectId.isValid(searchTrimmed)) {
+      dateFilter.$or.push({ _id: new mongoose.Types.ObjectId(searchTrimmed) });
+      dateFilter.$or.push({ documentId: new mongoose.Types.ObjectId(searchTrimmed) });
+      dateFilter.$or.push({ userId: new mongoose.Types.ObjectId(searchTrimmed) });
+      dateFilter.$or.push({ requestBy: new mongoose.Types.ObjectId(searchTrimmed) });
+      dateFilter.$or.push({ createdBy: new mongoose.Types.ObjectId(searchTrimmed) });
     }
-
   }
 
   const currentPage = parseInt(page as string);
