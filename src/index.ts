@@ -79,25 +79,29 @@ app.use("/api/logs", logRoutes)
 app.use("/api/commission", commissionRoutes)
 app.use("/api/billing/report/job", reportJobRoutes)
 
-cron.schedule("02 00 * * *", async () => {
+cron.schedule("00 01 * * *", async () => {
   console.log("Running cron job - EMI Block Check");
 
   try {
     const today = new Date();
 
-    const startOfMonth = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      1
-    );
+    let todayMonth = today.getMonth();
+    let todayYear = today.getFullYear();
 
-    // 🚀 Step 1: Get all GENERAL IDs where
-    // unpaid EMI (paidDate = null) AND EMI date < start of current month
+    let db = process.env.DBURL
+
+    if (db?.includes("/housing")) {
+      todayMonth = todayMonth - 1
+    }
+
+    let startOfMonth = new Date(Date.UTC(todayYear, todayMonth, 1));
+    startOfMonth.setUTCHours(0, 0, 0, 0);
+
     const generalIds: any[] = await Emi.aggregate([
       {
         $match: {
           paidDate: null,
-          date: { $lte: startOfMonth },
+          date: { $lt: startOfMonth },
         },
       },
       {
@@ -115,27 +119,38 @@ cron.schedule("02 00 * * *", async () => {
         $match: {
           "general.status": { $ne: "Blocked" }
         }
+      },
+      {
+        $group: {
+          _id: "$general._id"
+        }
       }
     ])
 
-    let ids = generalIds.map((item: any) => item?.general?._id);
+    let ids = generalIds.map((item: any) => item?._id);
 
-    // 🚀 Step 2: Block those generals (skip already blocked)
     if (!ids.length) {
       return console.log("No generals to block");
     }
 
-    const updateResult = await General.updateMany(
-      {
-        _id: { $in: ids },
-        status: { $ne: "Blocked" }
-      },
-      {
-        $set: { status: "Blocked" }
-      }
-    );
+    let batchSize = 1000;
 
-    console.log(`Blocked generals count: ${updateResult.modifiedCount}`);
+    for (let i = 0; i < ids.length; i += batchSize) {
+      const batch = ids.slice(i, i + batchSize);
+      let update = await General.updateMany(
+        {
+          _id: { $in: batch },
+          status: { $ne: "Blocked" }
+        },
+        {
+          $set: { status: "Blocked" }
+        }
+      );
+      console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+    }
+
+    console.log(`Blocked generals count: ${generalIds.length}`);
+
 
   } catch (err: any) {
     console.error("Error in cron job:", err.message);
@@ -164,28 +179,100 @@ cron.schedule("*/5 * * * *", async () => {
 
 
 // app.get("/emi/test", async (req, res) => {
-//     try {
-//       let mass =  {
-//         "updateOne": {
-//             "filter": {
-//                 "_id": "6988b5c728a4d537e7d0bf2e"
-//             },
-//             "update": {
-//                 "$set": {
-//                     "level": 5,
-//                     "status": "active"
-//                 }
-//             }
-//         }
+//   try {
+//     const today = new Date();
+
+//     let todayMonth = today.getMonth();
+//     let todayYear = today.getFullYear();
+
+//     let dbU = process.env.DBURL
+
+//     if (dbU?.includes("/housing")) {
+//       todayMonth = todayMonth - 1
 //     }
 
-//       let update = await MarketDetail.bulkWrite([mass]);
-//       ReS(res, { update, message: "Test successful" }, 200);
-//     }catch (err:any) {
-//         console.log(err)
-//         ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+//     let startOfMonth = new Date(Date.UTC(todayYear, todayMonth, 1));
+//     startOfMonth.setUTCHours(0, 0, 0, 0);
+
+//     console.log(startOfMonth)
+
+//     let db = process.env.DBURL
+
+//     if (db?.includes("housing")) {
+//       db = db.replace("housing", "customerform")
 //     }
+
+//     console.log(db)
+
+//     const generalIds: any[] = await Emi.aggregate([
+//       {
+//         $match: {
+//           date: { $lt: startOfMonth },
+//           paidDate: null
+//         },
+//       },
+//       {
+//         $lookup: {
+//           from: "generals", // collection name (check exact name)
+//           localField: "general",
+//           foreignField: "_id",
+//           as: "general",
+//         }
+//       },
+//       {
+//         $unwind: "$general"
+//       },
+//       {
+//         $match: {
+//           "general.status": { $ne: "Blocked" }
+//         }
+//       },
+//       {
+//         $group: {
+//           _id: "$general._id"
+//         }
+//       }
+//     ])
+
+//     let ids = generalIds.map((item: any) => item?._id);
+
+//     // 🚀 Step 2: Block those generals (skip already blocked)
+//     if (!ids.length) {
+//       return console.log("No generals to block");
+//     }
+
+//     let batchSize = 1000;
+
+//     for (let i = 0; i < ids.length; i += batchSize) {
+//       const batch = ids.slice(i, i + batchSize);
+//       let update = await General.updateMany(
+//         {
+//           _id: { $in: batch },
+//           status: { $ne: "Blocked" }
+//         },
+//         {
+//           $set: { status: "Blocked" }
+//         }
+//       );
+//       console.log(`Processed batch ${i + batchSize}, matchecd ${update.matchedCount}, modified ${update.modifiedCount}`);
+//     }
+
+//     console.log(`Blocked generals count: ${generalIds.length}`);
+
+//     res.json({
+//       success: true,
+//       blockedGenerals: generalIds
+//     });
+
+//   } catch (err: any) {
+//     console.error("Error in cron job:", err.message);
+//     res.json({
+//       success: false,
+//       message: err.message
+//     });
+//   }
 // })
+
 
 
 app.listen(port, () => console.log("Server running on port " + port));
