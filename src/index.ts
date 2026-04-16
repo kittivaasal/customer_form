@@ -39,6 +39,7 @@ import { Percentage } from "./models/percentage.model";
 import { Customer } from "./models/customer.model";
 import { ICustomer } from "./type/customer";
 import { MarketDetail } from "./models/marketDetail.model";
+import activityLogErrorModel from "./models/activityLogError.model";
 
 const app = express();
 app.use(express.json());
@@ -154,6 +155,16 @@ cron.schedule("00 01 * * *", async () => {
 
   } catch (err: any) {
     console.error("Error in cron job:", err.message);
+    let createErrorLog;
+    [err, createErrorLog] = await toAwait(
+      activityLogErrorModel.create({
+        data: null,
+        date: new Date(),
+        errorFor: "CRON_EMI_BLOCK",
+        errorMsg: err.message,
+        stack: err.stack,
+      })
+    );
   }
 });
 

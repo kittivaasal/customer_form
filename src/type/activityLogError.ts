@@ -4,4 +4,6 @@ export interface IActivityLogError extends Document {
   data: any;
   errorMsg: string;
   date: Date;
+  errorFor: string;
+  stack: string
 }

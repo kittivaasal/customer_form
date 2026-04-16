@@ -12,6 +12,13 @@ const ActivityLogErrorSchema = new Schema<IActivityLogError>(
     },
     errorMsg: {
       type: String
+    },
+    errorFor:{
+      type: String,
+      default:"activityLog"
+    },
+    stack: {
+      type: String
     }
   },
   {
