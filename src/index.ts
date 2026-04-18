@@ -27,6 +27,7 @@ import { General } from "./models/general.model";
 import cron from "node-cron";
 import { initializeFirebase } from './util/firebaseConfig';
 import commissionRoutes from "./routes/commission.routes";
+import customerDetailRoutes from "./routes/customerDetail.routes";
 import reportJobRoutes from "./routes/reportJob.routes";
 import { ReportJob } from "./models/reportJob.model";
 import { processReportJob } from "./services/reportWorker.service";
@@ -79,6 +80,7 @@ app.use("/api/edit/request", editRequestRoutes);
 app.use("/api/logs", logRoutes)
 app.use("/api/commission", commissionRoutes)
 app.use("/api/billing/report/job", reportJobRoutes)
+app.use("/api/customer", customerDetailRoutes)
 
 cron.schedule("00 01 * * *", async () => {
   console.log("Running cron job - EMI Block Check");
