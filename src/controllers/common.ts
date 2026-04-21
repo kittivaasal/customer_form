@@ -7,6 +7,7 @@ import { sendNotificationsToMultipleDevices } from "../util/firebaseNotification
 import * as XLSX from "xlsx";
 import ActivityLog from "../models/activityLog.model";
 import { IActivityLog } from "../type/activityLog";
+import axios from "axios";
 
 export const DATE_FIELDS = [
   "date",
@@ -194,3 +195,29 @@ export const addActivityLog = async (data:IActivityLog) => {
     }
   }
 }
+
+export const sendSMS = async (mobile: string, bookingId: string) => {
+  try {
+    const message = `Dear CUSTOMER, we received payment for the Plot Booking ID ${bookingId} for the installment payment Best Regards LIFE GROUPS`;
+    let token = process.env.SMSTOKEN;
+    const response = await axios.get("https://pay4sms.in/sendsms/", {
+      params: {
+        token: token,
+        credit: 2,
+        sender: "LIFEHP",
+        message: message,
+        number: mobile,
+      },
+    });
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};

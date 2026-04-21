@@ -40,7 +40,7 @@ import IMarketer from "../type/Marketer";
 import { IPlot } from "../type/plot";
 import { IProject } from "../type/project";
 import { IUser } from "../type/user";
-import { addActivityLog, sendPushNotificationToSuperAdmin } from "./common";
+import { addActivityLog, sendPushNotificationToSuperAdmin, sendSMS } from "./common";
 import { IActivityLog } from "../type/activityLog";
 import ActivityLogError from "../models/activityLogError.model";
 
@@ -935,7 +935,7 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
         })
         let updateEmi;
         if (bulk.length !== 0) {
-          [err, updateEmi] = await toAwait(Emi.bulkWrite(bulk));
+          [err, updateEmi] = await toAwait(Emi.bulkWrite(bulk, { ordered: false }));
         }
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       }
@@ -4689,20 +4689,22 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
     if (bulkOperations.length > 0) {
       for (let i = 0; i < bulkOperations.length; i += BATCH_SIZE) {
         const batch = bulkOperations.slice(i, i + BATCH_SIZE);
-        let update = await Billing.bulkWrite(batch, { ordered: false });
-        console.log(
-          `✅ Updated bill ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`,
-        );
+        let update;
+        [err, update] = await toAwait(Billing.bulkWrite(batch, { ordered: false }));
+        if(err){
+          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+        }
       }
     }
 
     if (updateEmi.length > 0) {
       for (let i = 0; i < updateEmi.length; i += BATCH_SIZE) {
         const batch = updateEmi.slice(i, i + BATCH_SIZE);
-        let update = await Emi.bulkWrite(batch, { ordered: false });
-        console.log(
-          `✅ Updated emi ${i + batch.length} maches record of ${update.matchedCount} | Updated: ${update.modifiedCount}`,
-        );
+        let update;
+        [err, update] = await toAwait(Emi.bulkWrite(batch, { ordered: false }));
+        if(err){
+          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+        }
       }
     }
 
@@ -4950,3 +4952,75 @@ export const updateEmi = async (req: CustomRequest, res: Response) => {
   return ReS(res, { message: "Emi updated successfully", data: updatedEmi }, httpStatus.OK);
 
 }
+
+export const sendSMSController = async (req: Request, res: Response) => {
+  try {
+    const { customerId, billingId } = req.body;
+
+    if (!customerId || !billingId) {
+      return res.status(400).json({
+        success: false,
+        message: "customerId or billingId are required",
+      });
+    }
+
+    if(!mongoose.isValidObjectId(customerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid customerId",
+      });
+    }
+
+    if(!mongoose.isValidObjectId(billingId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid billingId",
+      });
+    }
+
+    const customer = await Customer.findOne({ _id: customerId });  
+
+    if (!customer) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer not found for given id",
+      });
+    }
+
+    if(!customer.phone) {
+      return res.status(400).json({
+        success: false,
+        message: "Customer has no mobile no please add mobile no",
+      });
+    }
+
+    let getBilling = await Billing.findOne({ _id: billingId });
+
+    if (!getBilling) {
+      return res.status(400).json({
+        success: false,
+        message: "Billing not found for given id",
+      });
+    }
+
+    if(getBilling.customer.toString() !== customerId.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "Billing not belong to this customer",
+      });
+    }
+
+    const result = await sendSMS(customer.phone, billingId);
+
+    return res.json({
+      success: true,
+      message: "SMS sent successfully",
+      data: result,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};

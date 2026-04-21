@@ -14,6 +14,8 @@ import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
 import { sendPushNotificationToSuperAdmin } from "./common";
 import { BillingRequest } from "../models/billingRequest.model";
+import { Customer } from "../models/customer.model";
+import { ICustomer } from "../type/customer";
 
 export const createMarketDetail = async (req: CustomRequest, res: Response) => {
   let body = req.body, err, getFrom, user = req.user as IUser;
@@ -636,6 +638,106 @@ export const deleteMarketDetail = async (req: CustomRequest, res: Response) => {
 
 }
 
+export const updateMarketDetailChangeHead = async (req: CustomRequest, res: Response) => {
+  let err, { _id, changeId } = req.body, user = req.user as IUser, head = true;
+  let field = ["_id", "changeId"]
+  let inVaildFields = field.filter(x => !isNull(req.body[x]));
+  if (inVaildFields.length === 0) {
+    return ReE(res, { message: `Please enter required fields ${inVaildFields}!.` }, httpStatus.BAD_REQUEST);
+  }
+  if (!mongoose.isValidObjectId(_id)) {
+    return ReE(res, { message: `Invalid marketDetail id!` }, httpStatus.BAD_REQUEST);
+  }
+
+  if (!mongoose.isValidObjectId(changeId)) {
+    return ReE(res, { message: `Invalid marketerHead id!` }, httpStatus.BAD_REQUEST);
+  }
+
+  let checkUser;
+  [err, checkUser] = await toAwait(MarketDetail.findOne({ _id: _id }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (!checkUser) {
+    return ReE(res, { message: `marketDetail not found for given id!.` }, httpStatus.NOT_FOUND)
+  }
+
+  let checkChangeUser;
+  [err, checkChangeUser] = await toAwait(MarketingHead.findOne({ _id: changeId }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (!checkChangeUser) {
+    [err, checkChangeUser] = await toAwait(MarketDetail.findOne({ _id: changeId }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    head = false;
+    if (!checkChangeUser) {
+      return ReE(res, { message: `change id is not found in marketerHead and marketDetail table!.` }, httpStatus.NOT_FOUND)
+    }
+    checkChangeUser = checkChangeUser as IMarketDetail
+  }
+
+  let bulkUpdateCustomer:any = [];
+
+  let getAllCustomerIDCed;
+  if(!head){
+    [err, getAllCustomerIDCed] = await toAwait(Customer.find({ cedId: _id }));
+    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllCustomerIDCed = getAllCustomerIDCed as ICustomer[]
+    if(getAllCustomerIDCed.length !== 0){
+      getAllCustomerIDCed.map((customer:any)=>{
+        bulkUpdateCustomer.push({
+          updateOne: {
+            filter: { _id: customer._id },
+            update: { $set: { ddId: changeId } }
+          }
+        })
+      })
+    }
+  }
+
+  let obj:any={}
+
+  if(head){
+    obj.headBy = changeId;
+    obj.overAllHeadBy = [
+      {
+        headBy: changeId,
+        level:1,
+        headByModel :"MarketingHead"
+      }
+    ]
+  }else{
+    checkChangeUser = checkChangeUser as IMarketDetail
+    obj.headBy = changeId;
+    obj.overAllHeadBy = checkChangeUser.overAllHeadBy;
+    obj.overAllHeadBy.push({
+      headBy: changeId,
+      level: checkChangeUser.level,
+      headByModel :"MarketDetail"
+    })
+  }
+
+  let batchSize = 1000;
+
+  for (let i = 0; i < bulkUpdateCustomer.length; i += batchSize) {
+    const batch = bulkUpdateCustomer.slice(i, i + batchSize);
+    let update
+    [err, update] = await toAwait(Customer.bulkWrite(batch, { ordered: false })); 
+    if (err) {
+      return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+    }
+    if(!update){
+      return ReE(res, { message: "Customer not updated" }, httpStatus.INTERNAL_SERVER_ERROR)
+    }
+    update = update as any
+    console.log(`Processed batch ${i + batchSize}, matched ${update?.matchedCount}, modified ${update?.modifiedCount}`);
+  }
+
+  let updateUser;
+  [err, updateUser] = await toAwait(MarketDetail.updateOne({ _id: _id }, { $set: obj }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+  
+  ReS(res, { message: "marketDetail updated" }, httpStatus.OK)
+
+}
+
 // export const getFullHierarchy = async (req: Request, res: Response) => {
 //     try {
 //         const { id } = req.params;
@@ -1012,10 +1114,10 @@ export const getFullHierarchy = async (req: Request, res: Response) => {
       downline: sortedDownline
     });
 
-  } catch (err) {
+  } catch (err:any) {
     return res.status(500).json({
       success: false,
-      error: err
+      error: err.message
     });
   }
 };

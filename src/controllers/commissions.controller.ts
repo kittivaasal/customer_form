@@ -34,11 +34,11 @@ export const getCommissionByCustomer = async (
       count: commissions.length,
       data: commissions,
     });
-  } catch (error) {
+  } catch (error:any) {
     console.error("Get commission by customer error:", error);
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      error: "Internal server error " + error.message,
     });
   }
 };
@@ -203,7 +203,7 @@ export const getCommissionByMarkerId = async (req: Request, res: Response) => {
     console.error("Get commission by marketer error:", error);
     return res.status(500).json({
       success: false,
-      message: "Internal server error: " + error.message
+      error: "Internal server error: " + error.message
     });
   }
 };

@@ -472,7 +472,8 @@ export const deleteMarketingHead = async (req: CustomRequest, res: Response) => 
                 gender: element.gender,
                 id: element.id,
                 status: element.status,
-                oldDate: element.oldDate, level: 1,
+                oldData: element.oldData,
+                level: 1,
                 percentageId: getPercentageId._id,
                 _id: element._id
             }
@@ -551,7 +552,7 @@ export const deleteMarketingHead = async (req: CustomRequest, res: Response) => 
         let bulkU;
         for (let i = 0; i < bulkUpdate.length; i += batchSize) {
             const batch = bulkUpdate.slice(i, i + batchSize);
-            [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch));
+            [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch, { ordered: false }));
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -560,7 +561,7 @@ export const deleteMarketingHead = async (req: CustomRequest, res: Response) => 
         let bulkCustomer;
         for (let i = 0; i < updateBulkCustomer.length; i += batchSize) {
             const batch = updateBulkCustomer.slice(i, i + batchSize);
-            [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch));
+            [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch, { ordered: false }));
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -603,7 +604,7 @@ export const deleteMarketingHead = async (req: CustomRequest, res: Response) => 
 }
 
 export const changeMarketingHead = async (req: Request, res: Response) => {
-    let err, { id, changeId } = req.body, marketHead = true, marketData: any;
+    let err, { id, changeId, memberId } = req.body, marketHead = true, marketData: any;
     let requiredFields = ["id", "changeId"];
     let inVaildFields = requiredFields.filter(x => isNull(req.body[x]));
     if (inVaildFields.length > 0) {
@@ -617,6 +618,22 @@ export const changeMarketingHead = async (req: Request, res: Response) => {
     if (!mongoose.isValidObjectId(changeId)) {
         return ReE(res, { message: `Invalid changeId!` }, httpStatus.BAD_REQUEST);
     }
+
+    // let checkMemberId;
+    // if(memberId){
+    //     if (!mongoose.isValidObjectId(memberId)) {
+    //         return ReE(res, { message: `Invalid memberId!` }, httpStatus.BAD_REQUEST);
+    //     }
+    //     if(memberId === id || memberId === changeId) {
+    //         return ReE(res, { message: `memberId can not be same as id or changeId!` }, httpStatus.BAD_REQUEST);
+    //     }
+    //     [err, checkMemberId] = await toAwait(MarketDetail.findOne({ _id: memberId }));
+    //     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //     if (!checkMemberId) {
+    //         return ReE(res, { message: `marketer detail not found for given memberId!.` }, httpStatus.NOT_FOUND)
+    //     }
+    //     checkMemberId = checkMemberId as IMarketDetail;
+    // }
 
     if(id === changeId) {
         return ReE(res, { message: `id and changeId can not be same!` }, httpStatus.BAD_REQUEST);
@@ -635,7 +652,6 @@ export const changeMarketingHead = async (req: Request, res: Response) => {
     if (!checkChangeId) {
         [err, checkChangeId] = await toAwait(MarketDetail.findOne({ _id: changeId }));
         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        console.log(checkChangeId)
         if (!checkChangeId) {
             return ReE(res, { message: `changeId not found in marketing_head and MarketDetail!.` }, httpStatus.NOT_FOUND)
         }
@@ -645,7 +661,21 @@ export const changeMarketingHead = async (req: Request, res: Response) => {
         if(Number(checkChangeId.level) !== 2){
             return ReE(res, { message: `Only marketer with level 2 can be changed to marketing head given change user level is ${checkChangeId.level}!.` }, httpStatus.BAD_REQUEST)
         }
+        let checkMarketDetailBelong;
+        [err, checkMarketDetailBelong] = await toAwait(MarketDetail.findOne({ "overAllHeadBy.headBy": checkChangeId._id }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (checkMarketDetailBelong) {
+            return ReE(res, { message: `Given change user is already downline of another marketer so can not be changed!` }, httpStatus.NOT_FOUND)
+        }
     }
+    
+    let getPercentage;
+    [err, getPercentage] = await toAwait(Percentage.findOne({ level: 1 }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (!getPercentage) {
+        return ReE(res, { message: `percentage not found for level 1!.` }, httpStatus.NOT_FOUND)
+    }
+    getPercentage = getPercentage as IPercentage;
 
     let getAllCustomer;
     [err, getAllCustomer] = await toAwait(Customer.find({ ddId: id }).populate("cedId"));
@@ -663,9 +693,32 @@ export const changeMarketingHead = async (req: Request, res: Response) => {
             }
         })
     }
-    
+
+    let obj: any = {}
+
+    // if(memberId){
+    //     let getLastLevelMarketer;
+    //     [err, getLastLevelMarketer] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": memberId }));
+    //     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //     getLastLevelMarketer = getLastLevelMarketer as IMarketDetail;
+    //     let overAllObj = [
+    //         { headBy: changeId, headByModel: "MarketingHead", level: 1 }
+    //     ];
+    //     // if(getLastLevelMarketer?.overAllHeadBy?.length !== 0){
+    //     //     getLastLevelMarketer?.overAllHeadBy?.map((item: any) => {
+    //     //         if(item.headBy.toString() !== memberId.toString()){
+    //     //             overAllObj.push(item)
+    //     //         }
+    //     //     })
+    //     // }
+    //     // obj = { "overAllHeadBy.headBy": id, overAllHeadBy: overAllObj }
+
+    // }else{
+    //     obj = { "overAllHeadBy.headBy": id }
+    // }
+
     let getAllLevel1Marketer;
-    [err, getAllLevel1Marketer] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": id, level: 1 }));
+    [err, getAllLevel1Marketer] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getAllLevel1Marketer = getAllLevel1Marketer as any[]
 
@@ -673,7 +726,17 @@ export const changeMarketingHead = async (req: Request, res: Response) => {
 
     for (let index = 0; index < getAllLevel1Marketer.length; index++) {
         const element = getAllLevel1Marketer[index];
-        let obj:any = { "overAllHeadBy.headBy": changeId }
+        let overAllObj = [
+            { headBy: changeId, headByModel: "MarketingHead", level: 1 }
+        ];
+        if(element?.overAllHeadBy?.length !== 0){
+            element?.overAllHeadBy?.map((item: any) => {
+                if(item.headBy.toString() !== id.toString()){
+                    overAllObj.push(item)
+                }
+            })
+        }
+        let obj:any = { overAllHeadBy: overAllObj };
         let overAllArrayLen = element.overAllHeadBy.length;
         if(Number(element.level) === 2 || overAllArrayLen === 1) {
             obj.headBy = changeId;
@@ -688,46 +751,186 @@ export const changeMarketingHead = async (req: Request, res: Response) => {
 
     let batchSize = 500;
 
-    // if (bulkUpMarketer.length > 0) {
-    //     let bulkU;
-    //     for (let i = 0; i < bulkUpMarketer.length; i += batchSize) {
-    //         const batch = bulkUpMarketer.slice(i, i + batchSize);
-    //         [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch));
-    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    //     }
-    // }
+    if (bulkUpMarketer.length > 0) {
+        let bulkU;
+        for (let i = 0; i < bulkUpMarketer.length; i += batchSize) {
+            const batch = bulkUpMarketer.slice(i, i + batchSize);
+            [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch, { ordered: false }));
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 
-    // if (updateBulkCustomer.length > 0) {
-    //     let bulkCustomer;
-    //     for (let i = 0; i < updateBulkCustomer.length; i += batchSize) {
-    //         const batch = updateBulkCustomer.slice(i, i + batchSize);
-    //         [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch));
-    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    //     }
-    // }
+    if (updateBulkCustomer.length > 0) {
+        let bulkCustomer;
+        for (let i = 0; i < updateBulkCustomer.length; i += batchSize) {
+            const batch = updateBulkCustomer.slice(i, i + batchSize);
+            [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch, { ordered: false }));
+            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 
-    // if(!marketHead) {
-    //     let createMHead;
-    //     [err, createMHead] = await toAwait(MarketingHead.create({
-    //         name: marketData.name,
-    //         phone: marketData.phone,
-    //         address: marketData.address,
-    //         email: marketData.email,
-    //         age: marketData.age,
-    //         level: 1,
-    //         gender: marketData.gender,
-    //         id: marketData.id,
-    //         status: marketData.status,
-    //         percentageId: marketData.percentageId,
-    //         oldDate: marketData.oldDate,
-    //         _id: changeId
-    //     }));
-    //     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    //     let deleteM;
-    //     [err, deleteM] = await toAwait(MarketDetail.deleteOne({ _id: changeId }));
-    //     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    // }
+    if(!marketHead) {
+        let createMHead;
+        [err, createMHead] = await toAwait(MarketingHead.create({
+            name: marketData.name,
+            phone: marketData.phone,
+            address: marketData.address,
+            email: marketData.email,
+            age: marketData.age,
+            level: 1,
+            gender: marketData.gender,
+            id: marketData.id,
+            status: marketData.status,
+            percentageId: getPercentage._id,
+            oldData: marketData.oldData,
+            _id: changeId
+        }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        let deleteM;
+        [err, deleteM] = await toAwait(MarketDetail.deleteOne({ _id: changeId }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    }
 
     return ReS(res, { message: "Marketing head updated successfully!" }, httpStatus.OK)
+
+}
+
+export const upgradeMarketerDetailToHead = async (req: CustomRequest, res: Response) => {
+    let err, { id } = req.body, user = req.user as IUser;
+    if (!id) {
+        return ReE(res, { message: `Marketer Detail id is required!` }, httpStatus.BAD_REQUEST);
+    }
+    if (!mongoose.isValidObjectId(id)) {
+        return ReE(res, { message: `Invalid Marketer Detail id!` }, httpStatus.BAD_REQUEST);
+    }
+
+    let marketDetail;
+    [err, marketDetail] = await toAwait(MarketDetail.findOne({ _id: id }).populate("overAllHeadBy.headBy"));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if(!marketDetail) {
+        return ReE(res, { message: `marketDetail not found for given id!.` }, httpStatus.NOT_FOUND)
+    }
+    marketDetail = marketDetail as IMarketDetail;
+
+    let getAllMarketDetail;
+    [err, getAllMarketDetail] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": id }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllMarketDetail = getAllMarketDetail as IMarketDetail[];
+
+    let bulkUpMarketer: any = [];
+
+    let getAllPercentage;
+    [err, getAllPercentage] = await toAwait(Percentage.find({}));
+
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllPercentage = getAllPercentage as IPercentage[];
+
+    if(getAllPercentage.length === 0) {
+        return ReE(res, { message: `Percentage data's not found in database!.` }, httpStatus.NOT_FOUND)
+    }
+
+    for (let index = 0; index < getAllMarketDetail.length; index++) {
+        const element = getAllMarketDetail[index] as IMarketDetail;
+        let overAllObj:any = []
+        let nextTeam = [];
+        nextTeam = element.overAllHeadBy?.filter((item: any) => item?.level > marketDetail.level);
+        if(element.level < marketDetail.level){
+            overAllObj = element.overAllHeadBy?.filter((item: any) => item?.level < marketDetail.level);
+            if(overAllObj.length !== 0) {
+                let obj:any = { overAllHeadBy: overAllObj } 
+                if(element.headBy?.toString() === id.toString()) {
+                    let lastLevel = overAllObj[overAllObj.length - 1]
+                    if(lastLevel) {
+                        obj.headBy = lastLevel.headBy;
+                    }
+                }
+                bulkUpMarketer.push({
+                    updateOne: {
+                        filter: { _id: element._id },
+                        update: { $set: obj }
+                    }
+                })
+            }
+        }else if(element.level > marketDetail.level) {
+            let upLevel = Math.abs(Number(element.level) + 1 - Number(marketDetail.level));
+            let percentage = getAllPercentage.find((item: any) => item.level === upLevel);
+            overAllObj = element.overAllHeadBy?.map((item: any,i) => {
+                if(item?.level === marketDetail.level) {
+                    return {
+                        headBy: marketDetail._id,
+                        level: 1,
+                        headByModel: "MarketingHead"
+                    }
+                }
+                if(item?.level > marketDetail.level) {
+                    let level = Math.abs(Number(item.level) + 1 - Number(marketDetail.level));
+                    return { headBy: item.headBy, level: level, headByModel: item.headByModel }
+                }
+                return null;
+            })
+            .filter(Boolean);
+            let headyByModel = overAllObj.length === 1 ? "MarketingHead" : "MarketerDetail"
+            bulkUpMarketer.push({
+                updateOne: {
+                    filter: { _id: element._id },
+                    update: { $set: { overAllHeadBy: overAllObj , level: upLevel, percentage: percentage?._id, headyByModel} }
+                }
+            })
+        }
+    }
+
+    let bulkCustomerUpdate: any = [];
+    let getAllCustomerCedAsId;
+    [err, getAllCustomerCedAsId] = await toAwait(Customer.find({ cedId: id }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllCustomerCedAsId = getAllCustomerCedAsId as ICustomer[];
+
+    if(getAllCustomerCedAsId.length !== 0) {
+        for (let index = 0; index < getAllCustomerCedAsId.length; index++) {
+            const element = getAllCustomerCedAsId[index];
+            bulkCustomerUpdate.push({
+                updateOne: {
+                    filter: { _id: element._id },
+                    update: { $set: { ddId: marketDetail._id, cedId:null } }
+                }
+            })            
+        }
+    }
+
+    let getAllCustomerDD;
+    // [err, getAllCustomerDD] = await toAwait(Customer.find({ ddId: id, cedId: { $ne : id } }));
+    [err, getAllCustomerDD] = await toAwait(Customer.aggregate([
+        {
+            $match: { ddId: id, cedId: { $ne : id } }
+        },
+        {
+            $lookup: {
+                from: "marketdetails",
+                localField: "cedId",
+                foreignField: "_id",
+                as: "cedId"
+            }
+        },
+        {
+            $unwind: {
+                path: "$cedId",
+                preserveNullAndEmptyArrays: true
+            }
+        }
+    ]));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllCustomerDD = getAllCustomerDD as ICustomer[];
+  
+    const outputDir = "./src/uploads/generated";
+    const jsonPath = path.join(outputDir, `bulkUpMarketer-${Date.now()}.json`);
+
+    fs.writeFileSync(jsonPath, JSON.stringify(getAllCustomerDD, null, 2));
+
+    // if(bulkUpMarketer.length !== 0) {
+    //     let update;
+    //     [err, update] = await toAwait(MarketDetail.bulkWrite(bulkUpMarketer, { ordered: false }));
+    //     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    // }
+    return ReS(res, { message: "Marketer Detail updated successfully!" }, httpStatus.OK)
 
 }

@@ -1,5 +1,5 @@
 import express from "express";
-import { changeMarketingHead, createMarketingHead, deleteMarketingHead, getAllMarketingHead, getByIdMarketingHead, updateMarketingHead } from "../controllers/marketingHead.controller";
+import { changeMarketingHead, createMarketingHead, deleteMarketingHead, getAllMarketingHead, getByIdMarketingHead, updateMarketingHead, upgradeMarketerDetailToHead } from "../controllers/marketingHead.controller";
 import verifyToken from "../middleware/verfiyToken";
 import { getMarketingHeadEstimates } from "../controllers/gerMarketingHeadEstimates";
 import isAdmin from "../middleware/admin";
@@ -12,5 +12,6 @@ router.get("/get/:id", getByIdMarketingHead);
 router.get('/get/:id/estimates', getMarketingHeadEstimates);
 router.delete("/delete",[verifyToken, isAdmin(true)], deleteMarketingHead);
 router.put("/change/head", [verifyToken, isAdmin(true)] , changeMarketingHead);
+router.put("/upgrade/head", [verifyToken, isAdmin(true)] , upgradeMarketerDetailToHead);
 
 export default router;
