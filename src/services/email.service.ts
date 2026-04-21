@@ -1,54 +1,22 @@
-import dns from "dns";
-import nodemailer from "nodemailer";
-
-// Resolve SMTP hostname to IPv4 at startup to avoid IPv6 on production servers
-// that have outbound IPv6 blocked (ENETUNREACH on IPv6 address).
-let resolvedSmtpHost: string | undefined;
-async function getSmtpHost(): Promise<string> {
-  if (resolvedSmtpHost) return resolvedSmtpHost;
-  const host = process.env.SMTP_HOST;
-  if (!host) return "";
-  try {
-    const addresses = await dns.promises.resolve4(host);
-    resolvedSmtpHost = addresses[0];
-    console.log(`[email] DNS resolved ${host} → ${resolvedSmtpHost} (IPv4)`);
-  } catch (err: any) {
-    resolvedSmtpHost = host;
-    console.warn(`[email] DNS resolve failed for ${host} (${err.message}), using hostname as-is`);
-  }
-  return resolvedSmtpHost;
-}
-
-const createTransporter = async () => {
-  const host = await getSmtpHost();
-  return nodemailer.createTransport({
-    host,
-    port: Number(process.env.SMTP_PORT) || 2525,
-    secure:false,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    requireTLS: true,
-    tls: {
-      rejectUnauthorized: false,
-    },
-  } as any);
-};
+import Mailjet from "node-mailjet";
 
 export const sendReportReadyEmail = async (
   requestedByName: string,
   fileUrl: string,
   params: { dateFrom?: string; dateTo?: string; date?: string; status?: string },
 ): Promise<void> => {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.warn("SMTP not configured — skipping report email.");
+  console.log("[email] sendReportReadyEmail called", { requestedByName, fileUrl, params });
+
+  if (!process.env.MJ_APIKEY_PUBLIC || !process.env.MJ_APIKEY_PRIVATE) {
+    console.warn("[email] MJ_APIKEY_PUBLIC or MJ_APIKEY_PRIVATE not set — skipping email.");
     return;
   }
 
-  // Fixed recipients — email always goes to company inbox regardless of who requested
-  const TO = process.env.REPORT_EMAIL_TO || "sureshkumarbhagavan@gmail.com";
+  const TO = process.env.REPORT_EMAIL_TO || "softwarelifegroups@gmail.com";
   const CC = process.env.REPORT_EMAIL_CC || "";
+  const FROM = process.env.SMTP_FROM || "app@lifegroups.in";
+
+  console.log(`[email] From: ${FROM} | To: ${TO} | CC: ${CC || "none"}`);
 
   const dateLabel =
     params.dateFrom && params.dateTo
@@ -59,15 +27,16 @@ export const sendReportReadyEmail = async (
 
   const statusLabel = params.status ? ` (${params.status})` : "";
 
-  console.log(`[email] Sending report email to: ${TO}${CC ? ` (CC: ${CC})` : ""}`);
-  const transporter = await createTransporter();
+  const mailjet = Mailjet.apiConnect(
+    process.env.MJ_APIKEY_PUBLIC,
+    process.env.MJ_APIKEY_PRIVATE,
+  );
 
-  const info = await transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to: TO,
-    ...(CC ? { cc: CC } : {}),
-    subject: `Billing Report${statusLabel} is Ready`,
-    html: `
+  const message: any = {
+    From: { Email: FROM, Name: "Life Groups App" },
+    To: [{ Email: TO }],
+    Subject: `Billing Report${statusLabel} is Ready`,
+    HTMLPart: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2>Billing Report Ready</h2>
         <p>Requested by: <strong>${requestedByName}</strong></p>
@@ -84,6 +53,27 @@ export const sendReportReadyEmail = async (
         </p>
       </div>
     `,
-  });
-  console.log(`[email] Report email sent successfully. Message ID: ${info.messageId}`);
+  };
+
+  if (CC) {
+    message.Cc = [{ Email: CC }];
+  }
+
+  console.log("[email] Sending request to Mailjet API...");
+
+  const result = await mailjet
+    .post("send", { version: "v3.1" })
+    .request({ Messages: [message] });
+
+  console.log("[email] Mailjet full response:", JSON.stringify(result.body, null, 2));
+
+  const msgResult = (result.body as any)?.Messages?.[0];
+  const status = msgResult?.Status;
+
+  if (status === "success") {
+    console.log(`[email] Email sent successfully. MessageID: ${msgResult?.To?.[0]?.MessageID}`);
+  } else {
+    console.error("[email] Email send failed. Errors:", JSON.stringify(msgResult?.Errors, null, 2));
+    throw new Error(`Mailjet send failed: ${JSON.stringify(msgResult?.Errors)}`);
+  }
 };
