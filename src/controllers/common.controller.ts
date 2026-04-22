@@ -3945,6 +3945,7 @@ export const getAllBillingReport = async (
     getProject = getProject as IProject;
     option.projectId = projectId;
     emiOption.projectId = projectId;
+    generalOption.projectId = projectId;
   }
 
   if (customerId) {
@@ -3968,6 +3969,7 @@ export const getAllBillingReport = async (
     getCustomer = getCustomer as ICustomer;
     option.customer = customerId;
     emiOption.customer = customerId;
+    generalOption.customer = customerId;
   }
 
   if (status) {
@@ -3988,7 +3990,7 @@ export const getAllBillingReport = async (
     } else if (status === "unpaid") {
       emiOption.paidDate = null;
     } else if (status === "blocked") {
-      generalOption.status = "blocked";
+      generalOption.status = "Blocked";
     } else if (status === "all") {
     }
   }
@@ -4004,7 +4006,7 @@ export const getAllBillingReport = async (
       );
     }
     if (blocked === "true") {
-      generalOption.status = "blocked";
+      generalOption.status = "Blocked";
     }
   }
 
@@ -4161,7 +4163,7 @@ export const getAllBillingReport = async (
         return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
       }
 
-      let message = "This user ${user.name} want to get billing report ";
+      let message = `This user ${user.name} want to get billing report`;
 
       if(!isNull(dateFrom as string) && !isNull(dateTo as string)) {
         message += `from ${dateFrom} to ${dateTo}`;

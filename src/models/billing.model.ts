@@ -161,13 +161,13 @@ const BillingSchema: Schema = new Schema<IBilling>(
       ref: "Project",
     },
     totalAmount: {
-      type: String,
+      type: Number,
     },
     totalPaid: {
-      type: String,
+      type: Number,
     },
     totalBalance: {
-      type: String,
+      type: Number,
     },
 
     TType: {
