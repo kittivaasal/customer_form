@@ -47,7 +47,7 @@ export const getCommissionByCustomer = async (
 export const getCommissionByMarkerId = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    let { dateFrom, dateTo, date, page = "1", limit = "50", onlyMarketer = false } = req.query as any;
+    let { dateFrom, dateTo, date, page = "1", limit = "50", onlyMarketer = false, isExport = "false" } = req.query as any;
 
     // ✅ Validate ObjectId
     if (!Types.ObjectId.isValid(id)) {
@@ -98,7 +98,7 @@ export const getCommissionByMarkerId = async (req: Request, res: Response) => {
 
     const totalPages = Math.ceil(total / limitValue);
 
-    if (currentPage > totalPages) {
+    if (isExport !== "true" && currentPage > totalPages && total > 0) {
       return ReE(res, { message: `Page no ${page} is not available. last page no is ${totalPages}` }, httpStatus.NOT_FOUND);
     }
 
@@ -122,10 +122,12 @@ export const getCommissionByMarkerId = async (req: Request, res: Response) => {
     }
 
     // 👉 pagination
-    dataPipeline.push(
-      { $skip: skip },
-      { $limit: limitNum }
-    );
+    if (isExport !== "true") {
+      dataPipeline.push(
+        { $skip: skip },
+        { $limit: limitNum }
+      );
+    }
 
     // 🚀 Aggregation
     const result = await Commission.aggregate([
@@ -187,7 +189,7 @@ export const getCommissionByMarkerId = async (req: Request, res: Response) => {
         totalEarnCommission: summary.totalEarnCommission,
         totalEarn: summary.totalEarnDirect + summary.totalEarnCommission
       },
-      pagination: {
+      pagination: isExport === "true" ? { total } : {
         page: currentPage,
         limit: limitValue,
         total: total,
