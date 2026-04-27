@@ -45,7 +45,7 @@ export const createMarketDetail = async (req: CustomRequest, res: Response) => {
   if (!checkPer) return ReE(res, { message: "Percentage is not found for given id" }, httpStatus.NOT_FOUND)
 
   checkPer = checkPer as IPercentage;
-  if (checkPer.name.toUpperCase() === "DIAMOND DIRECTOR") {
+  if (checkPer.level === 1) {
     return ReE(res, { message: `MarkerDetail not be a 'DIAMOND DIRECTOR'!.` }, httpStatus.BAD_REQUEST);
   }
 
@@ -53,21 +53,43 @@ export const createMarketDetail = async (req: CustomRequest, res: Response) => {
     return ReE(res, { message: 'Invalid headBy id!' }, httpStatus.BAD_REQUEST);
   }
 
+  let getAllPercentage;
+  [err, getAllPercentage] = await toAwait(Percentage.find({}).sort({ level: 1 }));
+
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  getAllPercentage = getAllPercentage as IPercentage[];
+
+  let lastPercentageLevel = Math.max(...getAllPercentage.map((item: any) => item.level));
+  let lastPercentage = getAllPercentage.find((item: any) => item.level === lastPercentageLevel) as IPercentage;
+
   let findExist;
   [err, findExist] = await toAwait(MarketingHead.findById({ _id: headBy }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   let checkMarketDetail;
   if (!findExist) {
-    [err, checkMarketDetail] = await toAwait(MarketDetail.findOne({ _id: headBy }));
+    [err, checkMarketDetail] = await toAwait(MarketDetail.findOne({ _id: headBy }).populate("percentageId"));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!checkMarketDetail) {
       return ReE(res, { message: `headBy is not found inside in marketDetail and marketingHead given id: ${headBy}!.` }, httpStatus.NOT_FOUND);
     } else {
       getFrom = "MarketDetail";
     }
+    checkMarketDetail = checkMarketDetail as any;
+    if(!checkMarketDetail.percentageId._id) {
+      return ReE(res, { message: `The headBy marketDetail does not have percentage mapped, so cannot be assigned as headBy!.` }, httpStatus.BAD_REQUEST);
+    }
+    let percentage = checkMarketDetail.percentageId as IPercentage;
+    if(lastPercentage.level  !== checkPer.level) {
+      if(percentage.level >= checkPer.level) {
+        return ReE(res, { message: `The headBy marketDetail percentage level should be less than the create marketDetail percentage level, headBy level: ${percentage.level}, create level: ${checkPer.level}!.` }, httpStatus.BAD_REQUEST);
+      }
+    }
+
   } else {
     getFrom = "MarketingHead";
   }
+
+  
 
   let getSequence, count = 0;
   [err, getSequence] = await toAwait(Counter.findOne({ name: "Marketdetail" }));
@@ -106,12 +128,26 @@ export const createMarketDetail = async (req: CustomRequest, res: Response) => {
       {
         headBy: headBy,
         headByModel: "MarketDetail",
-        level: checkMarketDetail.overAllHeadBy.length + 1
+        level: checkMarketDetail.level
       }
     ]
   }
 
-  body.createdBy = user._id;  
+  console.log("checkPer.level", checkPer.level, "lastPercentage.level", lastPercentage.level, lastPercentage.level === checkPer.level);
+  let len = Math.max(...body.overAllHeadBy.map((item: any) => item.level));
+  let lastLevel = body.overAllHeadBy.find((item: any) => item.level === len);
+  if(lastPercentage.level === checkPer.level) {
+    checkMarketDetail = checkMarketDetail as IMarketDetail;
+    if(lastLevel.level < checkPer.level){
+      body.level = checkPer.level
+    }else{
+      body.level = Number(checkMarketDetail.level) + 1
+    }
+  } else {
+    body.level = checkPer.level
+  }
+
+  body.createdBy = user._id;
 
   let marketDetail;
   [err, marketDetail] = await toAwait(MarketDetail.create(body));
@@ -202,7 +238,6 @@ export const updateMarketDetail = async (req: CustomRequest, res: Response) => {
       //     }else{
       //         updatedOverAllHeadBy.push(element);
       //     }
-
       // }
       Object.assign(getMarketDetail.overAllHeadBy.find(x => x.headBy.toString() === getMarketDetail.headBy.toString()) || {},
         {

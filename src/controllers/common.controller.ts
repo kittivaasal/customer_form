@@ -418,8 +418,16 @@ export const createCommonData = async (req: Request, res: Response) => {
     if (flat) await tryCreate(Flat, flat, "flat");
   }
 
-  if (errors.length > 0)
+  if (errors.length > 0) {
     return ReE(res, { message: errors }, httpStatus.BAD_REQUEST);
+  }
+
+  // let obj = {
+  //   general: createGeneral,
+  //   plot: results.plot,
+  //   flat: results.flat,
+  // };
+
   return ReS(res, { message: "success", data: results }, httpStatus.OK);
 };
 
@@ -495,6 +503,11 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
           : general.status === "blocked"
             ? "Blocked"
             : "Vacant";
+
+      if (general.status === "Blocked") {
+        general.blockedDate = new Date();
+      }
+
     }
 
     if (!general._id) {
@@ -1501,7 +1514,7 @@ export const getAllEmi = async (req: Request, res: Response) => {
   }
 
   let populateQuery = req.query.populate;
-  let query = Emi.find(option).populate("general").sort({ createdAt: -1 });
+  let query = Emi.find(option).populate("general").sort({ emiNo: 1 });
 
   if (populateQuery === "true") {
     query = query.populate({
@@ -2460,7 +2473,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
 
           [err, createBill] = await toAwait(
             Billing.create({
-              // amountPaid: enteredAmount,
+              amountPaid: enteredAmount,
               paymentDate: new Date(paymentDate),
               transactionType: "EMI Receipt",
               saleType,
@@ -2651,7 +2664,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           collectionName: "BillingRequest",
           documentId: createBillRequest._id,
           oldData: null,
-          newData: null,
+          newData: createBillRequest,
           createdBy: user._id,
           message: `Billing created request by ${user.name} for this ${checkCustomer?.name} customer, for ${readyForBill.length} EMIs`,
           date: new Date()
@@ -2770,7 +2783,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           [err, updateEmis] = await toAwait(
             Emi.updateOne(
               { _id: element._id },
-              { $set: { paidDate: new Date(paymentDate), paidAmt: enteredAmount } }
+              { $set: { paidDate: new Date(paymentDate), paidAmt: enteredAmount, status: "paid" } }
             )
           )
 
@@ -2813,6 +2826,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               $set: {
                 paidDate: checkAlreadyExist?.paymentDate,
                 paidAmt: amountPaid,
+                status: "paid"
               },
             },
           ),
@@ -2884,7 +2898,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           [err, updateEmi] = await toAwait(
             Emi.findOneAndUpdate(
               { _id: element._id },
-              { paidDate: billing.paymentDate, paidAmt: billing.amountPaid },
+              { paidDate: billing.paymentDate, paidAmt: billing.amountPaid, status: "paid" },
               { new: true },
             ),
           );
@@ -2899,7 +2913,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           collectionName: "Billing",
           documentId: billing._id,
           oldData: null,
-          newData: null,
+          newData: createBill,
           createdBy: user._id,
           message: `Billing created by ${user.name} for ${checkCustomer?.name} with emi no ${element.emiNo}`,
           date: new Date()
@@ -3122,7 +3136,7 @@ export const updateBilling = async (req: CustomRequest, res: Response) => {
         [err, updateEmi] = await toAwait(
           Emi.findOneAndUpdate(
             { _id: getBilling.emi },
-            { $set: { paidDate:paymentDate } },
+            { $set: { paidDate:paymentDate, status: "paid" } },
             { new: true },
           ),
         );
@@ -3365,7 +3379,7 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
     [err, updateEmi] = await toAwait(
       Emi.findOneAndUpdate(
         { _id: getBilling.emi },
-        { $set: { paidAmt: 0, paidDate: null } },
+        { $set: { paidAmt: 0, paidDate: null, status:"pending" } },
         { new: true },
       ),
     );
@@ -3382,7 +3396,7 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
     [err, updateEmi] = await toAwait(
       Emi.updateMany(
         { _id: { $in: getBilling.emiCover } },
-        { $set: { paidAmt: 0, paidDate: null } },
+        { $set: { paidAmt: 0, paidDate: null, status: "pending" } },
         { new: true },
       ),
     );
@@ -3922,7 +3936,8 @@ export const getAllBillingReport = async (
   let { dateFrom, dateTo, date, status, blocked, projectId, customerId } = req.query,
     option: any = {},
     emiOption: any = {},
-    generalOption: any = {};
+    generalOption: any = {},
+    emiBlockedOption: any = {};
 
   if (projectId) {
     if (!mongoose.isValidObjectId(projectId)) {
@@ -3946,6 +3961,7 @@ export const getAllBillingReport = async (
     option.projectId = projectId;
     emiOption.projectId = projectId;
     generalOption.projectId = projectId;
+    emiBlockedOption.projectId = projectId;
   }
 
   if (customerId) {
@@ -3970,6 +3986,7 @@ export const getAllBillingReport = async (
     option.customer = customerId;
     emiOption.customer = customerId;
     generalOption.customer = customerId;
+    emiBlockedOption.customer = customerId;
   }
 
   if (status) {
@@ -4046,21 +4063,13 @@ export const getAllBillingReport = async (
     dateFrom = dateFrom as string;
     dateTo = dateTo as string;
     if (!isValidDate(dateFrom)) {
-      return ReE(
-        res,
-        {
-          message:
-            "Invalid date format for dateFrom valid format is (YYYY-MM-DD)!",
-        },
-        httpStatus.BAD_REQUEST,
-      );
+      return ReE(res, { message: "Invalid date format for dateFrom valid format is (YYYY-MM-DD)!"}, httpStatus.BAD_REQUEST);
     }
     if (!isValidDate(dateTo)) {
       return ReE(
         res,
         {
-          message:
-            "Invalid date format for dateTo valid format is (YYYY-MM-DD)!",
+          message:  "Invalid date format for dateTo valid format is (YYYY-MM-DD)!",
         },
         httpStatus.BAD_REQUEST,
       );
@@ -4101,16 +4110,22 @@ export const getAllBillingReport = async (
       $gte: start,
       $lte: end,
     };
+
+    emiBlockedOption.blockedDate = {
+      $gte: start,
+      $lte: end,
+    };
+
+    generalOption.blockedDate = {
+      $gte: start,
+      $lte: end,
+    };
+
   } else if (date) {
+
     date = date as string;
     if (!isValidDate(date)) {
-      return ReE(
-        res,
-        {
-          message: "Invalid date format for date valid format is (YYYY-MM-DD)!",
-        },
-        httpStatus.BAD_REQUEST,
-      );
+      return ReE( res, { message: "Invalid date format for date valid format is (YYYY-MM-DD)!"}, httpStatus.BAD_REQUEST);
     }
 
     if (new Date(date).toDateString() !== new Date().toDateString()) {
@@ -4133,6 +4148,16 @@ export const getAllBillingReport = async (
     };
 
     emiOption.date = {
+      $gte: start,
+      $lte: end,
+    };
+
+    generalOption.blockedDate = {
+      $gte: start,
+      $lte: end,
+    };
+
+    emiBlockedOption.blockedDate = {
       $gte: start,
       $lte: end,
     };
@@ -4302,24 +4327,22 @@ export const getAllBillingReport = async (
     }
   }
 
-  console.log(option)
-
   let getBilling: any = [];
   if (status !== "unpaid") {
     [err, getBilling] = await toAwait(
       Billing.find(option)
-        .populate({
-          path: "general",
-          populate: [{ path: "project" }],
-        })
-        .populate("introducer")
-        .populate("emi")
-        .populate({
-          path: "customer",
-          populate: [{ path: "cedId" }, { path: "ddId" }],
-        })
-        .populate("createdBy", "-password -fcmToken")
-        .sort({ createdAt: -1 }),
+      .populate({
+        path: "general",
+        populate: [{ path: "project" }],
+      })
+      .populate("introducer")
+      .populate("emi")
+      .populate({
+        path: "customer",
+        populate: [{ path: "cedId" }, { path: "ddId" }],
+      })
+      .populate("createdBy", "-password -fcmToken")
+      .sort({ createdAt: -1 }),
     );
   }
 
@@ -4333,24 +4356,128 @@ export const getAllBillingReport = async (
   if (status === "unpaid" || status === "all") {
     if (status === "unpaid") {
       emiOption.paidDate = null;
-      // delete emiOption.date; // Commented out to preserve date filter for unpaid
     }
+    // [err, getEmi] = await toAwait(
+    //   Emi.find(emiOption)
+    //     .populate({
+    //       path: "customer",
+    //       populate: [{ path: "cedId" }, { path: "ddId" }],
+    //     })
+    //     .populate({
+    //       path: "general",
+    //       populate: [{ path: "project" }],
+    //     })
+    //     .sort({ createdAt: -1 }),
+    // );
+    // let getEmia
+    let pipeline: any[] = [
+      {
+        $match: emiOption,
+      },
+      {
+        $lookup: {
+          from: "generals",
+          localField: "general",
+          foreignField: "_id",
+          as: "general",
+        },
+      },
+      { $unwind: "$general" },
+    ]
+    if(status === "unpaid") {
+      pipeline.push({
+        $match: {
+          "general.status": { $ne: "Blocked" },
+        },
+      })
+    }
+    pipeline.push(  
+      {
+        $lookup: {
+          from: "projects",
+          localField: "general.project",
+          foreignField: "_id",
+          as: "general.project",
+        },
+      },
+      {
+        $unwind: {
+          path: "$general.project",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "customers",
+          localField: "customer",
+          foreignField: "_id",
+          as: "customer",
+        },
+      },
+      { $unwind: "$customer" },
+      {
+        $lookup: {
+          from: "marketdetails",
+          localField: "customer.cedId",
+          foreignField: "_id",
+          as: "customer.cedId",
+        },
+      },
+      {
+        $unwind: {
+          path: "$customer.cedId",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "marketingheads",
+          localField: "customer.ddId",
+          foreignField: "_id",
+          as: "customer.ddId",
+        },
+      },
+      {
+        $unwind: {
+          path: "$customer.ddId",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $sort: { createdAt: -1 },
+      },
+    );
     [err, getEmi] = await toAwait(
-      Emi.find(emiOption)
-        .populate({
-          path: "customer",
-          populate: [{ path: "cedId" }, { path: "ddId" }],
-        })
-        .populate({
-          path: "general",
-          populate: [{ path: "project" }],
-        })
-        .sort({ createdAt: -1 }),
+      Emi.aggregate(pipeline)
     );
   }
 
   let general
   if (status === "blocked") {
+    let getBlockedEmiLevel;
+    [err, getBlockedEmiLevel] = await toAwait(
+      Emi.aggregate([
+        {
+          $match: emiBlockedOption,
+        },
+        {
+          $lookup: {
+            from: "generals",
+            localField: "general",
+            foreignField: "_id",
+            as: "general",
+          },
+        },
+        {
+          $unwind: "$general",
+        },
+        {
+          $match: {
+            "general.status": "Blocked",
+          },
+        },
+      ])
+    );
     [err,general] = await toAwait(
       General.find(generalOption).populate("project").populate({
         path: "customer",
@@ -4405,6 +4532,11 @@ export const getAllBillingReport = async (
       })
     );
   }
+
+  getEmi = getEmi as IEmi[];
+  general = general as IGeneral[];
+
+  console.log(emiOption, option, generalOption, getBilling.length, getEmi.length)
 
   return ReS(res, { billing: getBilling, emi: getEmi, general }, httpStatus.OK);
 };
@@ -4575,6 +4707,7 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
 
     let bulkOperations: any[] = [];
     let updateEmi: any[] = [];
+    let commissionUpdateEmi: any[] = [];
 
     for (let index = 0; index < json.length; index++) {
       const element = json[index];
@@ -4681,9 +4814,16 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
       updateEmi.push({
         updateOne: {
           filter: { _id: emiId },
-          update: { $set: { paidDate: changePaymentDate } },
+          update: { $set: { paidDate: changePaymentDate, status: "Paid" } },
         }
       })
+
+      commissionUpdateEmi.push({
+        updateOne: {
+          filter: { bill: getBilling._id },
+          update: { $set: { paymentDate: changePaymentDate } },
+        }
+       })
 
     }
 
@@ -4704,6 +4844,17 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
         const batch = updateEmi.slice(i, i + BATCH_SIZE);
         let update;
         [err, update] = await toAwait(Emi.bulkWrite(batch, { ordered: false }));
+        if(err){
+          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+        }
+      }
+    }
+
+    if (commissionUpdateEmi.length > 0) {
+      for (let i = 0; i < commissionUpdateEmi.length; i += BATCH_SIZE) {
+        const batch = commissionUpdateEmi.slice(i, i + BATCH_SIZE);
+        let update;
+        [err, update] = await toAwait(Commission.bulkWrite(batch, { ordered: false }));
         if(err){
           return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
         }

@@ -32,4 +32,6 @@ export interface IGeneral {
     totalAmount: number
 
     startDate: Date
+    blockedDate: Date
+    blockedByScript?: boolean;
 }

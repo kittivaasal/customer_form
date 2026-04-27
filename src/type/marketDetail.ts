@@ -11,6 +11,7 @@ export interface IMarketDetail {
   oldData?:boolean    
   level:Number;
   autoId:Number;
+  percentageId: Types.ObjectId;
   leader: String;
   overAllHeadBy: [
     {

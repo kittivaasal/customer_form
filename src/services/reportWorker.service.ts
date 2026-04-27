@@ -316,14 +316,15 @@ function buildFilters(params: IReportJob["params"]): {
   if (params.customerId) {
     option.customer = params.customerId;
     emiOption.customer = params.customerId;
+    generalOption.customer = params.customerId;
   }
 
-  if (params.status === "blocked") {
-    generalOption.status = "blocked";
+  if (params.status?.toLowerCase() === "blocked") {
+    generalOption.status = "Blocked";
   }
 
-  if (params.blocked === "true") {
-    generalOption.status = "blocked";
+  if (params.blocked?.toLowerCase() === "true") {
+    generalOption.status = "Blocked";
   }
 
   if (params.dateFrom && params.dateTo) {
@@ -334,6 +335,10 @@ function buildFilters(params: IReportJob["params"]): {
 
     option.paymentDate = { $gte: start, $lte: end };
     emiOption.date = { $gte: start, $lte: end };
+    generalOption.blockedDate = { $gte: start, $lte: end };
+    if(params.status?.toLowerCase() === "blocked") {
+      emiOption.blockedDate = { $gte: start, $lte: end };
+    }
   } else if (params.date) {
     const start = new Date(params.date);
     start.setUTCHours(0, 0, 0, 0);
@@ -388,6 +393,7 @@ export const processReportJob = async (jobId: string): Promise<void> => {
     if (status === "unpaid" || status === "all") {
       if (status === "unpaid") {
         emiOption.paidDate = null;
+        emiOption.status = "Blocked";
       }
       const unpaidSheet = workbook.addWorksheet("Unpaid");
       unpaidSheet.addRow(UNPAID_HEADERS).commit();
@@ -398,7 +404,7 @@ export const processReportJob = async (jobId: string): Promise<void> => {
     // ── Blocked sheet ──
     if (status === "blocked" || status === "all") {
       if (status === "all") {
-        generalOption.status = "blocked";
+        generalOption.status = "Blocked";
       }
       const blockedSheet = workbook.addWorksheet("Blocked");
       blockedSheet.addRow(BLOCKED_HEADERS).commit();

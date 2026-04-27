@@ -21,4 +21,8 @@ export interface IEmi {
     sSalesNo?: string;
     createdDate?: string;
     modifyDate?: string;
+
+    status?: string;
+    blockedDate?: Date;
+    blockedByScript?: boolean;
 }

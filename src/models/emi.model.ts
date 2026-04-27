@@ -29,6 +29,16 @@ const EmiSchema = new Schema({
     push:{
       type:Boolean,
       default:true
+    },
+    status:{
+        type:String,
+        default:"pending"
+    },
+    blockedDate:{
+      type: Date
+    },
+    blockedByScript:{
+      type: Boolean
     }
 },{ timestamps: true });
 

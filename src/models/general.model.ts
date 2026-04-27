@@ -109,6 +109,12 @@ const GeneralSchema = new Schema(
     },
     startDate:{
       type: Date
+    },
+    blockedDate:{
+      type: Date
+    },
+    blockedByScript:{
+      type: Boolean
     }
   },
 

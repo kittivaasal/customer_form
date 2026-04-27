@@ -28,7 +28,6 @@ import ActivityLogError from "../models/activityLogError.model";
 export const approvedBillingRequest = async (req: CustomRequest, res: Response) => {
 
   try {
-    console.log(req.body)
     let err, user = req.user as IUser, body = req.body;
 
     if (!user) {
@@ -271,7 +270,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               [err, updateEmis] = await toAwait(
                 Emi.updateOne(
                   { _id: element._id },
-                  { $set: { paidDate: new Date(createBill.paymentDate), paidAmt: createBill.amountPaid } }
+                  { $set: { paidDate: new Date(createBill.paymentDate), paidAmt: createBill.amountPaid, status: "paid" } }
                 )
               )
 
@@ -300,7 +299,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             [err, updateEmiPaid] = await toAwait(
               Emi.updateOne(
                 { _id: checkAlreadyExist?.emi },
-                { $set: { paidDate: checkAlreadyExist?.paymentDate, paidAmt: amountPaid } }
+                { $set: { paidDate: checkAlreadyExist?.paymentDate, paidAmt: amountPaid, status: "paid" } }
               )
             )
             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -378,7 +377,7 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               [err, updateEmi] = await toAwait(
                 Emi.findOneAndUpdate(
                   { _id: element._id },
-                  { paidDate: billing.paymentDate, paidAmt: element.emiAmt },
+                  { paidDate: billing.paymentDate, paidAmt: element.emiAmt, status: "paid" },
                   { new: true }
                 )
               );
