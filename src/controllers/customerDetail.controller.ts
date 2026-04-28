@@ -27,7 +27,9 @@ export const getCustomerOverallDetail = async (req: Request, res: Response) => {
     const [customer, general, emis, billings] = await Promise.all([
       Customer.findById(customerObjectId)
         .populate("projectId", "projectName shortName duration emiAmount schema")
-        .populate("marketerDetailId", "name phone leader")
+        .populate("cedId", "name phone leader")
+        .populate("ddId", "name phone")
+        .populate("introducerId", "name phone")
         .lean(),
 
       General.findOne({ customer: customerObjectId })
@@ -59,12 +61,15 @@ export const getCustomerOverallDetail = async (req: Request, res: Response) => {
     const totalBillingPaid = billings.reduce((sum, b) => sum + (b.amountPaid || 0), 0);
 
     // 📊 Overall summary
-    const totalAmount = general?.totalAmount || 0;
+    // Prefer general.totalAmount; fall back to EMI scheduled total when general has no value.
+    const totalAmount = general?.totalAmount && general.totalAmount > 0
+      ? general.totalAmount
+      : totalEmiAmountScheduled;
 
     // Use EMI paid amount as source of truth for paid amount
     // (billing receipts may overlap with EMI paid records)
     const totalPaid = totalEmiAmountPaid;
-    const totalBalance = totalAmount > 0 ? totalAmount - totalPaid : 0;
+    const totalBalance = totalAmount - totalPaid;
 
     // 🗂️ Format EMI schedule rows
     const emiSchedule = emis.map((e) => ({
@@ -95,6 +100,7 @@ export const getCustomerOverallDetail = async (req: Request, res: Response) => {
       data: {
         customer: {
           _id: customer._id,
+          customerCode: customer.id || null,
           name: customer.name,
           phone: customer.phone,
           email: customer.email,
@@ -109,6 +115,7 @@ export const getCustomerOverallDetail = async (req: Request, res: Response) => {
           nationality: customer.nationality,
           referenceId: customer.referenceId,
           plotNo: customer.plotNo,
+          projectArea: customer.projectArea,
           // Nominee details
           nomineeName: customer.nomineeName,
           nomineeAge: customer.nomineeAge,
@@ -117,8 +124,10 @@ export const getCustomerOverallDetail = async (req: Request, res: Response) => {
           // Marketer (from customer record – denormalized)
           marketerName: customer.marketerName,
           marketerPercent: customer.marketerPercent,
-          // Populated marketer detail (if linked)
-          marketerDetail: customer.marketerDetailId || null,
+          // Populated marketer/introducer references
+          cedId: customer.cedId || null,
+          ddId: customer.ddId || null,
+          introducerId: customer.introducerId || null,
           // Populated project
           project: customer.projectId || null,
         },
@@ -138,7 +147,28 @@ export const getCustomerOverallDetail = async (req: Request, res: Response) => {
               offered: general.offered,
               sSalesNo: general.sSalesNo,
               sBookedDate: general.sBookedDate,
-              plotGuideValue: general.plotGuideValue || null,
+              // Plot / Flat / Villa guide value breakdown
+              plotGuideValue: general.plotGuideValue
+                ? {
+                    guideRateSqFt: general.plotGuideValue.guideRateSqFt ?? null,
+                    guideLandValue: general.plotGuideValue.guideLandValue ?? null,
+                    landValue: general.plotGuideValue.landValue ?? null,
+                    regValue: general.plotGuideValue.regValue ?? null,
+                    additionalCharges: general.plotGuideValue.additionalCharges ?? null,
+                    totalValue: general.plotGuideValue.totalValue ?? null,
+                  }
+                : null,
+              // Documents related to plot/flat/villa
+              saleDeedDoc: general.saleDeedDoc || null,
+              motherDoc: general.motherDoc || null,
+              // Legacy / denormalized identifiers
+              supplierCode: general.supplierCode || null,
+              sPartyCode: general.sPartyCode || null,
+              sMarketerId: general.sMarketerId || null,
+              customerName: general.customerName || null,
+              createdOn: general.createdOn || null,
+              modifiedOn: general.modifiedOn || null,
+              editDeleteReason: general.editDeleteReason || null,
               project: general.project || null,
             }
           : null,

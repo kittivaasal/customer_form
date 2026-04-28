@@ -2,6 +2,9 @@ import { to } from 'await-to-js';
 import { Response } from "express";
 import { format, toZonedTime } from 'date-fns-tz';
 import { isValidUUIDV4 } from 'is-valid-uuid-v4';
+import mongoose from 'mongoose';
+import { Billing } from '../models/billing.model';
+import { User } from '../models/user.model';
 
 export const IsValidUUIDV4 = (val: string): boolean => {
   return isValidUUIDV4(val);
@@ -260,3 +263,85 @@ export const createCurrentDateTime = (): string => {
   // Format as 'YYYY-MM-DD HH:mm'
   return format(istDate, 'yyyy-MM-dd HH:mm', { timeZone: istTimeZone });
 };
+
+// Some legacy Billing records have `createdBy` stored as a plain string
+// (e.g., "NALLAPPAN", "vinoth") instead of an ObjectId. Mongoose's schema
+// cast drops those values during hydration, so by the time we see the doc
+// `createdBy` is undefined. To recover them, we re-read the raw value
+// directly from the underlying collection (bypassing schema cast) using
+// the record _ids, then resolve as follows:
+//   - Valid ObjectId      → replaced with the populated User doc (sans password/fcmToken).
+//   - Non-ObjectId string → wrapped as { name: <string> } so the frontend
+//                            always sees an object shape and can read `.name`.
+//   - null / undefined    → left as-is.
+//
+// We also convert Mongoose docs to plain objects up-front so we can write
+// `r.createdBy = { name: "..." }` without Mongoose re-casting the wrapper
+// back to ObjectId on the schema-typed path.
+export async function resolveBillingCreatedBy(records: any[]): Promise<void> {
+  if (!records || records.length === 0) return;
+
+  // Step 1: replace each Mongoose document with its plain-object form, in place.
+  // Plain-object records (from .lean(), .toObject(), spreads) pass through unchanged.
+  for (let i = 0; i < records.length; i++) {
+    const r = records[i];
+    if (r && typeof r.toObject === 'function') {
+      records[i] = r.toObject();
+    }
+  }
+
+  // Step 2: re-read raw createdBy values from the collection, bypassing
+  // Mongoose's schema cast. This is the only way to recover legacy string
+  // values that the cast strips out during hydration.
+  const billingIds = records
+    .map((r) => r?._id)
+    .filter((id) => id && mongoose.isValidObjectId(id))
+    .map((id) => new mongoose.Types.ObjectId(id.toString()));
+
+  const rawCreatedByMap = new Map<string, any>();
+  if (billingIds.length > 0) {
+    // Use Billing.collection (the underlying MongoDB driver collection) to
+    // bypass Mongoose's schema cast so legacy string values survive.
+    const rawDocs = await (Billing.collection as any)
+      .find(
+        { _id: { $in: billingIds } },
+        { projection: { _id: 1, createdBy: 1 } },
+      )
+      .toArray();
+    for (const d of rawDocs) {
+      rawCreatedByMap.set(d._id.toString(), d.createdBy);
+    }
+  }
+
+  // Step 3: collect valid ObjectId createdBy values for one batched User lookup.
+  const validIds: string[] = [];
+  for (const r of records) {
+    if (!r?._id) continue;
+    const raw = rawCreatedByMap.get(r._id.toString());
+    if (raw && mongoose.isValidObjectId(raw)) validIds.push(raw.toString());
+  }
+
+  const userMap = new Map<string, any>();
+  if (validIds.length > 0) {
+    const users = await User.find({ _id: { $in: validIds } })
+      .select('-password -fcmToken')
+      .lean();
+    for (const u of users) userMap.set((u as any)._id.toString(), u);
+  }
+
+  // Step 4: rewrite createdBy on each plain-object record using the raw value.
+  for (const r of records) {
+    if (!r?._id) continue;
+    const raw = rawCreatedByMap.get(r._id.toString());
+    if (!raw) continue;
+
+    if (mongoose.isValidObjectId(raw)) {
+      const u = userMap.get(raw.toString());
+      if (u) r.createdBy = u;
+      // else: ObjectId references a deleted user → leave Mongoose's value (undefined or ObjectId)
+    } else if (typeof raw === 'string') {
+      r.createdBy = { name: raw };
+    }
+    // else: unexpected type → leave alone
+  }
+}

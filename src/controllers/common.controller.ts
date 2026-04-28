@@ -26,6 +26,7 @@ import {
   isNull,
   isValidDate,
   ReE,
+  resolveBillingCreatedBy,
   ReS,
   toAwait,
 } from "../services/util.service";
@@ -1287,7 +1288,6 @@ export const getAllBilling = async (req: Request, res: Response) => {
         path: "customer",
         populate: [{ path: "cedId" }, { path: "ddId" }],
       })
-      .populate("createdBy", "-password -fcmToken")
       .sort(sortObject)
       .limit(setLimit)
       .skip(setOffset),
@@ -1295,6 +1295,7 @@ export const getAllBilling = async (req: Request, res: Response) => {
 
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   getBilling = getBilling as IBilling[];
+  await resolveBillingCreatedBy(getBilling as any[]);
 
   // Return response with or without pagination metadata
   if (isPaginated) {
@@ -1708,8 +1709,7 @@ export const getByIdBilling = async (req: Request, res: Response) => {
               ],
             },
           ],
-        })
-        .populate("createdBy", "-password -fcmToken"),
+        }),
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!getBilling) {
@@ -1721,6 +1721,7 @@ export const getByIdBilling = async (req: Request, res: Response) => {
     }
 
     getBilling = (getBilling as any).toObject();
+    await resolveBillingCreatedBy([getBilling]);
 
     let getAllFull, generalId, customerId;
     if (isValidObjectId(getBilling.general)) {
@@ -3560,10 +3561,10 @@ export const getAllDetailsByCustomerId = async (
         path: "customer",
         populate: [{ path: "cedId" }, { path: "ddId" }],
       })
-      .populate("createdBy", "-password -fcmToken")
       .sort({ createdAt: -1 }),
   );
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  await resolveBillingCreatedBy(getAllBilling as any[]);
   data.billing = getAllBilling;
 
   return ReS(res, { message: "success", data: data }, httpStatus.OK);
@@ -3681,10 +3682,10 @@ export const getAllDataBasedOnGeneral = async (req: Request, res: Response) => {
             path: "customer",
             populate: [{ path: "cedId" }, { path: "ddId" }],
           })
-          .populate("createdBy", "-password -fcmToken")
           .sort({ createdAt: -1 }),
       );
       if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      await resolveBillingCreatedBy(objBilling as any[]);
       result.push({
         general,
         plot: objPlot,
@@ -3777,10 +3778,10 @@ export const getDataBasedOnGeneralById = async (
           path: "customer",
           populate: [{ path: "cedId" }, { path: "ddId" }],
         })
-        .populate("createdBy", "-password -fcmToken")
         .sort({ emiNo: -1 }),
     );
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    await resolveBillingCreatedBy(objBilling as any[]);
   }
 
   let result = {
@@ -4341,7 +4342,6 @@ export const getAllBillingReport = async (
         path: "customer",
         populate: [{ path: "cedId" }, { path: "ddId" }],
       })
-      .populate("createdBy", "-password -fcmToken")
       .sort({ createdAt: -1 }),
     );
   }
@@ -4351,6 +4351,7 @@ export const getAllBillingReport = async (
   }
 
   getBilling = getBilling as IBilling[];
+  await resolveBillingCreatedBy(getBilling as any[]);
 
   let getEmi;
   if (status === "unpaid" || status === "all") {
@@ -4536,7 +4537,7 @@ export const getAllBillingReport = async (
   getEmi = getEmi as IEmi[];
   general = general as IGeneral[];
 
-  console.log(emiOption, option, generalOption, getBilling.length, getEmi.length)
+  // console.log(emiOption, option, generalOption, getBilling.length, getEmi.length)
 
   return ReS(res, { billing: getBilling, emi: getEmi, general }, httpStatus.OK);
 };
