@@ -44,6 +44,8 @@ import activityLogErrorModel from "./models/activityLogError.model";
 import fs from "fs"
 import cornRunModel from "./models/cornRun.model";
 
+import Excel from "exceljs";
+
 const app = express();
 app.use(express.json());
 dotenv.config();
@@ -626,6 +628,249 @@ cron.schedule("*/5 * * * *", async () => {
   
 // })
 
+// app.get("/test", async (req, res) => {
+//   try {
+//     const excelPath = "./src/uploads/customerHosing.xlsx";
+
+//     // Output JSON path
+//     const outputDir = "./src/uploads/generated";
+//     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+//     const jsonPath = path.join(outputDir, `customer-count-${Date.now()}Housing.json`);
+
+//     // Use `as any` to bypass missing TS types
+//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
+//       entries: "emit",
+//       worksheets: "emit",
+//       sharedStrings: "cache",
+//       styles: "ignore",
+//       hyperlinks: "ignore",
+//     });
+
+//     let getAllMarketer = await MarketDetail.find({});
+//     // let pro = await Project.find({});
+//     let markerter:any=[]
+
+//     const MarketDetailMap = new Map<string, any>();
+//     for (const cust of getAllMarketer) {
+//       if (cust.id) {
+//         MarketDetailMap.set(cust.id.toString(), cust);
+//       }
+//     }
+//     // const proMap = new Map<string, any>();
+//     // for (const cust of pro) {
+//     //   if (cust.id) {
+//     //     proMap.set(cust.id.toString(), cust);
+//     //   }
+//     // }
+
+//     workbook.on("worksheet", (worksheet: any) => {
+//       worksheet.on("row", (row: any) => {
+//         if (row.number === 1) return;
+
+//         console.log("Processing row:", row.number);
+
+//         const ddid = row.getCell(16).value;
+
+//         const salesNo = row.getCell(3).value;
+//         const projectId = row.getCell(10).value;
+
+//         if (!ddid || salesNo == null) return;
+
+//         // let findMarket = getAllMarketer.find(cust => cust.id.toString() === ddid.toString());
+//         let findMarket = MarketDetailMap.get(ddid.toString());
+//         let findPro = proMap.get(projectId.toString());
+
+
+//         let o = {
+//           id: row.getCell(1).value,
+//           name: row.getCell(2).value,
+//           phone: row.getCell(3).value?.toString(),
+//           address: row.getCell(5).value,
+//           city: row.getCell(6).value,
+//           state: row.getCell(7).value,
+//           pincode: row.getCell(8).value,
+//           email: row.getCell(9).value,]
+//           project: findPro?._id,
+//           ddId: findMarket?._id,
+//           cedId: findMarket?.headBy,
+//           createdBy: row.getCell(18).value
+//         }
+
+//         markerter.push(o)
+//       });
+//     });
+
+//     workbook.on("end", () => {
+//       // Write JSON file
+//       fs.writeFileSync(jsonPath, JSON.stringify(markerter, null, 2));
+
+//       console.log("✅ EMI JSON generated at:", jsonPath);
+
+//       // Send response with path
+//       res.status(200).json({
+//         success: true,
+//         file: jsonPath,
+//       });
+//     });
+
+//     workbook.on("error", (err: any) => {
+//       console.error("Excel read error:", err);
+//       res.status(500).json({
+//         success: false,
+//         message: "Failed to read Excel file",
+//       });
+//     });
+
+//     await workbook.read();
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// })
+
+// app.get("/markerHead-count", async (req, res) => {
+//   try {
+
+//     // Path to Excel
+//     const excelPath = "./src/uploads/0404.xlsx";
+
+//     let getAllBill = await Billing.find({}).lean();
+
+//     const BillingMap = new Map<string, any>();
+//     for (const cust of getAllBill) {
+//       if (cust.customerCode ) {
+//         BillingMap.set(`${cust.customerCode}-${cust.emiNo}`, cust);
+//       }
+//     }
+
+//     console.log("Billing records loaded:", BillingMap.size);
+
+
+//     // Output JSON path
+//     const outputDir = "./src/uploads/generated";
+//     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+//     const jsonPath = path.join(outputDir, `customer-count-${Date.now()}Housing.json`);
+
+//     // Use `as any` to bypass missing TS types
+//     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
+//       entries: "emit",
+//       worksheets: "emit",
+//       sharedStrings: "cache",
+//       styles: "ignore",
+//       hyperlinks: "ignore",
+//     });
+
+//     let bulkUpdateEmis:any = []
+//     let bulkUpdateBill:any = []
+//     let bulkUpdateComm:any = []
+
+//     workbook.on("worksheet", (worksheet: any) => {
+//       worksheet.on("row", (row: any) => {
+//         if (row.number === 1) return;
+
+//         // console.log("Processing row:", row.number);
+
+//         const cus = row.getCell(4).value;
+//         let emiNo = row.getCell(14).value;
+
+//         if (!cus || emiNo == null) return;
+
+//         let findBill = BillingMap.get(`${cus.toString()}-${emiNo.toString()}`);
+
+//         // console.log(`Looking for billing record with customerCode: ${cus.toString()} and emiNo: ${emiNo.toString()}`);
+
+//         if(!findBill){
+//           // console.log(`No billing record found for customerCode: ${cus.toString()} and emiNo: ${emiNo.toString()}`);
+//           return;
+//         }
+
+//         bulkUpdateBill.push({
+//           updateOne: {
+//             filter: { _id: findBill._id },
+//             update: { $set: { paymentDate: new Date("2026-02-04") } }
+//           }
+//         })
+
+//         bulkUpdateComm.push({
+//           updateOne: {
+//             filter: { bill : findBill._id },
+//             update: { $set: { paymentDate: new Date("2026-02-04") } }
+//           }
+//         })
+
+//         bulkUpdateEmis.push({
+//           updateOne: {
+//             filter: { _id: findBill.emi },
+//             update: { $set: { paidDate: new Date("2026-02-04") } }
+//           }
+//         })
+
+//       });
+//     });
+
+//     workbook.on("end", async () => {
+//       // fs.writeFileSync(jsonPath, JSON.stringify(bulkUpdateEmis, null, 2));
+//       // let jsonPath2 = path.join(outputDir, `customer-count-${Date.now()}bill.json`);
+//       // fs.writeFileSync(jsonPath2, JSON.stringify(bulkUpdateBill, null, 2));
+//       // let jsonPath3 = path.join(outputDir, `customer-count-${Date.now()}comm.json`);
+//       // fs.writeFileSync(jsonPath3, JSON.stringify(bulkUpdateComm, null, 2));
+
+//       // console.log("✅ EMI JSON generated at:", jsonPath);
+
+//       let batchSize = 1000;
+//       if (bulkUpdateBill.length) {
+//         for (let i = 0; i < bulkUpdateBill.length; i += batchSize) {
+//           const batch = bulkUpdateBill.slice(i, i + batchSize);
+//           let update = await Billing.bulkWrite(batch);
+//           console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+//         }
+//       }
+
+//         if (bulkUpdateComm.length) {
+//           for (let i = 0; i < bulkUpdateComm.length; i += batchSize) {
+//             const batch = bulkUpdateComm.slice(i, i + batchSize);
+//             let update = await Commission.bulkWrite(batch);
+//             console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+//           }
+//         }
+        
+//       if (bulkUpdateEmis.length) {
+//         for (let i = 0; i < bulkUpdateEmis.length; i += batchSize) {
+//           const batch = bulkUpdateEmis.slice(i, i + batchSize);
+//           let update = await Emi.bulkWrite(batch);
+//           console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+//         }
+//       }
+
+//       // Send response with path
+//       res.status(200).json({
+//         success: true,
+//         file: jsonPath,
+//       });
+//     });
+
+//     workbook.on("error", (err: any) => {
+//       console.error("Excel read error:", err);
+//       res.status(500).json({
+//         success: false,
+//         message: "Failed to read Excel file",
+//       });
+//     });
+
+//     await workbook.read();
+//   } catch (err) {
+//     console.error("Server error:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
 
 
 app.listen(port, () => console.log("Server running on port " + port));
