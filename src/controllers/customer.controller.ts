@@ -29,6 +29,8 @@ import { IProject } from "../type/project";
 import { IUser } from "../type/user";
 import { BillingRequest } from "../models/billingRequest.model";
 import { IEmi } from "../type/emi";
+import { IEditRequest } from "../type/editRequest";
+import { sendPushNotificationToSuperAdmin } from "./common";
 
 export const createCustomer = async (req: CustomRequest, res: Response) => {
   let body = req.body,
@@ -413,67 +415,67 @@ export const updateCustomer = async (req: CustomRequest, res: Response) => {
     );
   }
 
-  // if (user.isAdmin === false) {
+  if (user.isAdmin === false) {
 
-  //   const changes: { field: string; oldValue: any; newValue: any }[] = [];
-  //   allowedFields.forEach((key: any) => {
-  //     const newValue = body[key];
-  //     const oldValue = (getCustomer as any)[key];
-  //     if (isNull(newValue) || isNull(oldValue)) return
-  //     if (newValue?.toString() !== oldValue?.toString()) {
-  //       changes.push({ field: key, oldValue, newValue });
-  //     }
-  //   });
+    const changes: { field: string; oldValue: any; newValue: any }[] = [];
+    allowedFields.forEach((key: any) => {
+      const newValue = body[key];
+      const oldValue = (getCustomer as any)[key];
+      if (isNull(newValue) || isNull(oldValue)) return
+      if (newValue?.toString() !== oldValue?.toString()) {
+        changes.push({ field: key, oldValue, newValue });
+      }
+    });
 
-  //   if (changes.length === 0) {
-  //     return ReE(res, { message: "No changes found to update." }, httpStatus.BAD_REQUEST);
-  //   }
+    if (changes.length === 0) {
+      return ReE(res, { message: "No changes found to update." }, httpStatus.BAD_REQUEST);
+    }
 
-  //   let checkEditRequest;
-  //   [err, checkEditRequest] = await toAwait(
-  //     EditRequest.findOne({ targetId: _id, editedBy: user._id })
-  //   )
+    let checkEditRequest;
+    [err, checkEditRequest] = await toAwait(
+      EditRequest.findOne({ targetId: _id, editedBy: user._id })
+    )
 
-  //   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  //   if (checkEditRequest) {
-  //     checkEditRequest = checkEditRequest as IEditRequest;
-  //     let get = []
-  //     checkEditRequest.changes.forEach((change) => {
-  //       if (changes.some((c) => c.field.toString() === change.field.toString())) {
-  //         get.push(change)
-  //       }
-  //     })
-  //     // if (checkEditRequest.changes.length === get.length && checkEditRequest.status === "pending") {
-  //     //   return ReE(res, { message: "You already have a pending edit request for this customer." }, httpStatus.BAD_REQUEST);
-  //     // }
-  //   }
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (checkEditRequest) {
+      checkEditRequest = checkEditRequest as IEditRequest;
+      let get = []
+      checkEditRequest.changes.forEach((change) => {
+        if (changes.some((c) => c.field.toString() === change.field.toString())) {
+          get.push(change)
+        }
+      })
+      if (checkEditRequest.changes.length === get.length && checkEditRequest.status === "pending") {
+        return ReE(res, { message: "You already have a pending edit request for this customer." }, httpStatus.BAD_REQUEST);
+      }
+    }
 
-  //   let createReq;
-  //   [err, createReq] = await toAwait(
-  //     EditRequest.create({
-  //       targetModel: "Customer",
-  //       targetId: _id,
-  //       editedBy: user._id,
-  //       changes,
-  //       status: "pending",
-  //     })
-  //   );
+    let createReq;
+    [err, createReq] = await toAwait(
+      EditRequest.create({
+        targetModel: "Customer",
+        targetId: _id,
+        editedBy: user._id,
+        changes,
+        status: "pending",
+      })
+    );
 
-  //   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-  //   createReq = createReq as IEditRequest;
+    createReq = createReq as IEditRequest;
 
-  //   ReS(res, { message: "Edit request created successfully, Awaiting for approval." }, httpStatus.OK);
+    ReS(res, { message: "Edit request created successfully, Awaiting for approval." }, httpStatus.OK);
 
-  //   let send = await sendPushNotificationToSuperAdmin("Edit request for Customer", `A new edit request for customer has been created by ${user.name}`, createReq._id.toString())
+    let send = await sendPushNotificationToSuperAdmin("Edit request for Customer", `A new edit request for customer has been created by ${user.name}`, createReq._id.toString())
 
-  //   if (!send.success) {
-  //     return console.log(send.message);
-  //   }
+    if (!send.success) {
+      return console.log(send.message);
+    }
 
-  //   return console.log("Edit request push notification sent.");
+    return console.log("Edit request push notification sent.");
 
-  // }
+  }
 
   const [updateErr, updateResult] = await toAwait(
     Customer.updateOne({ _id }, { $set: updateFields }),
