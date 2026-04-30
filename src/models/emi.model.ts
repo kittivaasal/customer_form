@@ -39,6 +39,9 @@ const EmiSchema = new Schema({
     },
     blockedByScript:{
       type: Boolean
+    },
+    paidDateUpdate:{
+      type:Date
     }
 },{ timestamps: true });
 

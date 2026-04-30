@@ -26,6 +26,7 @@ export interface ICommission {
   emiNo: Number;
   paymentDate: Date;
   marketer: IMarketerCommission[];
+  paymentDateUpdate: Date
 }
 
 /** Marketer sub-schema */
@@ -104,6 +105,9 @@ const allianceCommissionSchema = new Schema<ICommission>(
       type: [marketerSchema],
       default: [],
     },
+    paymentDateUpdate: {
+      type: Date
+    }
   },
   {
     timestamps: true,
