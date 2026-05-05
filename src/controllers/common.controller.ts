@@ -44,6 +44,8 @@ import { IUser } from "../type/user";
 import { addActivityLog, sendPushNotificationToSuperAdmin, sendSMS } from "./common";
 import { IActivityLog } from "../type/activityLog";
 import ActivityLogError from "../models/activityLogError.model";
+import EditRequest from "../models/editRequest.model";
+import { IEditRequest } from "../type/editRequest";
 
 export const uploadImages = async (req: Request, res: Response) => {
   try {
@@ -441,7 +443,8 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
     general,
     plot,
     flat,
-  }: { customerId: any; general: any; plot: any; flat: any } = body;
+    housing = false,
+  }: { customerId: any; general: any; plot: any; flat: any; housing: boolean } = body;
 
   // if (user) {
   //   if (user.isAdmin === false) {
@@ -462,6 +465,208 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
       httpStatus.BAD_REQUEST,
     );
   }
+
+  // ─── Housing-only role-based flow ────────────────────────────────────────
+  // Alliance (housing: false / not sent) → skip entirely, old flow runs below
+  // Housing (housing: true):
+  //   Normal user  (isAdmin: false)                        → reject + log
+  //   Created admin (isAdmin: true, isCreatedAdmin: true)  → EditRequest + log
+  //   Super admin  (isAdmin: true, isCreatedAdmin: false)  → direct edit + log (falls through)
+  if (housing === true) {
+    const isSuperAdmin = user.isAdmin === true && req.isCreatedAdmin !== true;
+    const isCreatedAdmin = user.isAdmin === true && req.isCreatedAdmin === true;
+    const isNormalUser = user.isAdmin === false;
+
+    // ── Normal user: reject outright and log ─────────────────────────────
+    if (isNormalUser) {
+      await addActivityLog({
+        action: "UPDATE",
+        collectionName: "General",
+        documentId: customerId,
+        createdBy: user._id as any,
+        requestBy: user._id as any,
+        approvalStatus: "rejected",
+        oldData: null,
+        newData: body,
+        message: `Unauthorized update attempt on housing data by ${user.name}`,
+        date: new Date(),
+      } as any);
+      return ReE(res, { message: "You don't have permission to access this API" }, httpStatus.UNAUTHORIZED);
+    }
+
+    // ── Created admin: build diff → EditRequest → log ────────────────────
+    if (isCreatedAdmin) {
+      const ALLOWED_GENERAL = [
+        "status", "startDate", "totalAmount", "paymentTerms", "loan",
+        "offered", "editDeleteReason", "saleDeedDoc", "motherDoc", "marketerName",
+      ];
+      const ALLOWED_PLOT = [
+        "guideRatePerSqFt", "guideRateSqFt", "guideLandValue", "landValue",
+        "regValue", "additionalCharges", "totalValue",
+      ];
+      const ALLOWED_FLAT = [
+        "flat", "block", "floor", "bedRoom", "udsSqft", "guideRateSqft",
+        "propertyTax", "carPark", "onBookingPercent", "lintelPercent",
+        "roofPercent", "plasterPercent", "flooringPercent", "landValue",
+        "landRegValue", "constCost", "constRegValue", "carParkCost",
+        "ebDeposit", "paymentTerm", "sewageWaterTax", "gst", "corpusFund",
+        "additionalCharges", "totalValue",
+      ];
+
+      const editRequests: { targetModel: string; targetId: any; changes: any[]; currentDoc: any }[] = [];
+
+      // General diff
+      if (general) {
+        let generalId = general._id;
+        if (!generalId && customerId) {
+          let foundGeneral;
+          [err, foundGeneral] = await toAwait(General.findOne({ customer: customerId }));
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+          if (foundGeneral) generalId = (foundGeneral as any)._id;
+        }
+        if (!generalId) {
+          return ReE(res, { message: "general _id or customerId is required to identify the record" }, httpStatus.BAD_REQUEST);
+        }
+
+        let currentGeneral;
+        [err, currentGeneral] = await toAwait(General.findOne({ _id: generalId }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!currentGeneral) {
+          return ReE(res, { message: "general not found for given id" }, httpStatus.NOT_FOUND);
+        }
+
+        if (general.emiAmount !== undefined && (currentGeneral as any).emiAmount != general.emiAmount) {
+          return ReE(res, { message: "You don't have permission to update the emi_amount" }, httpStatus.BAD_REQUEST);
+        }
+        if (general.noOfInstallments !== undefined && (currentGeneral as any).noOfInstallments != general.noOfInstallments) {
+          return ReE(res, { message: "You don't have permission to update the noOfInstallments" }, httpStatus.BAD_REQUEST);
+        }
+
+        const changes: { field: string; oldValue: any; newValue: any }[] = [];
+        ALLOWED_GENERAL.forEach((key) => {
+          const newValue = general[key];
+          const oldValue = (currentGeneral as any)[key];
+          if (isNull(newValue) || isNull(oldValue)) return;
+          if (newValue?.toString() !== oldValue?.toString()) {
+            changes.push({ field: key, oldValue, newValue });
+          }
+        });
+
+        if (changes.length > 0) {
+          editRequests.push({ targetModel: "General", targetId: generalId, changes, currentDoc: currentGeneral });
+        }
+      }
+
+      // Plot diff
+      if (plot && plot._id) {
+        let currentPlot;
+        [err, currentPlot] = await toAwait(Plot.findOne({ _id: plot._id }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!currentPlot) {
+          return ReE(res, { message: "plot not found for given _id" }, httpStatus.NOT_FOUND);
+        }
+
+        const changes: { field: string; oldValue: any; newValue: any }[] = [];
+        ALLOWED_PLOT.forEach((key) => {
+          const newValue = plot[key];
+          const oldValue = (currentPlot as any)[key];
+          if (isNull(newValue) || isNull(oldValue)) return;
+          if (newValue?.toString() !== oldValue?.toString()) {
+            changes.push({ field: key, oldValue, newValue });
+          }
+        });
+
+        if (changes.length > 0) {
+          editRequests.push({ targetModel: "Plot", targetId: plot._id, changes, currentDoc: currentPlot });
+        }
+      } else if (plot && !plot._id) {
+        return ReE(res, { message: "plot _id is required to request a plot update" }, httpStatus.BAD_REQUEST);
+      }
+
+      // Flat diff
+      if (flat && flat._id) {
+        let currentFlat;
+        [err, currentFlat] = await toAwait(Flat.findOne({ _id: flat._id }));
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (!currentFlat) {
+          return ReE(res, { message: "flat not found for given _id" }, httpStatus.NOT_FOUND);
+        }
+
+        const changes: { field: string; oldValue: any; newValue: any }[] = [];
+        ALLOWED_FLAT.forEach((key) => {
+          const newValue = flat[key];
+          const oldValue = (currentFlat as any)[key];
+          if (isNull(newValue) || isNull(oldValue)) return;
+          if (newValue?.toString() !== oldValue?.toString()) {
+            changes.push({ field: key, oldValue, newValue });
+          }
+        });
+
+        if (changes.length > 0) {
+          editRequests.push({ targetModel: "Flat", targetId: flat._id, changes, currentDoc: currentFlat });
+        }
+      } else if (flat && !flat._id) {
+        return ReE(res, { message: "flat _id is required to request a flat update" }, httpStatus.BAD_REQUEST);
+      }
+
+      if (editRequests.length === 0) {
+        return ReE(res, { message: "No changes found to update." }, httpStatus.BAD_REQUEST);
+      }
+
+      const createdIds: string[] = [];
+      for (const item of editRequests) {
+        let existingPending;
+        [err, existingPending] = await toAwait(
+          EditRequest.findOne({ targetModel: item.targetModel, targetId: item.targetId, editedBy: user._id, status: "pending" })
+        );
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        if (existingPending) {
+          return ReE(
+            res,
+            { message: `You already have a pending edit request for ${item.targetModel}. Please wait for it to be approved or rejected.` },
+            httpStatus.BAD_REQUEST,
+          );
+        }
+
+        let createReq;
+        [err, createReq] = await toAwait(
+          EditRequest.create({ targetModel: item.targetModel, targetId: item.targetId, editedBy: user._id, changes: item.changes, status: "pending" })
+        );
+        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+        createdIds.push((createReq as any)._id.toString());
+
+        await addActivityLog({
+          action: "UPDATE",
+          collectionName: item.targetModel,
+          documentId: item.targetId,
+          createdBy: user._id as any,
+          requestBy: user._id as any,
+          approvalStatus: "pending",
+          oldData: item.currentDoc,
+          newData: item.changes,
+          message: `Edit request for ${item.targetModel} created by ${user.name}, awaiting super admin approval`,
+          date: new Date(),
+        } as any);
+      }
+
+      ReS(res, { message: "Edit request created successfully, Awaiting for approval." }, httpStatus.OK);
+
+      for (const id of createdIds) {
+        await sendPushNotificationToSuperAdmin(
+          "Edit request for Housing",
+          `A new edit request has been created by ${user.name}`,
+          id,
+        );
+      }
+
+      return;
+    }
+
+    // ── Super admin: falls through to direct edit below ───────────────────
+    // Logging for super admin direct edit happens at the end of the function
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   const results: any = {};
   const errors: any[] = [];
@@ -629,8 +834,8 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
       }
 
       if (
-        checkAlreadyExist.emiAmount != general.emiAmount ||
-        checkAlreadyExist.noOfInstallments != general.noOfInstallments
+        (general.emiAmount !== undefined && checkAlreadyExist.emiAmount != general.emiAmount) ||
+        (general.noOfInstallments !== undefined && checkAlreadyExist.noOfInstallments != general.noOfInstallments)
       ) {
         if (!user.isAdmin) {
           return ReE(
@@ -1011,6 +1216,21 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
 
   if (errors.length > 0)
     return ReE(res, { message: errors }, httpStatus.BAD_REQUEST);
+
+  if (housing === true) {
+    await addActivityLog({
+      action: "UPDATE",
+      collectionName: "General",
+      documentId: customerId,
+      createdBy: user._id as any,
+      requestBy: user._id as any,
+      approvalStatus: "approved",
+      oldData: null,
+      newData: { general, plot, flat },
+      message: `Housing data updated directly by super admin ${user.name}`,
+      date: new Date(),
+    } as any);
+  }
 
   return ReS(res, { message: "updated successfully" }, httpStatus.OK);
 };
