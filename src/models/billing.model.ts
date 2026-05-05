@@ -200,6 +200,9 @@ const BillingSchema: Schema = new Schema<IBilling>(
     ],
     commissionErrorMsg:{
       type:String
+    },
+    paymentDateUpdate: {
+      type: Date
     }
   },
   { timestamps: true }

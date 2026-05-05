@@ -56,4 +56,5 @@ export interface IBilling extends Document {
     amountPaidForBill: number
     emiCover:mongoose.Types.ObjectId[]
     commissionErrorMsg?: string
+    paymentDateUpdate?: Date
 }
