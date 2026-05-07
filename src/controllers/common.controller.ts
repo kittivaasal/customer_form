@@ -469,13 +469,24 @@ export const UpdateCommonData = async (req: CustomRequest, res: Response) => {
   // ─── Housing-only role-based flow ────────────────────────────────────────
   // Alliance (housing: false / not sent) → skip entirely, old flow runs below
   // Housing (housing: true):
-  //   Normal user  (isAdmin: false)                        → reject + log
-  //   Created admin (isAdmin: true, isCreatedAdmin: true)  → EditRequest + log
-  //   Super admin  (isAdmin: true, isCreatedAdmin: false)  → direct edit + log (falls through)
+  //   Super admin   (isAdmin: true)                       → direct edit + log (falls through)
+  //   Created admin (isAdmin: false, role.name === admin) → EditRequest + log
+  //   Normal user   (everything else)                     → reject + log
   if (housing === true) {
-    const isSuperAdmin = user.isAdmin === true && req.isCreatedAdmin !== true;
-    const isCreatedAdmin = user.isAdmin === true && req.isCreatedAdmin === true;
-    const isNormalUser = user.isAdmin === false;
+    // Resolve role name once (mirrors the isAdmin middleware logic) so we can
+    // identify created admin even on routes that don't use isAdmin(true) middleware
+    let roleName: string | undefined;
+    if (user.isAdmin !== true && user.role) {
+      const RoleModel = mongoose.model("Role");
+      let roleData;
+      [err, roleData] = await toAwait(RoleModel.findById(user.role));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      roleName = (roleData as any)?.name?.toLowerCase()?.trim();
+    }
+
+    const isSuperAdmin = user.isAdmin === true;
+    const isCreatedAdmin = user.isAdmin === false && roleName === "admin";
+    const isNormalUser = !isSuperAdmin && !isCreatedAdmin;
 
     // ── Normal user: reject outright and log ─────────────────────────────
     if (isNormalUser) {
