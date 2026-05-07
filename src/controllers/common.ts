@@ -221,3 +221,23 @@ export const sendSMS = async (mobile: string, bookingId: string) => {
     };
   }
 };
+
+export const processBulk = async (model: any, operations: any[], name: string) => {
+  try {
+    const BATCH_SIZE = 1000;
+    if (!operations.length) {
+      return;
+    }
+    for (let i = 0; i < operations.length; i += BATCH_SIZE) {
+      const batch = operations.slice(i, i + BATCH_SIZE);
+      const [err, result] = await toAwait(model.bulkWrite(batch, { ordered: false }));
+      if (err) {
+        console.error(`${name} bulkWrite error at batch ${i / BATCH_SIZE + 1}`, err);
+        throw err;
+      }
+    }
+  } catch (error:any) {
+    console.error(`${name} bulkWrite unexpected error`, error);
+    throw error;
+  }
+}

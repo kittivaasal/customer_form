@@ -120,6 +120,8 @@ const allianceCommissionSchema = new Schema<ICommission>(
 ================================ */
 
 allianceCommissionSchema.index({ "marketer.marketerId": 1 })
+allianceCommissionSchema.index({ bill: 1 });
+allianceCommissionSchema.index({ emiId: 1 });
 
 /* ================================
    Model Export

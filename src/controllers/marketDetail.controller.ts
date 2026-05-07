@@ -16,6 +16,8 @@ import { sendPushNotificationToSuperAdmin } from "./common";
 import { BillingRequest } from "../models/billingRequest.model";
 import { Customer } from "../models/customer.model";
 import { ICustomer } from "../type/customer";
+import path from "path";
+import fs from "fs";
 
 export const createMarketDetail = async (req: CustomRequest, res: Response) => {
   let body = req.body, err, getFrom, user = req.user as IUser;
@@ -617,23 +619,36 @@ export const deleteMarketDetail = async (req: CustomRequest, res: Response) => {
     return ReE(res, { message: `Invalid marketDetail id!` }, httpStatus.BAD_REQUEST);
   }
 
+
+  let checkBillingRequest;
+  [err, checkBillingRequest] = await toAwait(
+    BillingRequest.findOne({ targetId: _id, requestFor: "delete", status: "pending" })
+  )
+  if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if(checkBillingRequest) {
+    return ReE(
+      res,
+      { message: "MarketDetail delete request already pending for this billing id!" },
+      httpStatus.BAD_REQUEST,
+    );
+  }
+
+  let checkCedId;
+  [err, checkCedId] = await toAwait(Customer.findOne({ cedId: _id }))
+  if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if(checkCedId) {
+    return ReE(
+      res,
+      { message: "Cannot delete MarketDetail because this marketDetail is ced for some customer!" },
+      httpStatus.BAD_REQUEST,
+    );
+  }
+
   if (!user.isAdmin) {
     if (!reason) {
       return ReE(
         res,
         { message: `Please enter reason for delete!` },
-        httpStatus.BAD_REQUEST,
-      );
-    }
-    let checkBillingRequest;
-    [err, checkBillingRequest] = await toAwait(
-      BillingRequest.findOne({ targetId: _id, requestFor: "delete", status: "pending" })
-    )
-    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if(checkBillingRequest) {
-      return ReE(
-        res,
-        { message: "MarketDetail delete request already pending for this billing id!" },
         httpStatus.BAD_REQUEST,
       );
     }
@@ -673,9 +688,9 @@ export const deleteMarketDetail = async (req: CustomRequest, res: Response) => {
 
 }
 
-export const updateMarketDetailChangeHead = async (req: CustomRequest, res: Response) => {
-  let err, { _id, changeId } = req.body, user = req.user as IUser, head = true;
-  let field = ["_id", "changeId"]
+export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Response) => {
+  let err, { _id, headId } = req.body, user = req.user as IUser, head = true;
+  let field = ["_id", "headId"]
   let inVaildFields = field.filter(x => !isNull(req.body[x]));
   if (inVaildFields.length === 0) {
     return ReE(res, { message: `Please enter required fields ${inVaildFields}!.` }, httpStatus.BAD_REQUEST);
@@ -684,8 +699,8 @@ export const updateMarketDetailChangeHead = async (req: CustomRequest, res: Resp
     return ReE(res, { message: `Invalid marketDetail id!` }, httpStatus.BAD_REQUEST);
   }
 
-  if (!mongoose.isValidObjectId(changeId)) {
-    return ReE(res, { message: `Invalid marketerHead id!` }, httpStatus.BAD_REQUEST);
+  if (!mongoose.isValidObjectId(headId)) {
+    return ReE(res, { message: `Invalid head id!` }, httpStatus.BAD_REQUEST);
   }
 
   let checkUser;
@@ -696,10 +711,10 @@ export const updateMarketDetailChangeHead = async (req: CustomRequest, res: Resp
   }
 
   let checkChangeUser;
-  [err, checkChangeUser] = await toAwait(MarketingHead.findOne({ _id: changeId }));
+  [err, checkChangeUser] = await toAwait(MarketingHead.findOne({ _id: headId }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   if (!checkChangeUser) {
-    [err, checkChangeUser] = await toAwait(MarketDetail.findOne({ _id: changeId }));
+    [err, checkChangeUser] = await toAwait(MarketDetail.findOne({ _id: headId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     head = false;
     if (!checkChangeUser) {
@@ -720,30 +735,68 @@ export const updateMarketDetailChangeHead = async (req: CustomRequest, res: Resp
         bulkUpdateCustomer.push({
           updateOne: {
             filter: { _id: customer._id },
-            update: { $set: { ddId: changeId } }
+            update: { $set: { ddId: headId } }
           }
         })
       })
     }
   }
 
+  let marketerBulkUpdate:any = [];
+
+  let getAllMarkerDetail;
+  [err, getAllMarkerDetail] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": _id }));
+  if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  getAllMarkerDetail = getAllMarkerDetail as IMarketDetail[]
+  console.log("getAllMarkerDetail", getAllMarkerDetail.length);
+  if(getAllMarkerDetail.length !== 0){
+    getAllMarkerDetail.map((marketDetail:any)=>{
+      let obj:any={};
+      let overAllHeadBy = marketDetail.overAllHeadBy.filter((head:any)=> head.headBy.toString() !== _id.toString())
+      if(marketDetail.headBy.toString() === _id.toString()){
+        if(overAllHeadBy.length){
+          let lastLevel = overAllHeadBy.length - 1;
+          let head = overAllHeadBy[lastLevel];
+          console.log("head", head, overAllHeadBy,lastLevel,marketDetail._id);
+          obj.headBy = head.headBy;
+        }
+      }
+      obj.overAllHeadBy = overAllHeadBy
+      marketerBulkUpdate.push({
+        updateOne: {
+          filter: { _id: marketDetail._id },
+          update: { $set: { ...obj } }
+        }
+      })
+    })
+  }
+
+  
+  const outputDir = "./src/uploads/generated";
+  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+  const jsonPath = path.join(outputDir, `marketer-${Date.now()}Housing.json`);
+  fs.writeFileSync(jsonPath, JSON.stringify(marketerBulkUpdate, null, 2));
+
+  return ReS(res, { message: "Customer count generated", data: { jsonPath } }, httpStatus.OK)
+
   let obj:any={}
 
   if(head){
-    obj.headBy = changeId;
+    obj.headBy = headId;
     obj.overAllHeadBy = [
       {
-        headBy: changeId,
+        headBy: headId,
         level:1,
         headByModel :"MarketingHead"
       }
     ]
   }else{
     checkChangeUser = checkChangeUser as IMarketDetail
-    obj.headBy = changeId;
+    obj.headBy = headId;
     obj.overAllHeadBy = checkChangeUser.overAllHeadBy;
     obj.overAllHeadBy.push({
-      headBy: changeId,
+      headBy: headId,
       level: checkChangeUser.level,
       headByModel :"MarketDetail"
     })
