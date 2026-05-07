@@ -31,6 +31,7 @@ import { BillingRequest } from "../models/billingRequest.model";
 import { IEmi } from "../type/emi";
 import { IEditRequest } from "../type/editRequest";
 import { sendPushNotificationToSuperAdmin } from "./common";
+import { IMarketDetail } from "../type/marketDetail";
 
 export const createCustomer = async (req: CustomRequest, res: Response) => {
   let body = req.body,
@@ -55,9 +56,20 @@ export const createCustomer = async (req: CustomRequest, res: Response) => {
     let findCed;
     [err, findCed] = await toAwait(MarketDetail.findOne({ _id: cedId }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    // if (!findCed) {
-    //   return ReE(res, { message: `Ced is not found for given id!.` }, httpStatus.BAD_REQUEST);
-    // }
+    if (!findCed) {
+      return ReE(res, { message: `Ced is not found for given id!.` }, httpStatus.BAD_REQUEST);
+    }
+    findCed = findCed as any;
+    if (findCed.overAllHeadBy.length === 0) {
+      return ReE(res, { message: `This ced is not link with any marketer!.` }, httpStatus.BAD_REQUEST);
+    }
+    if(findCed.overAllHeadBy[0].headBy.toString() !== ddId.toString()){
+      let headData;
+      [err, headData] = await toAwait(MarketingHead.findOne({ _id: findCed.overAllHeadBy[0].headBy }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      headData = headData as IMarketDetail;
+      return ReE(res, { message: `Given cedId mapped ddId is not matching, mapped ddId name is ${headData.name}!.` }, httpStatus.BAD_REQUEST);
+    }
   }
 
   if (!isNull(ddId)) {

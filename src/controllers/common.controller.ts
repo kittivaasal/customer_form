@@ -41,7 +41,7 @@ import IMarketer from "../type/Marketer";
 import { IPlot } from "../type/plot";
 import { IProject } from "../type/project";
 import { IUser } from "../type/user";
-import { addActivityLog, sendPushNotificationToSuperAdmin, sendSMS } from "./common";
+import { addActivityLog, processBulk, sendPushNotificationToSuperAdmin, sendSMS } from "./common";
 import { IActivityLog } from "../type/activityLog";
 import ActivityLogError from "../models/activityLogError.model";
 import EditRequest from "../models/editRequest.model";
@@ -5048,39 +5048,47 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
 
     }
 
-    let BATCH_SIZE = 1000;
-    if (bulkOperations.length > 0) {
-      for (let i = 0; i < bulkOperations.length; i += BATCH_SIZE) {
-        const batch = bulkOperations.slice(i, i + BATCH_SIZE);
-        let update;
-        [err, update] = await toAwait(Billing.bulkWrite(batch, { ordered: false }));
-        if(err){
-          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-        }
-      }
+    try {
+      await Promise.all([
+        processBulk(Billing, bulkOperations, "Billing"),
+        processBulk(Emi, updateEmi, "EMI"),
+        processBulk(Commission, commissionUpdateEmi, "Commission")
+      ]);
+    } catch (err) {
+      return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     }
+    // if (bulkOperations.length > 0) {
+    //   for (let i = 0; i < bulkOperations.length; i += BATCH_SIZE) {
+    //     const batch = bulkOperations.slice(i, i + BATCH_SIZE);
+    //     let update;
+    //     [err, update] = await toAwait(Billing.bulkWrite(batch, { ordered: false }));
+    //     if(err){
+    //       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+    //     }
+    //   }
+    // }
 
-    if (updateEmi.length > 0) {
-      for (let i = 0; i < updateEmi.length; i += BATCH_SIZE) {
-        const batch = updateEmi.slice(i, i + BATCH_SIZE);
-        let update;
-        [err, update] = await toAwait(Emi.bulkWrite(batch, { ordered: false }));
-        if(err){
-          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-        }
-      }
-    }
+    // if (updateEmi.length > 0) {
+    //   for (let i = 0; i < updateEmi.length; i += BATCH_SIZE) {
+    //     const batch = updateEmi.slice(i, i + BATCH_SIZE);
+    //     let update;
+    //     [err, update] = await toAwait(Emi.bulkWrite(batch, { ordered: false }));
+    //     if(err){
+    //       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+    //     }
+    //   }
+    // }
 
-    if (commissionUpdateEmi.length > 0) {
-      for (let i = 0; i < commissionUpdateEmi.length; i += BATCH_SIZE) {
-        const batch = commissionUpdateEmi.slice(i, i + BATCH_SIZE);
-        let update;
-        [err, update] = await toAwait(Commission.bulkWrite(batch, { ordered: false }));
-        if(err){
-          return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-        }
-      }
-    }
+    // if (commissionUpdateEmi.length > 0) {
+    //   for (let i = 0; i < commissionUpdateEmi.length; i += BATCH_SIZE) {
+    //     const batch = commissionUpdateEmi.slice(i, i + BATCH_SIZE);
+    //     let update;
+    //     [err, update] = await toAwait(Commission.bulkWrite(batch, { ordered: false }));
+    //     if(err){
+    //       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+    //     }
+    //   }
+    // }
 
     let obj = {
       userId: user?._id,
