@@ -12,7 +12,7 @@ import { IEditRequest } from "../type/editRequest";
 import { IMarketDetail } from "../type/marketDetail";
 import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
-import { sendPushNotificationToSuperAdmin } from "./common";
+import { processBulk, sendPushNotificationToSuperAdmin } from "./common";
 import { BillingRequest } from "../models/billingRequest.model";
 import { Customer } from "../models/customer.model";
 import { ICustomer } from "../type/customer";
@@ -772,13 +772,13 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
   }
 
   
-  const outputDir = "./src/uploads/generated";
-  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+  // const outputDir = "./src/uploads/generated";
+  // if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-  const jsonPath = path.join(outputDir, `marketer-${Date.now()}Housing.json`);
-  fs.writeFileSync(jsonPath, JSON.stringify(marketerBulkUpdate, null, 2));
+  // const jsonPath = path.join(outputDir, `marketer-${Date.now()}Housing.json`);
+  // fs.writeFileSync(jsonPath, JSON.stringify(marketerBulkUpdate, null, 2));
 
-  return ReS(res, { message: "Customer count generated", data: { jsonPath } }, httpStatus.OK)
+  // return ReS(res, { message: "Customer count generated", data: { jsonPath } }, httpStatus.OK)
 
   let obj:any={}
 
@@ -804,18 +804,41 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
 
   let batchSize = 1000;
 
-  for (let i = 0; i < bulkUpdateCustomer.length; i += batchSize) {
-    const batch = bulkUpdateCustomer.slice(i, i + batchSize);
-    let update
-    [err, update] = await toAwait(Customer.bulkWrite(batch, { ordered: false })); 
-    if (err) {
-      return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-    }
-    if(!update){
-      return ReE(res, { message: "Customer not updated" }, httpStatus.INTERNAL_SERVER_ERROR)
-    }
-    update = update as any
-    console.log(`Processed batch ${i + batchSize}, matched ${update?.matchedCount}, modified ${update?.modifiedCount}`);
+  // for (let i = 0; i < bulkUpdateCustomer.length; i += batchSize) {
+  //   const batch = bulkUpdateCustomer.slice(i, i + batchSize);
+  //   let update
+  //   [err, update] = await toAwait(Customer.bulkWrite(batch, { ordered: false })); 
+  //   if (err) {
+  //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+  //   }
+  //   if(!update){
+  //     return ReE(res, { message: "Customer not updated" }, httpStatus.INTERNAL_SERVER_ERROR)
+  //   }
+  //   update = update as any
+  //   console.log(`Processed batch ${i + batchSize}, matched ${update?.matchedCount}, modified ${update?.modifiedCount}`);
+  // }
+
+  // for (let i = 0; i < marketerBulkUpdate.length; i += batchSize) {
+  //   const batch = marketerBulkUpdate.slice(i, i + batchSize);
+  //   let update
+  //   [err, update] = await toAwait(MarketDetail.bulkWrite(batch, { ordered: false }));
+  //   if (err) {
+  //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+  //   }
+  //   if(!update){
+  //     return ReE(res, { message: "MarketDetail not updated" }, httpStatus.INTERNAL_SERVER_ERROR)
+  //   }
+  //   update = update as any
+  //   console.log(`Processed batch ${i + batchSize}, matched ${update?.matchedCount}, modified ${update?.modifiedCount}`);
+  // }
+
+  try {
+    await Promise.all([
+      marketerBulkUpdate.length && processBulk(MarketDetail, marketerBulkUpdate, "MarketDetail"),
+      bulkUpdateCustomer.length && processBulk(Customer, bulkUpdateCustomer, "Customer")
+    ]);
+  } catch (err) {
+    return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   }
 
   let updateUser;

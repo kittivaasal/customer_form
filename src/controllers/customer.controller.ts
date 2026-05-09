@@ -649,11 +649,21 @@ export const getAllCustomer = async (req: Request, res: Response) => {
       { name: { $regex: search, $options: "i" } },
       { mobile: { $regex: search, $options: "i" } },
       { email: { $regex: search, $options: "i" } },
-      { id: { $regex: search, $options: "i" } },
+      // { id: { $regex: search, $options: "i" } },
     );
 
     if (mongoose.Types.ObjectId.isValid(search)) {
       searchConditions.push({ _id: new mongoose.Types.ObjectId(search) });
+    }
+
+    let checkCustomerCode;
+    [err, checkCustomerCode] = await toAwait(Customer.findOne({id: search.toString().toUpperCase()}));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (checkCustomerCode) {
+      checkCustomerCode = checkCustomerCode as ICustomer;
+      searchConditions.push({ id: checkCustomerCode.id });
+    }else{
+      searchConditions.push( { id: { $regex: search, $options: "i" } } );
     }
   }
 
@@ -676,10 +686,10 @@ export const getAllCustomer = async (req: Request, res: Response) => {
 
   let total;
   let totalPages = 1;
-
+  let count;
+  [err, count] = await toAwait(Customer.countDocuments(searchQuery));
+console.log(count,searchQuery);
   if (page && limit) {
-    let count;
-    [err, count] = await toAwait(Customer.countDocuments(searchQuery));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
     total = count as number;

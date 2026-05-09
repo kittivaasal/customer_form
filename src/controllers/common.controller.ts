@@ -1447,13 +1447,23 @@ export const getAllBilling = async (req: Request, res: Response) => {
       { billingId: searchRegex },
       { remarks: searchRegex },
       { id: searchRegex },
-      { customerCode: searchRegex },
+      // { customerCode: searchRegex },
       // Exact match for enums (case-insensitive)
       { transactionType: new RegExp(`^${search}$`, "i") },
       { modeOfPayment: new RegExp(`^${search}$`, "i") },
       { saleType: new RegExp(`^${search}$`, "i") },
       { status: new RegExp(`^${search}$`, "i") },
     ];
+
+    let checkCustomerCode;
+    [err, checkCustomerCode] = await toAwait(Customer.findOne({id: search.toString().toUpperCase()}));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (checkCustomerCode) {
+      checkCustomerCode = checkCustomerCode as ICustomer;
+      option.$or.push({ customerCode: checkCustomerCode.id });
+    }else{
+      option.$or.push( { customerCode: searchRegex });
+    }
 
     if (mongoose.Types.ObjectId.isValid(search as string)) {
       option.$or.push({ _id: new mongoose.Types.ObjectId(search as string) });
@@ -4907,10 +4917,19 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
     let file = req.file as Express.Multer.File, user = req.user as IUser;
 
     //file validation accept only excel file
+    
+    if(!file){
+      return ReE(
+        res,
+        { message: "Excel file is required!" },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+
     if (!file.originalname.match(/\.(xlsx|xls)$/)) {
       return ReE(
         res,
-        { message: "Please upload a valid Excel file!" },
+        { message: "Please upload a valid Excel file, valid file format must be .xlsx or .xls!" },
         httpStatus.BAD_REQUEST,
       );
     }
@@ -4972,7 +4991,7 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
         return ReE(
           res,
           {
-            message: `Billing not found given 'Billing Id' in row ${index + 2}`,
+            message: `Billing not found given 'Billing Id' in row ${index + 2} id is ${billingId}`,
           },
           httpStatus.NOT_FOUND,
         );
@@ -5036,16 +5055,15 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
       let emiNo = element["EMI No"];
 
       getBilling = getBilling as any;
-      let emiId=""
-      if(mongoose.isValidObjectId(emiNo)){
-        emiId=emiNo
+      let emiFilter;
+      if(getBilling.emi._id){
+        emiFilter={ _id: getBilling.emi._id }
       }else{
-        emiId=getBilling.emi._id
+        emiFilter={emiNo: emiNo, customerCode: customerId }
       }
-
       updateEmi.push({
         updateOne: {
-          filter: { _id: emiId },
+          filter: emiFilter,
           update: { $set: { paidDate: changePaymentDate, status: "Paid" } },
         }
       })
@@ -5059,11 +5077,13 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
 
     }
 
+    console.log( updateEmi )
+
     try {
       await Promise.all([
-        processBulk(Billing, bulkOperations, "Billing"),
-        processBulk(Emi, updateEmi, "EMI"),
-        processBulk(Commission, commissionUpdateEmi, "Commission")
+        bulkOperations.length && processBulk(Billing, bulkOperations, "Billing"),
+        updateEmi.length && processBulk(Emi, updateEmi, "EMI"),
+        commissionUpdateEmi.length && processBulk(Commission, commissionUpdateEmi, "Commission")
       ]);
     } catch (err) {
       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
