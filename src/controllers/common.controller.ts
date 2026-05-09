@@ -4959,6 +4959,7 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
     let bulkOperations: any[] = [];
     let updateEmi: any[] = [];
     let commissionUpdateEmi: any[] = [];
+    let billingIds = [];
 
     for (let index = 0; index < json.length; index++) {
       const element = json[index];
@@ -4980,44 +4981,12 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
           httpStatus.BAD_REQUEST,
         );
       }
-      let getBilling;
-      [err, getBilling] = await toAwait(
-        Billing.findOne({ _id: billingId })
-          .populate("emi")
-          .populate("customer"),
-      );
-      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      if (!getBilling) {
-        return ReE(
-          res,
-          {
-            message: `Billing not found given 'Billing Id' in row ${index + 2} id is ${billingId}`,
-          },
-          httpStatus.NOT_FOUND,
-        );
-      }
       if (!paymentDate) {
         return ReE(
           res,
           { message: `'Payment Date' required fields in row ${index + 2}` },
           httpStatus.BAD_REQUEST,
         );
-      }
-      if (typeof paymentDate === "number") {
-        paymentDate = excelDateToJSDate(paymentDate);
-        json[index]["Payment Date"] = paymentDate;
-      } else if (typeof paymentDate === "string") {
-        if (!isValidDate(paymentDate)) {
-          return ReE(
-            res,
-            {
-              message: `Invalid 'Payment Date' format in row ${index + 2} valid format is (YYYY-MM-DD)`,
-            },
-            httpStatus.BAD_REQUEST,
-          );
-        }
-        paymentDate = new Date(paymentDate);
-        json[index]["Payment Date"] = paymentDate;
       }
       if (!changePaymentDate) {
         return ReE(
@@ -5044,13 +5013,58 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
         changePaymentDate = new Date(changePaymentDate);
         json[index]["Payment Date Change"] = changePaymentDate;
       }
+      billingIds.push(billingId);
+    }
 
+    let getAllBilling;
+    [err, getAllBilling] = await toAwait(
+      Billing.find({ _id: { $in: billingIds } }).populate("emi").populate("customer")
+    );
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    getAllBilling = getAllBilling as IBilling[];
+    if (!getAllBilling.length) {
+      return ReE(
+        res,
+        { message: `All 'Billing Id' are not found in db!` },
+        httpStatus.BAD_REQUEST,
+      );
+    }
+
+    let billingMap = new Map();
+    for (let i = 0; i < getAllBilling.length; i++) {
+      const element = getAllBilling[i];
+      billingMap.set(element._id.toString(), element);
+    }
+
+    for (let index = 0; index < json.length; index++) {
+      const element = json[index];
+      let billingId = element["Billing Id"];
+      let changePaymentDate = element["Payment Date Change"];
+      let paymentDate = element["Payment Date"];
+      let customerId = element["Customer ID"];
+      let getBilling = billingMap.get(billingId.toString());
+      if (!getBilling) {
+        return ReE(
+          res,
+          {
+            message: `Billing not found given 'Billing Id' in row ${index + 2} id is ${billingId}`,
+          },
+          httpStatus.NOT_FOUND,
+        );
+      }
       bulkOperations.push({
         updateOne: {
           filter: { _id: billingId },
           update: { $set: { paymentDate: changePaymentDate } },
         },
       });
+
+      commissionUpdateEmi.push({
+        updateOne: {
+          filter: { bill: getBilling._id },
+          update: { $set: { paymentDate: changePaymentDate } },
+        }
+      })
 
       let emiNo = element["EMI No"];
 
@@ -5068,16 +5082,7 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
         }
       })
 
-      commissionUpdateEmi.push({
-        updateOne: {
-          filter: { bill: getBilling._id },
-          update: { $set: { paymentDate: changePaymentDate } },
-        }
-       })
-
     }
-
-    console.log( updateEmi )
 
     try {
       await Promise.all([
@@ -5088,38 +5093,6 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
     } catch (err) {
       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     }
-    // if (bulkOperations.length > 0) {
-    //   for (let i = 0; i < bulkOperations.length; i += BATCH_SIZE) {
-    //     const batch = bulkOperations.slice(i, i + BATCH_SIZE);
-    //     let update;
-    //     [err, update] = await toAwait(Billing.bulkWrite(batch, { ordered: false }));
-    //     if(err){
-    //       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-    //     }
-    //   }
-    // }
-
-    // if (updateEmi.length > 0) {
-    //   for (let i = 0; i < updateEmi.length; i += BATCH_SIZE) {
-    //     const batch = updateEmi.slice(i, i + BATCH_SIZE);
-    //     let update;
-    //     [err, update] = await toAwait(Emi.bulkWrite(batch, { ordered: false }));
-    //     if(err){
-    //       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-    //     }
-    //   }
-    // }
-
-    // if (commissionUpdateEmi.length > 0) {
-    //   for (let i = 0; i < commissionUpdateEmi.length; i += BATCH_SIZE) {
-    //     const batch = commissionUpdateEmi.slice(i, i + BATCH_SIZE);
-    //     let update;
-    //     [err, update] = await toAwait(Commission.bulkWrite(batch, { ordered: false }));
-    //     if(err){
-    //       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-    //     }
-    //   }
-    // }
 
     let obj = {
       userId: user?._id,
