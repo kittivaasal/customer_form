@@ -710,6 +710,8 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
     return ReE(res, { message: `marketDetail not found for given id!.` }, httpStatus.NOT_FOUND)
   }
 
+  checkUser = checkUser as IMarketDetail;
+
   let checkChangeUser;
   [err, checkChangeUser] = await toAwait(MarketingHead.findOne({ _id: headId }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -721,12 +723,15 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
       return ReE(res, { message: `change id is not found in marketerHead and marketDetail table!.` }, httpStatus.NOT_FOUND)
     }
     checkChangeUser = checkChangeUser as IMarketDetail
+    if(checkChangeUser.level >= checkUser.level){
+      return  ReE(res, { message: `change head level is ${checkChangeUser.level} change user level is ${checkUser.level} so change head level must lesser than change user level!.` }, httpStatus.NOT_FOUND)
+    }
   }
 
   let bulkUpdateCustomer:any = [];
 
   let getAllCustomerIDCed;
-  if(!head){
+  if(head){
     [err, getAllCustomerIDCed] = await toAwait(Customer.find({ cedId: _id }));
     if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getAllCustomerIDCed = getAllCustomerIDCed as ICustomer[]

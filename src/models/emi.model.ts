@@ -42,6 +42,9 @@ const EmiSchema = new Schema({
     },
     paidDateUpdate:{
       type:Date
+    },
+    dateUpdate:{
+      type:Date
     }
 },{ timestamps: true });
 
