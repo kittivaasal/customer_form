@@ -724,9 +724,24 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
     }
     checkChangeUser = checkChangeUser as IMarketDetail
     if(checkChangeUser.level >= checkUser.level){
-      return  ReE(res, { message: `change head level is ${checkChangeUser.level} change user level is ${checkUser.level} so change head level must lesser than change user level!.` }, httpStatus.NOT_FOUND)
+      return  ReE(res, { message: `change head level is ${checkChangeUser.level} change user level is ${checkUser.level} so change head level must lesser than change user level!.` }, httpStatus.BAD_REQUEST)
+    }
+    // if(checkUser.headBy.toString() === headId.toString()){
+    //   return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
+    // }
+    let get = checkUser.overAllHeadBy.find(i=>i.level === 1) as any
+    let get1 = checkChangeUser.overAllHeadBy.find(i=>i.level === 1) as any
+    if(get?.headBy?.toString() !== get1?.headBy?.toString()){
+      return ReE(res, { message: `Given marketer detail level 1 head must be same as the given change marketer detail level 1 head!.` }, httpStatus.BAD_REQUEST)
     }
   }
+
+  // if(head){
+  //   let get = checkUser.overAllHeadBy.find(i=>i.level === 1) as any
+  //   if(get?.headBy?.toString() === headId?.toString()){
+  //     return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
+  //   }
+  // }
 
   let bulkUpdateCustomer:any = [];
 
@@ -764,6 +779,7 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
           let head = overAllHeadBy[lastLevel];
           console.log("head", head, overAllHeadBy,lastLevel,marketDetail._id);
           obj.headBy = head.headBy;
+          obj.headByModel = "MarketingHead"
         }
       }
       obj.overAllHeadBy = overAllHeadBy
@@ -796,9 +812,11 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
         headByModel :"MarketingHead"
       }
     ]
+    obj.headByModel = "MarketingHead"
   }else{
     checkChangeUser = checkChangeUser as IMarketDetail
     obj.headBy = headId;
+    obj.headByModel = "MarketDetail"
     obj.overAllHeadBy = checkChangeUser.overAllHeadBy;
     obj.overAllHeadBy.push({
       headBy: headId,
@@ -806,36 +824,6 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
       headByModel :"MarketDetail"
     })
   }
-
-  let batchSize = 1000;
-
-  // for (let i = 0; i < bulkUpdateCustomer.length; i += batchSize) {
-  //   const batch = bulkUpdateCustomer.slice(i, i + batchSize);
-  //   let update
-  //   [err, update] = await toAwait(Customer.bulkWrite(batch, { ordered: false })); 
-  //   if (err) {
-  //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-  //   }
-  //   if(!update){
-  //     return ReE(res, { message: "Customer not updated" }, httpStatus.INTERNAL_SERVER_ERROR)
-  //   }
-  //   update = update as any
-  //   console.log(`Processed batch ${i + batchSize}, matched ${update?.matchedCount}, modified ${update?.modifiedCount}`);
-  // }
-
-  // for (let i = 0; i < marketerBulkUpdate.length; i += batchSize) {
-  //   const batch = marketerBulkUpdate.slice(i, i + batchSize);
-  //   let update
-  //   [err, update] = await toAwait(MarketDetail.bulkWrite(batch, { ordered: false }));
-  //   if (err) {
-  //     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-  //   }
-  //   if(!update){
-  //     return ReE(res, { message: "MarketDetail not updated" }, httpStatus.INTERNAL_SERVER_ERROR)
-  //   }
-  //   update = update as any
-  //   console.log(`Processed batch ${i + batchSize}, matched ${update?.matchedCount}, modified ${update?.modifiedCount}`);
-  // }
 
   try {
     await Promise.all([
