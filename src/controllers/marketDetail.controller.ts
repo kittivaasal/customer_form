@@ -726,27 +726,36 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
     if(checkChangeUser.level >= checkUser.level){
       return  ReE(res, { message: `change head level is ${checkChangeUser.level} change user level is ${checkUser.level} so change head level must lesser than change user level!.` }, httpStatus.BAD_REQUEST)
     }
-    // if(checkUser.headBy.toString() === headId.toString()){
-    //   return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
+    if(checkUser.headBy.toString() === headId.toString()){
+      return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
+    }
+    // let get = checkUser.overAllHeadBy.find(i=>i.level === 1) as any
+    // let get1 = checkChangeUser.overAllHeadBy.find(i=>i.level === 1) as any
+    // if(get?.headBy?.toString() !== get1?.headBy?.toString()){
+    //   return ReE(res, { message: `Given marketer detail level 1 head must be same as the given change marketer detail level 1 head!.` }, httpStatus.BAD_REQUEST)
     // }
+  }
+
+  if(head){
     let get = checkUser.overAllHeadBy.find(i=>i.level === 1) as any
-    let get1 = checkChangeUser.overAllHeadBy.find(i=>i.level === 1) as any
-    if(get?.headBy?.toString() !== get1?.headBy?.toString()){
-      return ReE(res, { message: `Given marketer detail level 1 head must be same as the given change marketer detail level 1 head!.` }, httpStatus.BAD_REQUEST)
+    if(get?.headBy?.toString() === headId?.toString()){
+      return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
     }
   }
 
-  // if(head){
-  //   let get = checkUser.overAllHeadBy.find(i=>i.level === 1) as any
-  //   if(get?.headBy?.toString() === headId?.toString()){
-  //     return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
-  //   }
-  // }
+  let bulkUpdateCustomer:any = [],changeDD = false;
 
-  let bulkUpdateCustomer:any = [];
+  if(!head){
+    checkChangeUser = checkChangeUser as IMarketDetail
+    let get = checkUser.overAllHeadBy.find(i=>i.level === 1) as any
+    let get1 = checkChangeUser.overAllHeadBy.find(i=>i.level === 1) as any
+    if(get?.headBy?.toString() !== get1?.headBy?.toString()){
+      changeDD =true
+    }
+  }
 
-  let getAllCustomerIDCed;
-  if(head){
+  if(head || changeDD){
+    let getAllCustomerIDCed;
     [err, getAllCustomerIDCed] = await toAwait(Customer.find({ cedId: _id }));
     if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getAllCustomerIDCed = getAllCustomerIDCed as ICustomer[]
@@ -768,7 +777,6 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
   [err, getAllMarkerDetail] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": _id }));
   if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   getAllMarkerDetail = getAllMarkerDetail as IMarketDetail[]
-  console.log("getAllMarkerDetail", getAllMarkerDetail.length);
   if(getAllMarkerDetail.length !== 0){
     getAllMarkerDetail.map((marketDetail:any)=>{
       let obj:any={};
