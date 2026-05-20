@@ -12,7 +12,7 @@ import { IEditRequest } from "../type/editRequest";
 import { IMarketDetail } from "../type/marketDetail";
 import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
-import { processBulk, sendPushNotificationToSuperAdmin } from "./common";
+import { processBulkWrite, sendPushNotificationToSuperAdmin } from "./common";
 import { BillingRequest } from "../models/billingRequest.model";
 import { Customer } from "../models/customer.model";
 import { ICustomer } from "../type/customer";
@@ -835,8 +835,8 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
 
   try {
     await Promise.all([
-      marketerBulkUpdate.length && processBulk(MarketDetail, marketerBulkUpdate, "MarketDetail"),
-      bulkUpdateCustomer.length && processBulk(Customer, bulkUpdateCustomer, "Customer")
+      marketerBulkUpdate.length && processBulkWrite(MarketDetail, marketerBulkUpdate, "MarketDetail"),
+      bulkUpdateCustomer.length && processBulkWrite(Customer, bulkUpdateCustomer, "Customer")
     ]);
   } catch (err) {
     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
