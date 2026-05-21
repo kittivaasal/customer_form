@@ -17,7 +17,16 @@ import { IMarketDetail } from "../type/marketDetail";
 import { IMarketingHead } from "../type/marketingHead";
 import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
-import { addActivityLog, sendPushNotificationToSuperAdmin } from "./common";
+import { addActivityLog, processBulkWrite, sendPushNotificationToSuperAdmin } from "./common";
+import { BillingRequest } from "../models/billingRequest.model";
+import { Marketer } from "../models/marketer";
+import { MarketDetail } from "../models/marketDetail.model";
+import { IMarketDetail } from "../type/marketDetail";
+import { Customer } from "../models/customer.model";
+import { ICustomer } from "../type/customer";
+import activityLogErrorModel from "../models/activityLogError.model";
+import { IActivityLog } from "../type/activityLog";
+import fs from "fs";
 
 export const createMarketingHead = async (req: CustomRequest, res: Response) => {
     let body = req.body, err, user = req.user as IUser;
@@ -352,9 +361,9 @@ export const getAllMarketingHead = async (req: Request, res: Response) => {
         if (totalPages === 0) {
             return ReS(
                 res, {
-                    message: "success",
-                    data: [],
-                },
+                message: "success",
+                data: [],
+            },
                 httpStatus.OK
             )
         }
@@ -418,7 +427,7 @@ export const deleteMarketingHead = async (req: CustomRequest, res: Response) => 
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getAllCedCustomer = getAllCedCustomer as ICustomer[];
 
-    if(getAllCedCustomer.length !== 0) {
+    if (getAllCedCustomer.length !== 0) {
         return ReE(res, { message: "Some customer not have cedId, so can not delete this marketing head!" }, httpStatus.BAD_REQUEST);
     }
 
@@ -520,11 +529,11 @@ export const deleteMarketingHead = async (req: CustomRequest, res: Response) => 
         let level = overAllArray.length + 1;
         let headByModel = lastOverAll ? lastOverAll.headByModel : null;
         let percentageId = getAllPercentage.find((i: any) => i.level === level)?._id;
-        if(!percentageId) {
+        if (!percentageId) {
             let findMaxLevel = Math.max(...getAllPercentage.map((i: any) => i.level));
             percentageId = getAllPercentage.find((i: any) => i.level === findMaxLevel)?._id;
         }
-        if(!percentageId) {
+        if (!percentageId) {
             return ReE(res, { message: `Percentage not found for this level ${level}!.` }, httpStatus.NOT_FOUND)
         }
         bulkUpdate.push({
@@ -534,56 +543,98 @@ export const deleteMarketingHead = async (req: CustomRequest, res: Response) => 
             }
         })
     }
-    
+
     let batchSize = 500;
 
+    // if (bulkAddMarketHead.length > 0) {
+    //     let bulkAdd;
+    //     for (let i = 0; i < bulkAddMarketHead.length; i += batchSize) {
+    //         const batch = bulkAddMarketHead.slice(i, i + batchSize);
+    //         [err, bulkAdd] = await toAwait(MarketingHead.insertMany(batch));
+    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //         if (bulkAddMarketHead.length === deleteMarketer.length) {
+    //             let deleteM;
+    //             const batch = deleteMarketer.slice(i, i + batchSize);
+    //             [err, deleteM] = await toAwait(MarketDetail.deleteMany({ _id: { $in: batch } }));
+    //             if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //         }
+    //     }
+    // }
+
+    // if (deleteMarketer.length > 0 && bulkAddMarketHead.length !== deleteMarketer.length) {
+    //     let deleteM;
+    //     for (let i = 0; i < deleteMarketer.length; i += batchSize) {
+    //         const batch = deleteMarketer.slice(i, i + batchSize);
+    //         [err, deleteM] = await toAwait(MarketDetail.deleteMany({ _id: { $in: batch } }));
+    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //     }
+    // }
+
+    const operations: Promise<any>[] = [];
+
+    // Insert MarketingHead
     if (bulkAddMarketHead.length > 0) {
-        let bulkAdd;
         for (let i = 0; i < bulkAddMarketHead.length; i += batchSize) {
             const batch = bulkAddMarketHead.slice(i, i + batchSize);
-            [err, bulkAdd] = await toAwait(MarketingHead.insertMany(batch));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            operations.push(MarketingHead.insertMany(batch));
             if (bulkAddMarketHead.length === deleteMarketer.length) {
-                let deleteM;
+                // let deleteM;
+                // const batch = deleteMarketer.slice(i, i + batchSize);
+                // [err, deleteM] = await toAwait(MarketDetail.deleteMany({ _id: { $in: batch } }));
+                // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
                 const batch = deleteMarketer.slice(i, i + batchSize);
-                [err, deleteM] = await toAwait(MarketDetail.deleteMany({ _id: { $in: batch } }));
-                if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+                operations.push(MarketDetail.deleteMany({ _id: { $in: batch } }))
             }
         }
     }
 
+    // Delete MarketDetail
     if (deleteMarketer.length > 0 && bulkAddMarketHead.length !== deleteMarketer.length) {
-        let deleteM;
         for (let i = 0; i < deleteMarketer.length; i += batchSize) {
             const batch = deleteMarketer.slice(i, i + batchSize);
-            [err, deleteM] = await toAwait(MarketDetail.deleteMany({ _id: { $in: batch } }));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+            operations.push(MarketDetail.deleteMany({ _id: { $in: batch } }));
         }
     }
 
-    if (bulkUpdate.length > 0) {
-        let bulkU;
-        for (let i = 0; i < bulkUpdate.length; i += batchSize) {
-            const batch = bulkUpdate.slice(i, i + batchSize);
-            [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch, { ordered: false }));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        }
+    try {
+        await Promise.all(operations);
+        // return ReS(res, { message: "Bulk operation completed successfully!" }, httpStatus.OK);
+    } catch (err) {
+        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    if (updateBulkCustomer.length > 0) {
-        let bulkCustomer;
-        for (let i = 0; i < updateBulkCustomer.length; i += batchSize) {
-            const batch = updateBulkCustomer.slice(i, i + batchSize);
-            [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch, { ordered: false }));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        }
+    // if (bulkUpdate.length > 0) {
+    //     let bulkU;
+    //     for (let i = 0; i < bulkUpdate.length; i += batchSize) {
+    //         const batch = bulkUpdate.slice(i, i + batchSize);
+    //         [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch, { ordered: false }));
+    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //     }
+    // }
+
+    // if (updateBulkCustomer.length > 0) {
+    //     let bulkCustomer;
+    //     for (let i = 0; i < updateBulkCustomer.length; i += batchSize) {
+    //         const batch = updateBulkCustomer.slice(i, i + batchSize);
+    //         [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch, { ordered: false }));
+    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //     }
+    // }
+
+    try {
+        await Promise.all([
+            updateBulkCustomer.length && processBulkWrite(Customer, updateBulkCustomer, "Customer"),
+            bulkUpdate.length && processBulkWrite(MarketDetail, bulkUpdate, "MarketDetail"),
+        ]);
+    } catch (err) {
+        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     }
 
     let deleteUser;
     [err, deleteUser] = await toAwait(MarketingHead.deleteOne({ _id: _id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
 
-    if(!deleteUser) {
+    if (!deleteUser) {
         return ReE(res, { message: "Failed to delete marketing head!" }, httpStatus.INTERNAL_SERVER_ERROR);
     }
 
@@ -648,7 +699,7 @@ export const changeMarketingHead = async (req: Request, res: Response) => {
     //     checkMemberId = checkMemberId as IMarketDetail;
     // }
 
-    if(id === changeId) {
+    if (id === changeId) {
         return ReE(res, { message: `id and changeId can not be same!` }, httpStatus.BAD_REQUEST);
     }
 
@@ -671,7 +722,7 @@ export const changeMarketingHead = async (req: Request, res: Response) => {
         marketHead = false;
         checkChangeId = checkChangeId as IMarketDetail;
         marketData = checkChangeId;
-        if(Number(checkChangeId.level) !== 2){
+        if (Number(checkChangeId.level) !== 2) {
             return ReE(res, { message: `Only marketer with level 2 can be changed to marketing head given change user level is ${checkChangeId.level}!.` }, httpStatus.BAD_REQUEST)
         }
         let checkMarketDetailBelong;
@@ -681,7 +732,7 @@ export const changeMarketingHead = async (req: Request, res: Response) => {
             return ReE(res, { message: `Given change user is already downline of another marketer so can not be changed!` }, httpStatus.NOT_FOUND)
         }
     }
-    
+
     let getPercentage;
     [err, getPercentage] = await toAwait(Percentage.findOne({ level: 1 }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -742,16 +793,16 @@ export const changeMarketingHead = async (req: Request, res: Response) => {
         let overAllObj = [
             { headBy: changeId, headByModel: "MarketingHead", level: 1 }
         ];
-        if(element?.overAllHeadBy?.length !== 0){
+        if (element?.overAllHeadBy?.length !== 0) {
             element?.overAllHeadBy?.map((item: any) => {
-                if(item.headBy.toString() !== id.toString()){
+                if (item.headBy.toString() !== id.toString()) {
                     overAllObj.push(item)
                 }
             })
         }
-        let obj:any = { overAllHeadBy: overAllObj };
+        let obj: any = { overAllHeadBy: overAllObj };
         let overAllArrayLen = element.overAllHeadBy.length;
-        if(Number(element.level) === 2 || overAllArrayLen === 1) {
+        if (Number(element.level) === 2 || overAllArrayLen === 1) {
             obj.headBy = changeId;
         }
         bulkUpMarketer.push({
@@ -762,27 +813,36 @@ export const changeMarketingHead = async (req: Request, res: Response) => {
         })
     }
 
-    let batchSize = 500;
+    // let batchSize = 500;
 
-    if (bulkUpMarketer.length > 0) {
-        let bulkU;
-        for (let i = 0; i < bulkUpMarketer.length; i += batchSize) {
-            const batch = bulkUpMarketer.slice(i, i + batchSize);
-            [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch, { ordered: false }));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        }
+    // if (bulkUpMarketer.length > 0) {
+    //     let bulkU;
+    //     for (let i = 0; i < bulkUpMarketer.length; i += batchSize) {
+    //         const batch = bulkUpMarketer.slice(i, i + batchSize);
+    //         [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch, { ordered: false }));
+    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //     }
+    // }
+
+    // if (updateBulkCustomer.length > 0) {
+    //     let bulkCustomer;
+    //     for (let i = 0; i < updateBulkCustomer.length; i += batchSize) {
+    //         const batch = updateBulkCustomer.slice(i, i + batchSize);
+    //         [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch, { ordered: false }));
+    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //     }
+    // }
+
+    try {
+        await Promise.all([
+            updateBulkCustomer.length && processBulkWrite(Customer, updateBulkCustomer, "Customer"),
+            bulkUpMarketer.length && processBulkWrite(MarketDetail, bulkUpMarketer, "MarketDetail"),
+        ]);
+    } catch (err) {
+        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    if (updateBulkCustomer.length > 0) {
-        let bulkCustomer;
-        for (let i = 0; i < updateBulkCustomer.length; i += batchSize) {
-            const batch = updateBulkCustomer.slice(i, i + batchSize);
-            [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch, { ordered: false }));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    if(!marketHead) {
+    if (!marketHead) {
         let createMHead;
         [err, createMHead] = await toAwait(MarketingHead.create({
             name: marketData.name,
@@ -813,6 +873,7 @@ export const upgradeMarketerDetailToHead = async (req: CustomRequest, res: Respo
     if (!id) {
         return ReE(res, { message: `Marketer Detail id is required!` }, httpStatus.BAD_REQUEST);
     }
+
     if (!mongoose.isValidObjectId(id)) {
         return ReE(res, { message: `Invalid Marketer Detail id!` }, httpStatus.BAD_REQUEST);
     }
@@ -820,12 +881,10 @@ export const upgradeMarketerDetailToHead = async (req: CustomRequest, res: Respo
     let marketDetail;
     [err, marketDetail] = await toAwait(MarketDetail.findOne({ _id: id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if(!marketDetail) {
+    if (!marketDetail) {
         return ReE(res, { message: `marketDetail not found for given id!.` }, httpStatus.NOT_FOUND)
     }
     marketDetail = marketDetail as IMarketDetail;
-
-    console.log(marketDetail.overAllHeadBy);
 
     let headId = marketDetail.overAllHeadBy.find((i: any) => i.level === 1)?.headBy;
 
@@ -833,8 +892,6 @@ export const upgradeMarketerDetailToHead = async (req: CustomRequest, res: Respo
     [err, getAllMarketDetail] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getAllMarketDetail = getAllMarketDetail as IMarketDetail[];
-
-    console.log(getAllMarketDetail.length);
 
     let bulkUpMarketer: any = [];
 
@@ -844,21 +901,21 @@ export const upgradeMarketerDetailToHead = async (req: CustomRequest, res: Respo
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getAllPercentage = getAllPercentage as IPercentage[];
 
-    if(getAllPercentage.length === 0) {
+    if (getAllPercentage.length === 0) {
         return ReE(res, { message: `Percentage data's not found in database!.` }, httpStatus.NOT_FOUND)
     }
 
     for (let index = 0; index < getAllMarketDetail.length; index++) {
         const element = getAllMarketDetail[index] as IMarketDetail;
-        let overAllObj:any = []
-        if(element.level < marketDetail.level){
-            console.log("element.level",element.level, marketDetail.level, index);
+        let overAllObj: any = []
+        if (element.level < marketDetail.level) {
+            console.log("element.level", element.level, marketDetail.level, index);
             overAllObj = element.overAllHeadBy?.filter((item: any) => item?.level < marketDetail.level);
-            if(overAllObj.length !== 0) {
-                let obj:any = { overAllHeadBy: overAllObj } 
-                if(element.headBy?.toString() === id.toString()) {
+            if (overAllObj.length !== 0) {
+                let obj: any = { overAllHeadBy: overAllObj }
+                if (element.headBy?.toString() === id.toString()) {
                     let lastLevel = overAllObj[overAllObj.length - 1]
-                    if(lastLevel) {
+                    if (lastLevel) {
                         obj.headBy = lastLevel.headBy;
                     }
                 }
@@ -869,40 +926,39 @@ export const upgradeMarketerDetailToHead = async (req: CustomRequest, res: Respo
                     }
                 })
             }
-        }else if(element.level > marketDetail.level) {
+        } else if (element.level > marketDetail.level) {
             let upLevel = Math.abs(Number(element.level) + 1 - Number(marketDetail.level));
-
             let percentage = getAllPercentage.find((item: any) => item.level === upLevel);
-            if(!percentage) {
+            if (!percentage) {
                 let findMaxLevel = Math.max(...getAllPercentage.map((i: any) => i.level));
                 percentage = getAllPercentage.find((i: any) => i.level === findMaxLevel);
             }
-            if(!percentage) {
+            if (!percentage) {
                 return ReE(res, { message: `Percentage not found for this level ${upLevel}!.` }, httpStatus.NOT_FOUND)
             }
-            overAllObj = element.overAllHeadBy?.map((item: any,i) => {
-                if(item?.level === marketDetail.level) {
+            overAllObj = element.overAllHeadBy?.map((item: any, i) => {
+                if (item?.level === marketDetail.level) {
                     return {
                         headBy: marketDetail._id,
                         level: 1,
                         headByModel: "MarketingHead"
                     }
                 }
-                if(item?.level > marketDetail.level) {
+                if (item?.level > marketDetail.level) {
                     let level = Math.abs(Number(item.level) + 1 - Number(marketDetail.level));
                     return { headBy: item.headBy, level: level, headByModel: item.headByModel }
                 }
                 return null;
             })
-            .filter(Boolean);
-            let overAllLast = overAllObj.length > 0 ?  Math.max(...overAllObj.map((i: any) => i.level)) : undefined;
+                .filter(Boolean);
+            let overAllLast = overAllObj.length > 0 ? Math.max(...overAllObj.map((i: any) => i.level)) : undefined;
             overAllLast = overAllLast as any
             let headBy = overAllObj.find((i: any) => i.level === overAllLast)?.headBy;
-            let headyByModel = overAllObj.length === 1 ? "MarketingHead" : "MarketerDetail"
+            let headByModel = overAllObj.length === 1 ? "MarketingHead" : "MarketerDetail"
             bulkUpMarketer.push({
                 updateOne: {
                     filter: { _id: element._id },
-                    update: { $set: { overAllHeadBy: overAllObj , level: upLevel, percentage: percentage?._id, headBy: headBy, headyByModel} }
+                    update: { $set: { overAllHeadBy: overAllObj, level: upLevel, percentageId: percentage?._id, headBy: headBy, headByModel } }
                 }
             })
         }
@@ -914,22 +970,22 @@ export const upgradeMarketerDetailToHead = async (req: CustomRequest, res: Respo
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getAllCustomerCedAsId = getAllCustomerCedAsId as ICustomer[];
 
-    if(getAllCustomerCedAsId.length !== 0) {
+    if (getAllCustomerCedAsId.length !== 0) {
         for (let index = 0; index < getAllCustomerCedAsId.length; index++) {
             const element = getAllCustomerCedAsId[index];
             bulkCustomerUpdate.push({
                 updateOne: {
                     filter: { _id: element._id },
-                    update: { $set: { ddId: marketDetail._id, cedId:null } }
+                    update: { $set: { ddId: marketDetail._id, cedId: null } }
                 }
-            })            
+            })
         }
     }
 
     let getAllCustomerDD;
     [err, getAllCustomerDD] = await toAwait(Customer.aggregate([
         {
-            $match: { ddId: headId, cedId: { $ne : id } }
+            $match: { ddId: headId, cedId: { $ne: id } }
         },
         {
             $lookup: {
@@ -954,7 +1010,7 @@ export const upgradeMarketerDetailToHead = async (req: CustomRequest, res: Respo
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getAllCustomerDD = getAllCustomerDD as ICustomer[];
 
-    if(getAllCustomerDD.length !== 0) {
+    if (getAllCustomerDD.length !== 0) {
         for (let index = 0; index < getAllCustomerDD.length; index++) {
             const element = getAllCustomerDD[index];
             bulkCustomerUpdate.push({
@@ -962,37 +1018,45 @@ export const upgradeMarketerDetailToHead = async (req: CustomRequest, res: Respo
                     filter: { _id: element._id },
                     update: { $set: { ddId: marketDetail._id } }
                 }
-            })            
+            })
         }
     }
 
     let getPercentage = getAllPercentage.find((item: any) => item.level === 1) as IPercentage;
 
-    if(!getPercentage) {
+    if (!getPercentage) {
         return ReE(res, { message: `Percentage not found for level 1 in db!.` }, httpStatus.NOT_FOUND)
     }
 
-    let batchSize = 500;
-
-    if (bulkCustomerUpdate.length > 0) {
-        let bulkCustomer;
-        for (let i = 0; i < bulkCustomerUpdate.length; i += batchSize) {
-            const batch = bulkCustomerUpdate.slice(i, i + batchSize);
-            [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch, { ordered: false }));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            console.log(` ${i + batch.length} / ${bulkCustomerUpdate.length} customers updated.`);
-        }
+    try {
+        await Promise.all([
+            bulkCustomerUpdate.length && processBulkWrite(Customer, bulkCustomerUpdate, "Customer"),
+            bulkUpMarketer.length && processBulkWrite(MarketDetail, bulkUpMarketer, "MarketDetail"),
+        ]);
+    } catch (err) {
+        return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    if (bulkUpMarketer.length > 0) {
-        let bulkU;
-        for (let i = 0; i < bulkUpMarketer.length; i += batchSize) {
-            const batch = bulkUpMarketer.slice(i, i + batchSize);
-            [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch, { ordered: false }));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            console.log(` ${i + batch.length} / ${bulkUpMarketer.length} marketer details updated.`);
-        }
-    }
+    // let batchSize = 500;
+    // if (bulkCustomerUpdate.length > 0) {
+    //     let bulkCustomer;
+    //     for (let i = 0; i < bulkCustomerUpdate.length; i += batchSize) {
+    //         const batch = bulkCustomerUpdate.slice(i, i + batchSize);
+    //         [err, bulkCustomer] = await toAwait(Customer.bulkWrite(batch, { ordered: false }));
+    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //         console.log(` ${i + batch.length} / ${bulkCustomerUpdate.length} customers updated.`);
+    //     }
+    // }
+
+    // if (bulkUpMarketer.length > 0) {
+    //     let bulkU;
+    //     for (let i = 0; i < bulkUpMarketer.length; i += batchSize) {
+    //         const batch = bulkUpMarketer.slice(i, i + batchSize);
+    //         [err, bulkU] = await toAwait(MarketDetail.bulkWrite(batch, { ordered: false }));
+    //         if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    //         console.log(` ${i + batch.length} / ${bulkUpMarketer.length} marketer details updated.`);
+    //     }
+    // }
 
     let createMHead;
     [err, createMHead] = await toAwait(MarketingHead.create({
@@ -1011,7 +1075,6 @@ export const upgradeMarketerDetailToHead = async (req: CustomRequest, res: Respo
     [err, deleteM] = await toAwait(MarketDetail.deleteOne({ _id: id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
-    
     let obj = {
         userId: user._id,
         action: "UPDATE",

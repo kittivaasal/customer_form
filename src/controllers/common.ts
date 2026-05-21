@@ -222,7 +222,7 @@ export const sendSMS = async (mobile: string, bookingId: string) => {
   }
 };
 
-export const processBulk = async (model: any, operations: any[], name: string) => {
+export const processBulkWrite = async (model: any, operations: any[], name: string) => {
   try {
     const BATCH_SIZE = 1000;
     if (!operations.length) {

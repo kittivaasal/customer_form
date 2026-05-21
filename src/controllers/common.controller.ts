@@ -41,7 +41,7 @@ import IMarketer from "../type/Marketer";
 import { IPlot } from "../type/plot";
 import { IProject } from "../type/project";
 import { IUser } from "../type/user";
-import { addActivityLog, processBulk, sendPushNotificationToSuperAdmin, sendSMS } from "./common";
+import { addActivityLog, processBulkWrite, sendPushNotificationToSuperAdmin, sendSMS } from "./common";
 import { IActivityLog } from "../type/activityLog";
 import ActivityLogError from "../models/activityLogError.model";
 import EditRequest from "../models/editRequest.model";
@@ -5086,9 +5086,9 @@ export const bulkUpdateEmi = async (req: CustomRequest, res: Response) => {
 
     try {
       await Promise.all([
-        bulkOperations.length && processBulk(Billing, bulkOperations, "Billing"),
-        updateEmi.length && processBulk(Emi, updateEmi, "EMI"),
-        commissionUpdateEmi.length && processBulk(Commission, commissionUpdateEmi, "Commission")
+        bulkOperations.length && processBulkWrite(Billing, bulkOperations, "Billing"),
+        updateEmi.length && processBulkWrite(Emi, updateEmi, "EMI"),
+        commissionUpdateEmi.length && processBulkWrite(Commission, commissionUpdateEmi, "Commission")
       ]);
     } catch (err) {
       return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);

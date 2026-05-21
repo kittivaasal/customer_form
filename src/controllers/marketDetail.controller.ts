@@ -12,7 +12,7 @@ import { IEditRequest } from "../type/editRequest";
 import { IMarketDetail } from "../type/marketDetail";
 import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
-import { processBulk, sendPushNotificationToSuperAdmin } from "./common";
+import { processBulkWrite, sendPushNotificationToSuperAdmin } from "./common";
 import { BillingRequest } from "../models/billingRequest.model";
 import { Customer } from "../models/customer.model";
 import { ICustomer } from "../type/customer";
@@ -77,12 +77,12 @@ export const createMarketDetail = async (req: CustomRequest, res: Response) => {
       getFrom = "MarketDetail";
     }
     checkMarketDetail = checkMarketDetail as any;
-    if(!checkMarketDetail.percentageId._id) {
+    if (!checkMarketDetail.percentageId._id) {
       return ReE(res, { message: `The headBy marketDetail does not have percentage mapped, so cannot be assigned as headBy!.` }, httpStatus.BAD_REQUEST);
     }
     let percentage = checkMarketDetail.percentageId as IPercentage;
-    if(lastPercentage.level  !== checkPer.level) {
-      if(percentage.level >= checkPer.level) {
+    if (lastPercentage.level !== checkPer.level) {
+      if (percentage.level >= checkPer.level) {
         return ReE(res, { message: `The headBy marketDetail percentage level should be less than the create marketDetail percentage level, headBy level: ${percentage.level}, create level: ${checkPer.level}!.` }, httpStatus.BAD_REQUEST);
       }
     }
@@ -91,7 +91,7 @@ export const createMarketDetail = async (req: CustomRequest, res: Response) => {
     getFrom = "MarketingHead";
   }
 
-  
+
 
   let getSequence, count = 0;
   [err, getSequence] = await toAwait(Counter.findOne({ name: "Marketdetail" }));
@@ -138,11 +138,11 @@ export const createMarketDetail = async (req: CustomRequest, res: Response) => {
   console.log("checkPer.level", checkPer.level, "lastPercentage.level", lastPercentage.level, lastPercentage.level === checkPer.level);
   let len = Math.max(...body.overAllHeadBy.map((item: any) => item.level));
   let lastLevel = body.overAllHeadBy.find((item: any) => item.level === len);
-  if(lastPercentage.level === checkPer.level) {
+  if (lastPercentage.level === checkPer.level) {
     checkMarketDetail = checkMarketDetail as IMarketDetail;
-    if(lastLevel.level < checkPer.level){
+    if (lastLevel.level < checkPer.level) {
       body.level = checkPer.level
-    }else{
+    } else {
       body.level = Number(checkMarketDetail.level) + 1
     }
   } else {
@@ -421,18 +421,18 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
     //   ]
     // })
     .populate({
-        path: "headBy",
-        populate: {
-          path: "percentageId",
-        },
-      })
-      .populate({
+      path: "headBy",
+      populate: {
         path: "percentageId",
-      })
+      },
+    })
+    .populate({
+      path: "percentageId",
+    })
     .populate("headBy")
-      .populate({
-        path: "overAllHeadBy.headBy", 
-      })
+    .populate({
+      path: "overAllHeadBy.headBy",
+    })
     .sort({ createdAt: -1 });
 
   if (page && limit) {
@@ -451,15 +451,31 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
     total = count as number;
     totalPages = Math.ceil(total / limit);
 
-     if (totalPages === 0) {
-        return ReS(
-          res, {
-            message: "success",
-            data: [],
-          },
-          httpStatus.OK
-        )
-      }
+    if (totalPages === 0) {
+      return ReS(
+        res,
+        { message: "market detail not found in db", data: [] },
+        httpStatus.OK,
+      );
+    }
+
+    if (totalPages === 0) {
+      return ReS(
+        res,
+        { message: "market detail not found in db", data: [] },
+        httpStatus.OK,
+      );
+    }
+
+    if (totalPages === 0) {
+      return ReS(
+        res, {
+        message: "success",
+        data: [],
+      },
+        httpStatus.OK
+      )
+    }
 
     if (page > totalPages) {
       return ReE(
@@ -634,8 +650,8 @@ export const deleteMarketDetail = async (req: CustomRequest, res: Response) => {
   [err, checkBillingRequest] = await toAwait(
     BillingRequest.findOne({ targetId: _id, requestFor: "delete", status: "pending" })
   )
-  if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  if(checkBillingRequest) {
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (checkBillingRequest) {
     return ReE(
       res,
       { message: "MarketDetail delete request already pending for this billing id!" },
@@ -645,8 +661,8 @@ export const deleteMarketDetail = async (req: CustomRequest, res: Response) => {
 
   let checkCedId;
   [err, checkCedId] = await toAwait(Customer.findOne({ cedId: _id }))
-  if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  if(checkCedId) {
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (checkCedId) {
     return ReE(
       res,
       { message: "Cannot delete MarketDetail because this marketDetail is ced for some customer!" },
@@ -733,10 +749,10 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
       return ReE(res, { message: `change id is not found in marketerHead and marketDetail table!.` }, httpStatus.NOT_FOUND)
     }
     checkChangeUser = checkChangeUser as IMarketDetail
-    if(checkChangeUser.level >= checkUser.level){
-      return  ReE(res, { message: `change head level is ${checkChangeUser.level} change user level is ${checkUser.level} so change head level must lesser than change user level!.` }, httpStatus.BAD_REQUEST)
+    if (checkChangeUser.level >= checkUser.level) {
+      return ReE(res, { message: `change head level is ${checkChangeUser.level} change user level is ${checkUser.level} so change head level must lesser than change user level!.` }, httpStatus.BAD_REQUEST)
     }
-    if(checkUser.headBy.toString() === headId.toString()){
+    if (checkUser.headBy.toString() === headId.toString()) {
       return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
     }
     // let get = checkUser.overAllHeadBy.find(i=>i.level === 1) as any
@@ -746,31 +762,31 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
     // }
   }
 
-  if(head){
-    let get = checkUser.overAllHeadBy.find(i=>i.level === 1) as any
-    if(get?.headBy?.toString() === headId?.toString()){
+  if (head) {
+    let get = checkUser.overAllHeadBy.find(i => i.level === 1) as any
+    if (get?.headBy?.toString() === headId?.toString()) {
       return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
     }
   }
 
-  let bulkUpdateCustomer:any = [],changeDD = false;
+  let bulkUpdateCustomer: any = [], changeDD = false;
 
-  if(!head){
+  if (!head) {
     checkChangeUser = checkChangeUser as IMarketDetail
-    let get = checkUser.overAllHeadBy.find(i=>i.level === 1) as any
-    let get1 = checkChangeUser.overAllHeadBy.find(i=>i.level === 1) as any
-    if(get?.headBy?.toString() !== get1?.headBy?.toString()){
-      changeDD =true
+    let get = checkUser.overAllHeadBy.find(i => i.level === 1) as any
+    let get1 = checkChangeUser.overAllHeadBy.find(i => i.level === 1) as any
+    if (get?.headBy?.toString() !== get1?.headBy?.toString()) {
+      changeDD = true
     }
   }
 
-  if(head || changeDD){
+  if (head || changeDD) {
     let getAllCustomerIDCed;
     [err, getAllCustomerIDCed] = await toAwait(Customer.find({ cedId: _id }));
-    if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     getAllCustomerIDCed = getAllCustomerIDCed as ICustomer[]
-    if(getAllCustomerIDCed.length !== 0){
-      getAllCustomerIDCed.map((customer:any)=>{
+    if (getAllCustomerIDCed.length !== 0) {
+      getAllCustomerIDCed.map((customer: any) => {
         bulkUpdateCustomer.push({
           updateOne: {
             filter: { _id: customer._id },
@@ -781,21 +797,21 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
     }
   }
 
-  let marketerBulkUpdate:any = [];
+  let marketerBulkUpdate: any = [];
 
   let getAllMarkerDetail;
   [err, getAllMarkerDetail] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": _id }));
-  if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   getAllMarkerDetail = getAllMarkerDetail as IMarketDetail[]
-  if(getAllMarkerDetail.length !== 0){
-    getAllMarkerDetail.map((marketDetail:any)=>{
-      let obj:any={};
-      let overAllHeadBy = marketDetail.overAllHeadBy.filter((head:any)=> head.headBy.toString() !== _id.toString())
-      if(marketDetail.headBy.toString() === _id.toString()){
-        if(overAllHeadBy.length){
+  if (getAllMarkerDetail.length !== 0) {
+    getAllMarkerDetail.map((marketDetail: any) => {
+      let obj: any = {};
+      let overAllHeadBy = marketDetail.overAllHeadBy.filter((head: any) => head.headBy.toString() !== _id.toString())
+      if (marketDetail.headBy.toString() === _id.toString()) {
+        if (overAllHeadBy.length) {
           let lastLevel = overAllHeadBy.length - 1;
           let head = overAllHeadBy[lastLevel];
-          console.log("head", head, overAllHeadBy,lastLevel,marketDetail._id);
+          console.log("head", head, overAllHeadBy, lastLevel, marketDetail._id);
           obj.headBy = head.headBy;
           obj.headByModel = "MarketingHead"
         }
@@ -810,7 +826,7 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
     })
   }
 
-  
+
   // const outputDir = "./src/uploads/generated";
   // if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
@@ -819,19 +835,19 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
 
   // return ReS(res, { message: "Customer count generated", data: { jsonPath } }, httpStatus.OK)
 
-  let obj:any={}
+  let obj: any = {}
 
-  if(head){
+  if (head) {
     obj.headBy = headId;
     obj.overAllHeadBy = [
       {
         headBy: headId,
-        level:1,
-        headByModel :"MarketingHead"
+        level: 1,
+        headByModel: "MarketingHead"
       }
     ]
     obj.headByModel = "MarketingHead"
-  }else{
+  } else {
     checkChangeUser = checkChangeUser as IMarketDetail
     obj.headBy = headId;
     obj.headByModel = "MarketDetail"
@@ -839,14 +855,14 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
     obj.overAllHeadBy.push({
       headBy: headId,
       level: checkChangeUser.level,
-      headByModel :"MarketDetail"
+      headByModel: "MarketDetail"
     })
   }
 
   try {
     await Promise.all([
-      marketerBulkUpdate.length && processBulk(MarketDetail, marketerBulkUpdate, "MarketDetail"),
-      bulkUpdateCustomer.length && processBulk(Customer, bulkUpdateCustomer, "Customer")
+      marketerBulkUpdate.length && processBulkWrite(MarketDetail, marketerBulkUpdate, "MarketDetail"),
+      bulkUpdateCustomer.length && processBulkWrite(Customer, bulkUpdateCustomer, "Customer")
     ]);
   } catch (err) {
     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -855,7 +871,7 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
   let updateUser;
   [err, updateUser] = await toAwait(MarketDetail.updateOne({ _id: _id }, { $set: obj }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-  
+
   ReS(res, { message: "marketDetail updated" }, httpStatus.OK)
 
 }
@@ -1236,7 +1252,7 @@ export const getFullHierarchy = async (req: Request, res: Response) => {
       downline: sortedDownline
     });
 
-  } catch (err:any) {
+  } catch (err: any) {
     return res.status(500).json({
       success: false,
       error: err.message
