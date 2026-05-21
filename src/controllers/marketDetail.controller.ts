@@ -451,6 +451,16 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
     total = count as number;
     totalPages = Math.ceil(total / limit);
 
+     if (totalPages === 0) {
+        return ReS(
+          res, {
+            message: "success",
+            data: [],
+          },
+          httpStatus.OK
+        )
+      }
+
     if (page > totalPages) {
       return ReE(
         res,

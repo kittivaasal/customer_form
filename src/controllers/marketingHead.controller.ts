@@ -1,27 +1,23 @@
 import { Request, Response } from "express";
 import httpStatus from "http-status";
 import mongoose, { Types } from "mongoose";
+import activityLogErrorModel from "../models/activityLogError.model";
 import { Counter } from "../models/counter.model";
+import { Customer } from "../models/customer.model";
 import EditRequest from "../models/editRequest.model";
+import { MarketDetail } from "../models/marketDetail.model";
 import { MarketingHead } from "../models/marketingHead.model";
 import { Percentage } from "../models/percentage.model";
 import { escapeRegex, isEmail, isNull, isPhone, ReE, ReS, toAwait } from "../services/util.service";
+import { IActivityLog } from "../type/activityLog";
+import { ICustomer } from "../type/customer";
 import CustomRequest from "../type/customRequest";
 import { IEditRequest } from "../type/editRequest";
+import { IMarketDetail } from "../type/marketDetail";
 import { IMarketingHead } from "../type/marketingHead";
 import { IPercentage } from "../type/percentage";
 import { IUser } from "../type/user";
 import { addActivityLog, sendPushNotificationToSuperAdmin } from "./common";
-import { BillingRequest } from "../models/billingRequest.model";
-import { Marketer } from "../models/marketer";
-import { MarketDetail } from "../models/marketDetail.model";
-import { IMarketDetail } from "../type/marketDetail";
-import { Customer } from "../models/customer.model";
-import { ICustomer } from "../type/customer";
-import activityLogErrorModel from "../models/activityLogError.model";
-import { IActivityLog } from "../type/activityLog";
-import path from "path/win32";
-import fs from "fs";
 
 export const createMarketingHead = async (req: CustomRequest, res: Response) => {
     let body = req.body, err, user = req.user as IUser;
@@ -352,6 +348,16 @@ export const getAllMarketingHead = async (req: Request, res: Response) => {
 
         total = count as number;
         totalPages = Math.ceil(total / limit);
+
+        if (totalPages === 0) {
+            return ReS(
+                res, {
+                    message: "success",
+                    data: [],
+                },
+                httpStatus.OK
+            )
+        }
 
         if (page > totalPages) {
             return ReE(
