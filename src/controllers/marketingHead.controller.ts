@@ -948,7 +948,7 @@ export const upgradeMarketerDetailToHead = async (req: CustomRequest, res: Respo
             let overAllLast = overAllObj.length > 0 ? Math.max(...overAllObj.map((i: any) => i.level)) : undefined;
             overAllLast = overAllLast as any
             let headBy = overAllObj.find((i: any) => i.level === overAllLast)?.headBy;
-            let headByModel = overAllObj.length === 1 ? "MarketingHead" : "MarketerDetail"
+            let headByModel = overAllObj.length === 1 ? "MarketingHead" : "MarketDetail"
             bulkUpMarketer.push({
                 updateOne: {
                     filter: { _id: element._id },
