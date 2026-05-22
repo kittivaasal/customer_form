@@ -5,7 +5,6 @@ import { isValidDate, ReE, toAwait } from "../services/util.service";
 import httpStatus from "http-status";
 import { MarketDetail } from "../models/marketDetail.model";
 import { MarketingHead } from "../models/marketingHead.model";
-import { populate } from "dotenv";
 
 /**
  * GET /api/commission/customer/:customerId
