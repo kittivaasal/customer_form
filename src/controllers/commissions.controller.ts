@@ -5,6 +5,7 @@ import { isValidDate, ReE, toAwait } from "../services/util.service";
 import httpStatus from "http-status";
 import { MarketDetail } from "../models/marketDetail.model";
 import { MarketingHead } from "../models/marketingHead.model";
+import { populate } from "dotenv";
 
 /**
  * GET /api/commission/customer/:customerId
@@ -26,7 +27,23 @@ export const getCommissionByCustomer = async (
     }
 
     // 2️⃣ Aggregation pipeline
-    const commissions = await Commission.find({ customer: customerId })
+    const commissions = await Commission.find({ customer: customerId }).populate('marketer.marketerId').populate('bill').populate('emiId')
+    .populate({
+      path: "customer",
+      populate: [
+        { 
+          path: "ddId",
+          populate: {
+            path: "percentageId"
+          }
+        },
+        {
+          path: "cedId",
+          populate: {
+            path: "percentageId"
+          }
+       }],
+    })
 
     // 3️⃣ Response
     return res.status(200).json({
@@ -132,6 +149,104 @@ export const getCommissionByMarkerId = async (req: Request, res: Response) => {
     // 🚀 Aggregation
     const result = await Commission.aggregate([
       { $match: match },
+      {
+        $lookup: {
+          from: "customers",
+          localField: "customer",
+          foreignField: "_id",
+          as: "customer"
+        },
+      },
+      {
+        $unwind: {
+          path: "$customer",
+          preserveNullAndEmptyArrays: true        
+        }
+      },
+      {
+        $lookup: {
+          from: "marketingheads",
+          localField: "customer.ddId",
+          foreignField: "_id",
+          as: "customer.ddId"
+        }
+      },
+      {
+        $unwind: {
+          path: "$customer.ddId",
+          preserveNullAndEmptyArrays: true        
+        }
+      },
+      {
+        $lookup: {
+          from: "percentages",
+          localField: "customer.ddId.percentageId",
+          foreignField: "_id",
+          as: "customer.ddId.percentageId"
+        }
+      },
+      {
+        $unwind: {
+          path: "$customer.ddId.percentageId",
+          preserveNullAndEmptyArrays: true        
+        }
+      },
+      {
+        $lookup: {
+          from: "marketdetails",
+          localField: "customer.cedId",
+          foreignField: "_id",
+          as: "customer.cedId"
+        }
+      },
+      {
+        $unwind: {
+          path: "$customer.cedId",
+          preserveNullAndEmptyArrays: true        
+        }
+      },
+      {
+        $lookup: {
+          from: "percentages",
+          localField: "customer.cedId.percentageId",
+          foreignField: "_id",
+          as: "customer.cedId.percentageId"
+        }
+      },
+      {
+        $unwind: {
+          path: "$customer.cedId.percentageId",
+          preserveNullAndEmptyArrays: true        
+        }
+      },
+      {
+        $lookup: {
+          from: "billings",
+          localField: "bill",
+          foreignField: "_id",
+          as: "bill"
+        }
+      },
+      {
+        $unwind: {
+          path: "$bill",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $lookup: {
+          from: "emis",
+          localField: "emiId",
+          foreignField: "_id",
+          as: "emiId"
+        }
+      },
+      {
+        $unwind: {
+          path: "$emiId",
+          preserveNullAndEmptyArrays: true
+        }
+      },
       {
         $facet: {
           summary: [
