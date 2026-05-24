@@ -32,7 +32,7 @@ import reportJobRoutes from "./routes/reportJob.routes";
 import { ReportJob } from "./models/reportJob.model";
 import { processReportJob } from "./services/reportWorker.service";
 import { Billing } from "./models/billing.model";
-import { ReE, ReS, toAwait } from "./services/util.service";
+import { excelDateToJSDate, ReE, ReS, toAwait } from "./services/util.service";
 import { Commission } from "./models/commision.model";
 import { convertCommissionToMarketer } from "./controllers/common.controller";
 import httpStatus from "http-status";
@@ -45,6 +45,7 @@ import fs from "fs"
 import cornRunModel from "./models/cornRun.model";
 
 import Excel from "exceljs";
+import { processBulkWrite } from "./controllers/common";
 
 const app = express();
 app.use(express.json());
@@ -715,29 +716,75 @@ cron.schedule("*/5 * * * *", async () => {
 //   }
 // })
 
+//convert string DD-MM-YYYY to date
+function excelDateStrToJSDate(excelDate: any): Date | null {
+  // already Date object
+  if (excelDate instanceof Date) {
+    return excelDate;
+  }
+
+  // Excel serial number
+  if (typeof excelDate === "number") {
+    const utc_days = Math.floor(excelDate - 25569);
+    const utc_value = utc_days * 86400;
+    return new Date(utc_value * 1000);
+  }
+
+  // String date
+  if (typeof excelDate === "string") {
+
+    const cleaned = excelDate.trim();
+
+    // dd-mm-yyyy OR dd/mm/yyyy
+    const parts = cleaned.split(/[-/]/);
+
+    if (parts.length === 3) {
+      const [day, month, year] = parts.map(Number);
+
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        return new Date(Date.UTC(year, month - 1, day));
+      }
+    }
+
+    // fallback
+    const parsed = new Date(cleaned);
+
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
 // app.get("/markerHead-count", async (req, res) => {
 //   try {
-
+//     console.log("Starting marker head count process...");
 //     // Path to Excel
-//     const excelPath = "./src/uploads/0404.xlsx";
+//     const excelPath = "./src/uploads/hosuingbill.xlsx";
 
 //     let getAllBill = await Billing.find({}).lean();
 
+//     console.log("Billing records loaded:", getAllBill.length);
+
 //     const BillingMap = new Map<string, any>();
+//     let count = 0;
 //     for (const cust of getAllBill) {
 //       if (cust.customerCode ) {
 //         BillingMap.set(`${cust.customerCode}-${cust.emiNo}`, cust);
+//       }else{
+//         console.log("Billing record with missing customerCode or emiNo:", getAllBill);
 //       }
+//       count++;
 //     }
 
-//     console.log("Billing records loaded:", BillingMap.size);
+//     console.log("Billing records loaded:", BillingMap.size, "Total records processed for map:", count);
 
 
 //     // Output JSON path
 //     const outputDir = "./src/uploads/generated";
 //     if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-//     const jsonPath = path.join(outputDir, `customer-count-${Date.now()}Housing.json`);
 
 //     // Use `as any` to bypass missing TS types
 //     const workbook = new (Excel.stream.xlsx as any).WorkbookReader(excelPath, {
@@ -751,15 +798,19 @@ cron.schedule("*/5 * * * *", async () => {
 //     let bulkUpdateEmis:any = []
 //     let bulkUpdateBill:any = []
 //     let bulkUpdateComm:any = []
+//     let strCount = 0;
+//     let numCount = 0;
 
 //     workbook.on("worksheet", (worksheet: any) => {
 //       worksheet.on("row", (row: any) => {
 //         if (row.number === 1) return;
 
 //         // console.log("Processing row:", row.number);
+       
 
-//         const cus = row.getCell(4).value;
-//         let emiNo = row.getCell(14).value;
+//         const cus = row.getCell(1).value;
+//         let emiNo = row.getCell(4).value;
+//         let paidDate = row.getCell(3).value;
 
 //         if (!cus || emiNo == null) return;
 
@@ -768,72 +819,104 @@ cron.schedule("*/5 * * * *", async () => {
 //         // console.log(`Looking for billing record with customerCode: ${cus.toString()} and emiNo: ${emiNo.toString()}`);
 
 //         if(!findBill){
-//           // console.log(`No billing record found for customerCode: ${cus.toString()} and emiNo: ${emiNo.toString()}`);
+//           console.log(`No billing record found for customerCode: ${cus.toString()} and emiNo: ${emiNo.toString()}`);
 //           return;
 //         }
+
+//         // console.log(paidDate, typeof paidDate);
+//         if( typeof paidDate === "string" ){
+//           strCount++;
+//         }
+//         if( typeof paidDate === "number" ){
+//           numCount++;
+//         }
+//         paidDate = excelDateStrToJSDate(paidDate);
+//         // console.log(`Row ${row.number}: CustomerCode: ${cus.toString()}, EMI No: ${emiNo.toString()}, Paid Date: `, paidDate);
 
 //         bulkUpdateBill.push({
 //           updateOne: {
 //             filter: { _id: findBill._id },
-//             update: { $set: { paymentDate: new Date("2026-02-04") } }
+//             update: { $set: { 
+//             paymentDate: paidDate , paymentDateUpdate: new Date() ,
+//             } }
 //           }
 //         })
 
 //         bulkUpdateComm.push({
 //           updateOne: {
 //             filter: { bill : findBill._id },
-//             update: { $set: { paymentDate: new Date("2026-02-04") } }
+//             update: { $set: { paymentDate: paidDate , paymentDateUpdate: new Date() , } }
 //           }
 //         })
 
 //         bulkUpdateEmis.push({
 //           updateOne: {
 //             filter: { _id: findBill.emi },
-//             update: { $set: { paidDate: new Date("2026-02-04") } }
+//             update: { $set: { paidDate: paidDate , paidDateUpdate: new Date() , } }
 //           }
 //         })
+
+//         if(row.number % 10000 === 0){
+//           console.log(`Processed ${row.number} rows... ${paidDate}`);
+//         }
 
 //       });
 //     });
 
 //     workbook.on("end", async () => {
+
+//       console.log(`Excel processing completed. Total rows processed: ${strCount + numCount}, String dates: ${strCount}, Numeric dates: ${numCount}`);
+//       console.log(`Bulk update completed. Bill updates: ${bulkUpdateBill.length}, EMI updates: ${bulkUpdateEmis.length}, Commission updates: ${bulkUpdateComm.length}`);
+      
+//       // const jsonPath = path.join(outputDir, `customer-count-old-${Date.now()}Housing.json`);
 //       // fs.writeFileSync(jsonPath, JSON.stringify(bulkUpdateEmis, null, 2));
-//       // let jsonPath2 = path.join(outputDir, `customer-count-${Date.now()}bill.json`);
+//       // let jsonPath2 = path.join(outputDir, `customer-count-old-${Date.now()}bill.json`);
 //       // fs.writeFileSync(jsonPath2, JSON.stringify(bulkUpdateBill, null, 2));
-//       // let jsonPath3 = path.join(outputDir, `customer-count-${Date.now()}comm.json`);
+//       // let jsonPath3 = path.join(outputDir, `customer-count-old-${Date.now()}comm.json`);
 //       // fs.writeFileSync(jsonPath3, JSON.stringify(bulkUpdateComm, null, 2));
 
 //       // console.log("✅ EMI JSON generated at:", jsonPath);
 
-//       let batchSize = 1000;
-//       if (bulkUpdateBill.length) {
-//         for (let i = 0; i < bulkUpdateBill.length; i += batchSize) {
-//           const batch = bulkUpdateBill.slice(i, i + batchSize);
-//           let update = await Billing.bulkWrite(batch);
-//           console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
-//         }
+//       // let batchSize = 1000;
+//       try {
+//         await Promise.all([
+//           bulkUpdateBill.length && processBulkWrite(Billing, bulkUpdateBill, "Billing"),
+//           bulkUpdateEmis.length && processBulkWrite(Emi, bulkUpdateEmis, "EMI"),
+//           bulkUpdateComm.length && processBulkWrite(Commission, bulkUpdateComm, "Commission")
+//         ]);
+//       } catch (err) {
+//         return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 //       }
+//       // if (bulkUpdateBill.length) {
+//       //   for (let i = 0; i < bulkUpdateBill.length; i += batchSize) {
+//       //     const batch = bulkUpdateBill.slice(i, i + batchSize);
+//       //     let update = await Billing.bulkWrite(batch);
+//       //     console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+//       //   }
+//       // }
 
-//         if (bulkUpdateComm.length) {
-//           for (let i = 0; i < bulkUpdateComm.length; i += batchSize) {
-//             const batch = bulkUpdateComm.slice(i, i + batchSize);
-//             let update = await Commission.bulkWrite(batch);
-//             console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
-//           }
-//         }
+//       //   if (bulkUpdateComm.length) {
+//       //     for (let i = 0; i < bulkUpdateComm.length; i += batchSize) {
+//       //       const batch = bulkUpdateComm.slice(i, i + batchSize);
+//       //       let update = await Commission.bulkWrite(batch);
+//       //       console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+//       //     }
+//       //   }
         
-//       if (bulkUpdateEmis.length) {
-//         for (let i = 0; i < bulkUpdateEmis.length; i += batchSize) {
-//           const batch = bulkUpdateEmis.slice(i, i + batchSize);
-//           let update = await Emi.bulkWrite(batch);
-//           console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
-//         }
-//       }
-
+//       // if (bulkUpdateEmis.length) {
+//       //   for (let i = 0; i < bulkUpdateEmis.length; i += batchSize) {
+//       //     const batch = bulkUpdateEmis.slice(i, i + batchSize);
+//       //     let update = await Emi.bulkWrite(batch);
+//       //     console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+//       //   }
+//       // }
 //       // Send response with path
 //       res.status(200).json({
 //         success: true,
-//         file: jsonPath,
+//         // file: jsonPath,
+//         bulkUpdateComm:bulkUpdateComm.length,
+//         bulkUpdateEmis:bulkUpdateEmis.length,
+//         bulkUpdateBill:bulkUpdateBill.length
 //       });
 //     });
 
@@ -848,6 +931,152 @@ cron.schedule("*/5 * * * *", async () => {
 //     await workbook.read();
 //   } catch (err) {
 //     console.error("Server error:", err);
+//     res.status(500).json({
+//       success: false,
+//       message: "Internal server error",
+//     });
+//   }
+// });
+
+// // app.get("/test1", async (req, res) => {
+// //   try {
+// //     let getAllBill =await Commission.updateMany(
+// //       {
+// //         "marketer.marketerId": new mongoose.Types.ObjectId("6987650e501d2fd4dd18b285")
+// //       },
+// //       {
+// //         $set: {
+// //           "marketer.$[elem].marketerId":
+// //             new mongoose.Types.ObjectId("6987650e501d2fd4dd18b286")
+// //         }
+// //       },
+// //       {
+// //         arrayFilters: [
+// //           {
+// //             "elem.marketerId":
+// //               new mongoose.Types.ObjectId("6987650e501d2fd4dd18b285")
+// //           }
+// //         ]
+// //       }
+// //     );
+// //     res.json({
+// //       success: true,
+// //       data: getAllBill
+// //     });
+
+// //   } catch (err) {
+// //     console.error("Server error:", err);
+
+// //     res.status(500).json({
+// //       success: false,
+// //       message: "Internal server error",
+// //     });
+// //   }
+// // });
+// app.get("/test2", async (req, res) => {
+//   try {
+
+//     const cedIds = [
+// "6987658d501d2fd4dd18b290",
+// "69875f25501d2fd4dd18b209",
+// "698765b2501d2fd4dd18b296",
+// "69876483501d2fd4dd18b261",
+// "69876483501d2fd4dd18b262",
+// "69876483501d2fd4dd18b263",
+// "6987658d501d2fd4dd18b291",
+// "69875f25501d2fd4dd18b20b",
+// "6989858815a20a131f0a1ce6",
+// "69876483501d2fd4dd18b264",
+// "6996a4b507b91ce8a2932d96",
+// "69875937501d2fd4dd18b1b1",
+// "69875f25501d2fd4dd18b20c",
+// "6987650e501d2fd4dd18b282",
+// "6987658d501d2fd4dd18b292",
+// "69875f25501d2fd4dd18b20d",
+// "69876483501d2fd4dd18b265",
+// "69876483501d2fd4dd18b266",
+// "6987650e501d2fd4dd18b284",
+// "69875937501d2fd4dd18b1b3",
+// "69875937501d2fd4dd18b1b5",
+// "6987650e501d2fd4dd18b286",
+// "69876483501d2fd4dd18b267",
+// "69875937501d2fd4dd18b1b6",
+// "69b692e5382e1ab1c2c037d2",
+// "69875f25501d2fd4dd18b20e",
+// "69875937501d2fd4dd18b1b7",
+// "6987658d501d2fd4dd18b293"
+// ].map(id => new mongoose.Types.ObjectId(id));
+
+//     let getAllBill = await Commission.aggregate([
+//       {
+//         $match: {
+//           paymentDate: {
+//             $gte: new Date("2026-04-01T00:00:00.000Z"),
+//             $lte: new Date("2026-04-30T23:59:59.999Z")
+//           },
+//         }
+//       },
+//       {
+//         $lookup: {
+//           from: "customers",
+//           localField: "customer",
+//           foreignField: "_id",
+//           as: "customer"
+//         }
+//       },
+//       {
+//         $unwind: "$customer"
+//       },
+//       {
+//         $lookup: {
+//           from: "marketdetails",
+//           localField: "customer.cedId",
+//           foreignField: "_id",
+//           as: "customer.cedId"
+//         }
+//       },
+//       {
+//         $unwind: "$customer.cedId"
+//       },
+//       {
+//         $match: {
+//           "customer.ddId": new mongoose.Types.ObjectId("6986e3ec501d2fd4dd18b089"),
+//           // $or: [
+//           //   { "customer.cedId._id": new mongoose.Types.ObjectId("6986e3ec501d2fd4dd18b089") },
+//           //   { "customer.cedId": null }
+//           // ]
+//           // "customer.cedId._id": { $in: cedIds }
+//         }
+//       },
+//       {
+//         $group: {
+//           _id: "$customer.cedId.name",
+//           totalBills: { $sum: 1 },
+//           totalAmount: { $sum: "$amount" }, // optional
+//           // bills: { $push: "$$ROOT" } 
+//         }
+//       },
+//       {
+//         $sort: {
+//           _id: 1
+//         }
+//       }
+//     ]);
+//     let total = 0
+//     getAllBill.forEach(item => {
+      
+//       total += item.totalBills;
+//     })
+//     res.json({
+//       success: true,
+//       count: getAllBill.length,
+//       total: total,
+//       data: getAllBill
+//     });
+
+//   } catch (err) {
+//     console.error("Server error:", err);
+
 //     res.status(500).json({
 //       success: false,
 //       message: "Internal server error",

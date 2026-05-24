@@ -642,7 +642,8 @@ export const getAllCustomer = async (req: Request, res: Response) => {
   const searchConditions: any[] = [];
 
   const rawSearch = (req.query.search as string) || "";
-  const search = escapeRegex(rawSearch);
+  let search = decodeURIComponent(rawSearch);
+  search = escapeRegex(search);
 
   if (search) {
     searchConditions.push(

@@ -235,6 +235,10 @@ export const processBulkWrite = async (model: any, operations: any[], name: stri
         console.error(`${name} bulkWrite error at batch ${i / BATCH_SIZE + 1}`, err);
         throw err;
       }
+      if((result as any).matchedCount !== (result as any).modifiedCount){
+        console.warn(`${name} bulkWrite warning for batch ${i / BATCH_SIZE + 1}: matchedCount (${(result as any).matchedCount}) does not equal modifiedCount (${(result as any).modifiedCount})`);
+      }
+      // console.log(`${name} bulkWrite success for batch ${i / BATCH_SIZE + 1}: ${(result as any).matchedCount} modified, ${(result as any).modifiedCount} upserted`);
     }
   } catch (error:any) {
     console.error(`${name} bulkWrite unexpected error`, error);

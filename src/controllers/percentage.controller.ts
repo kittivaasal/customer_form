@@ -178,9 +178,10 @@ export const getAllPercentage = async (req: Request, res: Response) => {
 
     const page = req.query.page ? parseInt(req.query.page as string) : null;
     const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
-    
+
     const rawSearch = (req.query.search as string) || "";
-    const search = escapeRegex(rawSearch);
+    let search = decodeURIComponent(rawSearch);
+    search = escapeRegex(search);
 
     const searchConditions: any[] = [];
     if (search) {

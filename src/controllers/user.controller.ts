@@ -237,7 +237,8 @@ export const getAllUser = async (req: Request, res: Response) => {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
 
     const rawSearch = (req.query.search as string) || "";
-    const search = escapeRegex(rawSearch);
+    let search = decodeURIComponent(rawSearch);
+    search = escapeRegex(search);
 
     const searchConditions: any[] = [];
     if (search) {

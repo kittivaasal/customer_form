@@ -449,7 +449,8 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
   const limit = req.query.limit ? parseInt(req.query.limit as string) : null;
 
   const rawSearch = (req.query.search as string) || "";
-  const search = escapeRegex(rawSearch);
+  let search = decodeURIComponent(rawSearch);
+  search = escapeRegex(search);
 
   const searchConditions: any[] = [];
 
@@ -469,7 +470,7 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
   if (searchConditions.length > 0) {
     option.$or = searchConditions;
   }
-
+  console.log("option", option.$or[0], option.$or[0].name, option.$or)
   let queryTo = MarketDetail.find(option)
     // .populate({
     //   path: "headBy",
