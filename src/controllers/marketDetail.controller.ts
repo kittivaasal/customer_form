@@ -470,7 +470,7 @@ export const getAllMarketDetail = async (req: Request, res: Response) => {
   if (searchConditions.length > 0) {
     option.$or = searchConditions;
   }
-  console.log("option", option.$or[0], option.$or[0].name, option.$or)
+  // console.log("option", option.$or[0], option.$or[0].name, option.$or)
   let queryTo = MarketDetail.find(option)
     // .populate({
     //   path: "headBy",
