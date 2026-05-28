@@ -765,9 +765,47 @@ export const deleteMarketDetail = async (req: CustomRequest, res: Response) => {
     return ReE(res, { message: `marketDetail not found for given id!.` }, httpStatus.NOT_FOUND)
   }
 
+  let getAllMarkerDetail;
+  [err, getAllMarkerDetail] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": _id }));
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  getAllMarkerDetail = getAllMarkerDetail as IMarketDetail[]
+
+  let bulkUpdateMarketDetail: any = [];
+
+  if (getAllMarkerDetail.length !== 0) {
+    for (let index = 0; index < getAllMarkerDetail.length; index++) {
+      const element = getAllMarkerDetail[index];
+      let overAll = element.overAllHeadBy.filter(i => i.headBy.toString() !== _id.toString());
+      let obj: any = {
+        overAllHeadBy: overAll
+      }
+      if(element.headBy.toString() === _id.toString()){
+        let lastLevel = Math.max(...overAll.map((i:any)=>i.level));
+        obj.headBy = overAll.find((i:any)=>i.level === lastLevel)?.headBy;
+      }
+      bulkUpdateMarketDetail.push({
+        updateOne: {
+          filter: { _id: element._id },
+          update: { $set: obj } 
+        }
+      });
+    }
+  }
+
+  let batchSize = 1000;
+  if (bulkUpdateMarketDetail.length !== 0) {
+    for (let i = 0; i < bulkUpdateMarketDetail.length; i += batchSize) {
+      let batch = bulkUpdateMarketDetail.slice(i, i + batchSize);
+      let update;
+      [err, update] = await toAwait(MarketDetail.bulkWrite(batch, { ordered: false }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   let deleteUser;
   [err, deleteUser] = await toAwait(MarketDetail.deleteOne({ _id: _id }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+
   ReS(res, { message: "marketDetail deleted" }, httpStatus.OK)
 
 }
