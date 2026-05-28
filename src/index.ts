@@ -34,7 +34,7 @@ import { processReportJob } from "./services/reportWorker.service";
 import { Billing } from "./models/billing.model";
 import { excelDateToJSDate, ReE, ReS, toAwait } from "./services/util.service";
 import { Commission } from "./models/commision.model";
-import { convertCommissionToMarketer } from "./controllers/common.controller";
+// import { convertCommissionToMarketer } from "./controllers/common.controller";
 import httpStatus from "http-status";
 import { Percentage } from "./models/percentage.model";
 import { Customer } from "./models/customer.model";
@@ -46,6 +46,7 @@ import cornRunModel from "./models/cornRun.model";
 
 import Excel from "exceljs";
 import { processBulkWrite } from "./controllers/common";
+import { MarketingHead } from "./models/marketingHead.model";
 
 const app = express();
 app.use(express.json());
@@ -938,151 +939,501 @@ function excelDateStrToJSDate(excelDate: any): Date | null {
 //   }
 // });
 
-// // app.get("/test1", async (req, res) => {
-// //   try {
-// //     let getAllBill =await Commission.updateMany(
-// //       {
-// //         "marketer.marketerId": new mongoose.Types.ObjectId("6987650e501d2fd4dd18b285")
-// //       },
-// //       {
-// //         $set: {
-// //           "marketer.$[elem].marketerId":
-// //             new mongoose.Types.ObjectId("6987650e501d2fd4dd18b286")
-// //         }
-// //       },
-// //       {
-// //         arrayFilters: [
-// //           {
-// //             "elem.marketerId":
-// //               new mongoose.Types.ObjectId("6987650e501d2fd4dd18b285")
-// //           }
-// //         ]
-// //       }
-// //     );
-// //     res.json({
-// //       success: true,
-// //       data: getAllBill
-// //     });
+app.get("/test", async (req, res) => {
+  try {
+    let getAllBill = await MarketDetail.find({_id:"6987381f501d2fd4dd18b0f2"}) .populate("overAllHeadBy")
+        .populate({
+          path: "overAllHeadBy",
+          populate: [
+            {
+              path: "headBy",
+              populate: { path: "percentageId" },
+            },
+          ],
+        })
+        .populate("percentageId");
+    // console.log("Billing records loaded:", getAllBill);
+    res.json({
+      success: true,
+      data: getAllBill
+    });
+    
+  } catch (err) {
+    console.error("Server error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+})
 
-// //   } catch (err) {
-// //     console.error("Server error:", err);
+export const convertCommissionToMarketer = (
+  customer: any,
+  emiAmount: number,
+  headMap: Map<string, any>,
+  detailMap: Map<string, any>
+) => {
 
-// //     res.status(500).json({
-// //       success: false,
-// //       message: "Internal server error",
-// //     });
-// //   }
-// // });
-// app.get("/test2", async (req, res) => {
-//   try {
+  try {
 
-//     const cedIds = [
-// "6987658d501d2fd4dd18b290",
-// "69875f25501d2fd4dd18b209",
-// "698765b2501d2fd4dd18b296",
-// "69876483501d2fd4dd18b261",
-// "69876483501d2fd4dd18b262",
-// "69876483501d2fd4dd18b263",
-// "6987658d501d2fd4dd18b291",
-// "69875f25501d2fd4dd18b20b",
-// "6989858815a20a131f0a1ce6",
-// "69876483501d2fd4dd18b264",
-// "6996a4b507b91ce8a2932d96",
-// "69875937501d2fd4dd18b1b1",
-// "69875f25501d2fd4dd18b20c",
-// "6987650e501d2fd4dd18b282",
-// "6987658d501d2fd4dd18b292",
-// "69875f25501d2fd4dd18b20d",
-// "69876483501d2fd4dd18b265",
-// "69876483501d2fd4dd18b266",
-// "6987650e501d2fd4dd18b284",
-// "69875937501d2fd4dd18b1b3",
-// "69875937501d2fd4dd18b1b5",
-// "6987650e501d2fd4dd18b286",
-// "69876483501d2fd4dd18b267",
-// "69875937501d2fd4dd18b1b6",
-// "69b692e5382e1ab1c2c037d2",
-// "69875f25501d2fd4dd18b20e",
-// "69875937501d2fd4dd18b1b7",
-// "6987658d501d2fd4dd18b293"
-// ].map(id => new mongoose.Types.ObjectId(id));
+    let commission: any[] = [];
 
-//     let getAllBill = await Commission.aggregate([
-//       {
-//         $match: {
-//           paymentDate: {
-//             $gte: new Date("2026-04-01T00:00:00.000Z"),
-//             $lte: new Date("2026-04-30T23:59:59.999Z")
-//           },
-//         }
-//       },
-//       {
-//         $lookup: {
-//           from: "customers",
-//           localField: "customer",
-//           foreignField: "_id",
-//           as: "customer"
-//         }
-//       },
-//       {
-//         $unwind: "$customer"
-//       },
-//       {
-//         $lookup: {
-//           from: "marketdetails",
-//           localField: "customer.cedId",
-//           foreignField: "_id",
-//           as: "customer.cedId"
-//         }
-//       },
-//       {
-//         $unwind: "$customer.cedId"
-//       },
-//       {
-//         $match: {
-//           "customer.ddId": new mongoose.Types.ObjectId("6986e3ec501d2fd4dd18b089"),
-//           // $or: [
-//           //   { "customer.cedId._id": new mongoose.Types.ObjectId("6986e3ec501d2fd4dd18b089") },
-//           //   { "customer.cedId": null }
-//           // ]
-//           // "customer.cedId._id": { $in: cedIds }
-//         }
-//       },
-//       {
-//         $group: {
-//           _id: "$customer.cedId.name",
-//           totalBills: { $sum: 1 },
-//           totalAmount: { $sum: "$amount" }, // optional
-//           // bills: { $push: "$$ROOT" } 
-//         }
-//       },
-//       {
-//         $sort: {
-//           _id: 1
-//         }
-//       }
-//     ]);
-//     let total = 0
-//     getAllBill.forEach(item => {
-      
-//       total += item.totalBills;
-//     })
-//     res.json({
-//       success: true,
-//       count: getAllBill.length,
-//       total: total,
-//       data: getAllBill
-//     });
+    // =========================
+    // CUSTOMER VALIDATION
+    // =========================
 
-//   } catch (err) {
-//     console.error("Server error:", err);
+    if (!customer) {
+      return {
+        success: false,
+        message: "Customer not found",
+        data: null,
+      };
+    }
 
-//     res.status(500).json({
-//       success: false,
-//       message: "Internal server error",
-//     });
-//   }
-// });
+    if (!customer.ddId) {
+      return {
+        success: false,
+        message: "Customer ddId not found",
+        data: null,
+      };
+    }
+
+    // =========================
+    // DD COMMISSION
+    // =========================
+
+    const getHead = headMap.get(customer.ddId.toString());
+
+    if (!getHead) {
+      return {
+        success: false,
+        message: "DD not found",
+        data: null,
+      };
+    }
+
+    let ddCommission: any = {
+      marketerId: getHead._id,
+      marketerModel: "MarketingHead",
+      emiAmount: emiAmount,
+    };
+
+    // SAME DD + CED
+
+    if (
+      !customer.cedId ||
+      customer.cedId?.toString() === customer.ddId?.toString()
+    ) {
+
+      const rate =
+        Number(
+          getHead?.percentageId?.rate?.split("%")[0]
+        ) || 0;
+
+      ddCommission.commAmount = Math.round(
+        emiAmount * (rate / 100)
+      );
+
+      ddCommission.percentage =
+        getHead?.percentageId?.rate || "0%";
+
+      commission.push(ddCommission);
+
+      return {
+        success: true,
+        message: "success",
+        data: commission,
+      };
+    }
+
+    // DIFFERENT DD + CED
+
+    ddCommission.commAmount = Math.round(
+      emiAmount * (1 / 100)
+    );
+
+    ddCommission.percentage = "1%";
+
+    commission.push(ddCommission);
+
+    // =========================
+    // LOAD CED
+    // =========================
+
+    const getMarketer = detailMap.get(
+      customer.cedId.toString()
+    );
+
+    if (!getMarketer) {
+      return {
+        success: false,
+        message: "CED not found",
+        data: null,
+      };
+    }
+
+    // =========================
+    // OVERALL HEAD COMMISSION
+    // =========================
+
+    if (
+      Array.isArray(getMarketer.overAllHeadBy)
+    ) {
+
+      for (
+        let index = 1;
+        index < getMarketer.overAllHeadBy.length;
+        index++
+      ) {
+
+        const element =
+          getMarketer.overAllHeadBy[index];
+
+        if (!element?.headBy?._id) {
+          continue;
+        }
+
+        commission.push({
+          marketerId: element.headBy._id,
+          marketerModel: "MarketDetail",
+          emiAmount: emiAmount,
+          commAmount: Math.round(
+            emiAmount * (1 / 100)
+          ),
+          percentage: "1%",
+        });
+      }
+    }
+
+    // =========================
+    // FINAL CED COMMISSION
+    // =========================
+
+    let cedCommission: any = {
+      marketerId: getMarketer._id,
+      marketerModel: "MarketDetail",
+      emiAmount: emiAmount,
+    };
+
+    const cedRate =
+      Number(
+        getMarketer?.percentageId?.rate?.split("%")[0]
+      ) || 0;
+
+    cedCommission.commAmount = Math.round(
+      emiAmount * (cedRate / 100)
+    );
+
+    cedCommission.percentage =
+      getMarketer?.percentageId?.rate || "0%";
+
+    commission.push(cedCommission);
+
+    return {
+      success: true,
+      message: "Commission found",
+      data: commission,
+    };
+
+  } catch (error: any) {
+
+    return {
+      success: false,
+      message: error?.message || "Unknown error",
+      data: null,
+    };
+
+  }
+};
+app.get("/test1", async (req, res) => {
+  try {
+
+    console.log("Starting commission conversion process...");
+
+    // =========================
+    // LOAD BILLINGS
+    // =========================
+
+    let getAllBill = await Billing.find({
+      paymentDate: {
+        $gte: new Date("2026-01-01T00:00:00.000Z"),
+        $lte: new Date("2026-01-31T23:59:59.999Z"),
+      },
+      // _id:"69cca344f35f6fc381b034b6"
+    })
+      .select("customer amountPaid emi paymentDate")
+      .populate({
+        path: "customer",
+        select: "id ddId cedId",
+      })
+      .lean();
+
+    console.log("Billing records loaded:", getAllBill.length);
+
+    // =========================
+    // LOAD ALL MARKETING HEADS
+    // =========================
+
+    const allHeads = await MarketingHead.find({})
+      .select("_id percentageId")
+      .populate({
+        path: "percentageId",
+        select: "rate",
+      })
+      .lean();
+
+    const headMap = new Map<string, any>();
+
+    for (const item of allHeads) {
+      headMap.set(item._id.toString(), item);
+    }
+
+    console.log("Marketing heads loaded:", headMap.size);
+    let get = headMap.get("6986e3ec501d2fd4dd18b07a");
+    console.log("Sample head:", get);
+
+    // =========================
+    // LOAD ALL MARKET DETAILS
+    // =========================
+
+    const allMarketDetails = await MarketDetail.find({})
+      .select("_id percentageId overAllHeadBy")
+      .populate({
+        path: "percentageId",
+        select: "rate",
+      })
+      .populate({
+        path: "overAllHeadBy.headBy",
+        populate: {
+          path: "percentageId",
+          select: "rate",
+        },
+      })
+      .lean();
+
+    const detailMap = new Map<string, any>();
+
+    for (const item of allMarketDetails) {
+      detailMap.set(item._id.toString(), item);
+    }
+
+    console.log("Market details loaded:", detailMap.size, "with overall heads populated");
+
+    // =========================
+    // PROCESS COMMISSIONS
+    // =========================
+
+    let getCommissionArr: any[] = [];
+
+    let index = 0;
+
+    for (const bill of getAllBill) {
+
+      const getCommission = convertCommissionToMarketer(
+        bill.customer,
+        bill.amountPaid,
+        headMap,
+        detailMap
+      );
+      if (!getCommission.success) {
+        const customerInfo = bill.customer as any;
+        console.log(
+          "Failed bill:",
+          customerInfo?.ddId,
+          customerInfo?._id,
+          bill._id,
+          bill?.customerCode,
+          getCommission.message
+        );
+      } else {
+        getCommissionArr.push({
+          customer: bill.customer._id,
+          customerCode: bill.customer?.id,
+          bill: bill._id,
+          emiId: bill.emi._id,
+          paymentDate: bill.paymentDate,
+          amount: bill.amountPaid,
+          marketer: getCommission.data,
+        });
+      }
+
+      index++;
+
+      if (index % 1000 === 0) {
+        console.log(`Processed ${index} bills...`);
+      }
+    }
+
+    // =========================
+    // SAVE OUTPUT
+    // =========================
+
+    let outDirectory = path.join(__dirname, "../cronOutput");
+
+    if (!fs.existsSync(outDirectory)) {
+      fs.mkdirSync(outDirectory, { recursive: true });
+    }
+
+    const fileName = `commission_conversion_${Date.now()}.json`;
+
+    // fs.writeFileSync(
+    //   path.join(outDirectory, fileName),
+    //   JSON.stringify(getCommissionArr, null, 2)
+    // );
+
+    // let batchSize = 1000;
+    // for (let i = 0; i < getCommissionArr.length; i += batchSize) {
+    //   const batch = getCommissionArr.slice(i, i + batchSize);
+    //   let inserted = await Commission.insertMany(batch, { ordered: false });
+    //   console.log(`Inserted batch ${i + batchSize}, records: ${inserted.length}`);
+    // }
+
+    console.log("Completed successfully");
+
+    return res.json({
+      success: true,
+      totalBills: getAllBill.length,
+      totalCommission: getCommissionArr.length,
+      fileName,
+    });
+
+  } catch (err) {
+    console.error("Server error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+
+  }
+});
+
+app.get("/test2", async (req, res) => {
+  try {
+
+    const cedIds = [
+"6987658d501d2fd4dd18b290",
+"69875f25501d2fd4dd18b209",
+"698765b2501d2fd4dd18b296",
+"69876483501d2fd4dd18b261",
+"69876483501d2fd4dd18b262",
+"69876483501d2fd4dd18b263",
+"6987658d501d2fd4dd18b291",
+"69875f25501d2fd4dd18b20b",
+"6989858815a20a131f0a1ce6",
+"69876483501d2fd4dd18b264",
+"6996a4b507b91ce8a2932d96",
+"69875937501d2fd4dd18b1b1",
+"69875f25501d2fd4dd18b20c",
+"6987650e501d2fd4dd18b282",
+"6987658d501d2fd4dd18b292",
+"69875f25501d2fd4dd18b20d",
+"69876483501d2fd4dd18b265",
+"69876483501d2fd4dd18b266",
+"6987650e501d2fd4dd18b284",
+"69875937501d2fd4dd18b1b3",
+"69875937501d2fd4dd18b1b5",
+"6987650e501d2fd4dd18b286",
+"69876483501d2fd4dd18b267",
+"69875937501d2fd4dd18b1b6",
+"69b692e5382e1ab1c2c037d2",
+"69875f25501d2fd4dd18b20e",
+"69875937501d2fd4dd18b1b7",
+"6987658d501d2fd4dd18b293"
+].map(id => new mongoose.Types.ObjectId(id));
+
+    let getAllBill = await Billing.aggregate([
+      {
+        $match: {
+          paymentDate: {
+            $gte: new Date("2026-04-01T00:00:00.000Z"),
+            $lte: new Date("2026-04-30T23:59:59.999Z")
+          },
+        }
+      },
+      {
+        $lookup: {
+          from: "customers",
+          localField: "customer",
+          foreignField: "_id",
+          as: "customer"
+        }
+      },
+      {
+        $unwind: "$customer"
+      },
+      // {
+      //   $lookup: {
+      //     from: "marketingheads",
+      //     localField: "customer.ddId",
+      //     foreignField: "_id",
+      //     as: "customer.ddId"
+      //   }
+      // },
+      // {
+      //   $unwind: {
+      //     path: "$customer.ddId",
+      //     preserveNullAndEmptyArrays: true
+      //   }
+      // },
+      // {
+      //   $lookup: {
+      //     from: "marketingheads",
+      //     localField: "customer.cedId",
+      //     foreignField: "_id",
+      //     as: "customer.cedId"
+      //   }
+      // },
+      // {
+      //   $unwind: {
+      //     path: "$customer.cedId",
+      //     preserveNullAndEmptyArrays: true
+      //   }
+      // },
+      {
+        $match: {
+          "customer.ddId": new mongoose.Types.ObjectId("6986e3ec501d2fd4dd18b089"),
+          $or: [
+            { "customer.cedId": new mongoose.Types.ObjectId("6986e3ec501d2fd4dd18b089") },
+            { "customer.cedId": null }
+          ]
+          // "customer.cedId": { $in: cedIds }
+        }
+      },
+      // {
+      //   $group: {
+      //     _id: "$customer.ddId.name",
+      //     totalBills: { $sum: 1 },
+      //     totalAmount: { $sum: "$amount" }, // optional
+      //     // bills: { $push: "$$ROOT" } 
+      //   }
+      // },
+      // {
+      //   $sort: {
+      //     _id: 1
+      //   }
+      // }
+    ]);
+    let total = 0
+    getAllBill.forEach(item => {
+      total += item.amountPaid;
+    })
+    let id = getAllBill.map((c)=>c.customer?.id);
+    res.json({
+      success: true,
+      count: getAllBill.length,
+      total: total,
+      data: id
+    });
+
+  } catch (err) {
+    console.error("Server error:", err);
+
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
 
 
 app.listen(port, () => console.log("Server running on port " + port));
