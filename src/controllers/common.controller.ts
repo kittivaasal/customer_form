@@ -3484,6 +3484,14 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
   getBilling = getBilling as IBilling;
 
   if(!user.isAdmin) {
+    return ReE(
+      res,
+      { message: "You are not authorized to delete billing!" },
+      httpStatus.UNAUTHORIZED,
+    );
+  }
+
+  if(!user.isAdmin) {
     if(!reason) {
       return ReE(
         res,
@@ -3572,8 +3580,6 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
       }]
     }
 
-    console.log(obj, "obj");
-
     let createBillingRequest;
     [err, createBillingRequest] = await toAwait(
       BillingRequest.create(obj),
@@ -3597,7 +3603,7 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
       oldData: getBilling,
       newData: null,
       createdBy: user._id,
-      message: `Billing delete request created by ${user.name}`,
+      message: `Billing delete request created by ${user.name}, with reason ${reason} based on this delete some updated in 'Emi' table fields are (paidDate: '${getEmi.paidDate}' to 'null' paidAmt: '${getEmi.paidAmt}' to '0')`,
       date: new Date()
     } as unknown as IActivityLog
 
@@ -3617,6 +3623,15 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
     return ReS(res, { message: "Billing delete request created" }, httpStatus.OK);
 
   }
+
+  let getEmi;
+  [err, getEmi] = await toAwait(Emi.findOne({ _id: getBilling.emi }));
+  if(err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+  if(!getEmi) {
+    return ReE(res,{ message: "No EMI found mapped to the given billing ID." },httpStatus.NOT_FOUND);
+  }
+
+  getEmi = getEmi as IEmi;
 
   let updateEmi;
   if (getBilling.emi) {
@@ -3658,6 +3673,12 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
   [err, deleteBilling] = await toAwait(Billing.findOneAndDelete({ _id: _id }));
   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
+  let deleteCommission;
+  [err, deleteCommission] = await toAwait(
+    Commission.deleteMany({ bill: _id })
+  )
+  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
   let obj = {
     userId: user._id,
     action: "DELETE",
@@ -3666,7 +3687,7 @@ export const deleteBilling = async (req: CustomRequest, res: Response) => {
     oldData: getBilling,
     newData: null,
     createdBy: user._id,
-    message: `Billing deleted by ${user.name}`,
+    message: `Billing deleted by ${user.name} and based on this delete some updated in 'Emi' table fields are (paidDate: '${getEmi?.paidDate}' to 'null' paidAmt: '${getEmi?.paidAmt}' to '0') and also this billing has commission so that also deleted`,
     date: new Date()
   } as unknown as IActivityLog
 

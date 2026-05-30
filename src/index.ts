@@ -125,57 +125,22 @@ cron.schedule("00 01 * * *", async () => {
           },
           status: { $ne: "Blocked" }
         }
-      },
-      {
-        $lookup: {
-          from: "generals",
-          localField: "general",
-          foreignField: "_id",
-          as: "general",
-        }
-      },
-      {
-        $unwind: "$general"
-      },
-      // {
-      //   $match: {
-      //     "general.status": { $ne: "Blocked" }
-      //   }
-      // },
-      {
-        $group: {
-          _id: "$general._id",
-          emiIds: { $push: "$_id" }
-        }
       }
     ])
 
-    let emiId: any[] = []
+     let emiId: any[] = []
     let ids : any[] = []
 
-
     generalIds.map((item: any) => {
-      if(item.emiIds && item.emiIds.length) {
-        emiId.push(...item.emiIds);
+      if(item.general) {
+        ids.push(item.general);
       }
-      ids.push(item._id);
+      if(item._id) {
+        emiId.push(item._id);
+      }
     });
 
     let batchSize = 1000;
-
-    for (let i = 0; i < ids.length; i += batchSize) {
-      const batch = ids.slice(i, i + batchSize);
-      let update = await General.updateMany(
-        {
-          _id: { $in: batch },
-          status: { $ne: "Blocked"}
-        },
-        {
-          $set: { status: "Blocked", blockedDate: new Date() }
-        }
-      );
-      console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
-    }
 
     for (let i = 0; i < emiId.length; i += batchSize) {
       const batch = emiId.slice(i, i + batchSize);
@@ -188,7 +153,35 @@ cron.schedule("00 01 * * *", async () => {
           $set: { status: "Blocked", blockedDate: new Date() }
         }
       );
-      console.log(`Processed EMI batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+      if(emiId.length === ids.length) {
+        let batchGeneral = ids.slice(i, i + batchSize);
+        let updateGeneral = await General.updateMany(
+          {
+            _id: { $in: batchGeneral },
+            status: { $ne: "Blocked"}
+          },
+          {
+            $set: { status: "Blocked", blockedDate: new Date() }
+          }
+        );
+        console.log(`Processed EMI batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount} and also blocked general batch ${i + batchSize}, matched ${updateGeneral.matchedCount}, modified ${updateGeneral.modifiedCount}`);
+      }
+    }
+
+    if(emiId.length !== ids.length && ids.length > 0) {
+      for (let i = 0; i < ids.length; i += batchSize) {
+        const batch = ids.slice(i, i + batchSize);
+        let update = await General.updateMany(
+          {
+            _id: { $in: batch },
+            status: { $ne: "Blocked"}
+          },
+          {
+            $set: { status: "Blocked", blockedDate: new Date() }
+          }
+        );
+        console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+      }
     }
 
     let createCornRun;
@@ -269,6 +262,129 @@ cron.schedule("*/5 * * * *", async () => {
     console.error("Report job recovery cron error:", err.message);
   }
 });
+
+
+// app.get("/emi/test", async (req, res) => {
+//   try {
+//     const today = new Date();
+//     let err;
+
+//     let todayMonth = today.getMonth();
+//     let todayYear = today.getFullYear();
+
+//     let db = process.env.DBURL
+
+//     if (db?.includes("/housing")) {
+//       todayMonth = todayMonth - 1
+//     }
+
+//     let startOfMonth = new Date(Date.UTC(todayYear, todayMonth, 1));
+//     startOfMonth.setUTCHours(0, 0, 0, 0);
+
+//     let no = -1;
+
+//     let startPreviousMonth = new Date(Date.UTC(todayYear, todayMonth - no, 1));
+//     startPreviousMonth.setUTCHours(0, 0, 0, 0);
+
+//     let endPreviousMonth = new Date(Date.UTC(todayYear, todayMonth - (no - 1), 0));
+//     endPreviousMonth.setUTCHours(23, 59, 59, 999);
+//     console.log("Checking EMIs to block for date range:", startPreviousMonth, endPreviousMonth);
+//     const generalIds: any[] = await Emi.aggregate([
+//       {
+//         $match: {
+//           paidDate: null,
+//           date: {
+//             $gte: startPreviousMonth,
+//             $lte: endPreviousMonth
+//           },
+//           status: { $ne: "Blocked" }
+//         }
+//       }
+//     ])
+
+//     let emiId: any[] = []
+//     let ids : any[] = []
+
+//     console.log("Generals to block:", generalIds.length,generalIds);
+//     generalIds.map((item: any) => {
+//       if(item.general) {
+//         ids.push(item.general);
+//       }
+//       if(item._id) {
+//         emiId.push(item._id);
+//       }
+//     });
+
+//     let batchSize = 1000;
+
+//     for (let i = 0; i < emiId.length; i += batchSize) {
+//       const batch = emiId.slice(i, i + batchSize);
+//       let update = await Emi.updateMany(
+//         {
+//           _id: { $in: batch },
+//           status: { $ne: "Blocked"}
+//         },
+//         {
+//           $set: { status: "Blocked", blockedDate: new Date() }
+//         }
+//       );
+//       if(emiId.length === ids.length) {
+//         let batchGeneral = ids.slice(i, i + batchSize);
+//         let updateGeneral = await General.updateMany(
+//           {
+//             _id: { $in: batchGeneral },
+//             status: { $ne: "Blocked"}
+//           },
+//           {
+//             $set: { status: "Blocked", blockedDate: new Date() }
+//           }
+//         );
+//         console.log(`Processed EMI batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount} and also blocked general batch ${i + batchSize}, matched ${updateGeneral.matchedCount}, modified ${updateGeneral.modifiedCount}`);
+//       }
+//     }
+
+
+//     if(emiId.length !== ids.length && ids.length > 0) {
+//       for (let i = 0; i < ids.length; i += batchSize) {
+//         const batch = ids.slice(i, i + batchSize);
+//         let update = await General.updateMany(
+//           {
+//             _id: { $in: batch },
+//             status: { $ne: "Blocked"}
+//           },
+//           {
+//             $set: { status: "Blocked", blockedDate: new Date() }
+//           }
+//         );
+//         console.log(`Processed batch ${i + batchSize}, matched ${update.matchedCount}, modified ${update.modifiedCount}`);
+//       }
+//     }
+
+//     console.log({
+//       paidDate: null,
+//       date: {
+//         $gte: startPreviousMonth,
+//         $lte: endPreviousMonth
+//       },
+//       status: { $ne: "Blocked" }
+//     })
+// // console.log(`Would block ${emiId.length} EMIs and ${ids.length} generals based on criteria, startPreviousMonth: ${startPreviousMonth.toISOString()}, endPreviousMonth: ${endPreviousMonth.toISOString()}`);
+//     res.json({
+//       success: true,
+//       data:generalIds,
+//       message: `Blocked ${emiId.length} EMIs and ${ids.length} generals`
+//     })
+
+//   } catch (err: any) {
+
+//       res.json({
+//         success: false,
+//         message: err.message
+//       });
+    
+//   }
+// })
+
 
 // //convert string DD-MM-YYYY to date
 // function excelDateStrToJSDate(excelDate: any): any | null {
@@ -1017,7 +1133,5 @@ cron.schedule("*/5 * * * *", async () => {
 //     });
 //   }
 // });
-
-
 
 app.listen(port, () => console.log("Server running on port " + port));
