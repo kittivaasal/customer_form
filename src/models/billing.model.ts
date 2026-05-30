@@ -203,6 +203,17 @@ const BillingSchema: Schema = new Schema<IBilling>(
     },
     paymentDateUpdate: {
       type: Date
+    },
+    adminApproved: {
+      type: Boolean,
+      default: false
+    },
+    adminApprovedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User"
+    },
+    adminApprovedDate: {
+      type: Date
     }
   },
   { timestamps: true }

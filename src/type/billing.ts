@@ -57,4 +57,7 @@ export interface IBilling extends Document {
     emiCover:mongoose.Types.ObjectId[]
     commissionErrorMsg?: string
     paymentDateUpdate?: Date
+    adminApproved?: boolean
+    adminApprovedBy?: mongoose.Types.ObjectId
+    adminApprovedDate?: Date
 }

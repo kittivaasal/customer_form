@@ -2528,7 +2528,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       if (getAllBill.length === 0) {
         balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
       } else {
-        totalPaid = getAllBill.reduce((acc, curr: any) => acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid, 0);
+        totalPaid = getAllBill.reduce((acc, curr: any) => acc + curr?.amountPaid, 0);
         balanceAmount = totalAmount - (totalPaid + amount);
       }
 
@@ -2622,7 +2622,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       if (getAllBill.length === 0) {
         balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
       } else {
-        totalPaid = getAllBill.reduce((acc, curr: any) => acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid, 0);
+        totalPaid = getAllBill.reduce((acc, curr: any) => acc + curr?.amountPaid, 0);
         balanceAmount = totalAmount - (totalPaid + amount);
       }
 
@@ -2667,7 +2667,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
                 message: `Billing parcially paid creation Request from  ${user.name} `,
                 requestFor: "create",
                 customerId: customerId,
-                emi: readyForBill.map((emi) => emi._id),
+                emi: readyForBill.map((emi) => emi?._id),
                 billingDetails: {
                   saleType: saleType,
                   modeOfPayment,
@@ -2763,9 +2763,9 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
               customer: customerId,
               emiId: null,
               paymentDate: createBill?.paymentDate,
-              customerCode: checkCustomer.id,
+              customerCode: checkCustomer?.id,
               amount: enteredAmount,
-              marketer: getCommission.data,
+              marketer: getCommission?.data,
             }),
           );
 
@@ -2986,7 +2986,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
       if (getAllBill.length === 0) {
         balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
       } else {
-        let total = getAllBill.reduce((acc, curr: any) => acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid, 0);
+        let total = getAllBill.reduce((acc, curr: any) => acc + curr?.amountPaid, 0);
         balanceAmount = totalAmount - (total + amount);
       }
 
@@ -3123,7 +3123,7 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
             paymentDate: billing?.paymentDate,
             customerCode: checkCustomer?.id,
             amount: !housing ? amount : enteredAmount,
-            marketer: getCommission.data,
+            marketer: getCommission?.data,
           }),
         );
 
@@ -3162,9 +3162,9 @@ export const createBilling = async (req: CustomRequest, res: Response) => {
           message: `Billing created by ${user.name} for ${checkCustomer?.name} with emi no ${element.emiNo}`,
           date: new Date()
         } as unknown as IActivityLog
-    
+
         let createLog = await addActivityLog(obj)
-    
+
         if(createLog.success === false) {
           let createErrorLog;
           [err, createErrorLog] = await toAwait(

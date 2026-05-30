@@ -146,7 +146,10 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
               enteredAmount: getBillingRequest.billingDetails.enteredAmount,
               amountPaid: getBillingRequest.billingDetails.enteredAmount,
               projectId: checkCustomer.projectId,
-              commissionErrorMsg: getCommission.success ? "" : getCommission.message
+              commissionErrorMsg: getCommission.success ? "" : getCommission.message,
+              adminApproved: true,
+              adminApprovedBy: user._id,
+              adminApprovedDate: new Date()
             })
           );
           if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -230,12 +233,12 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
           if (getAllBill.length === 0) {
             balanceAmount = isNaN(totalAmount) ? amount : totalAmount - amount;
           } else {
-            let total = getAllBill.reduce((acc, curr: any) => acc + curr.enteredAmount ? curr.enteredAmount : curr.amountPaid, 0);
+            let total = getAllBill.reduce((acc, curr: any) => acc + curr?.amountPaid, 0);
             balanceAmount = totalAmount - (total + amount);
           }
 
           let createBill: any = {
-            emiNo: element.emiNo,
+            emiNo: element?.emiNo,
             amountPaid: getBillingRequest.billingDetails.enteredAmount,
             paymentDate: new Date(getBillingRequest?.billingDetails?.paymentDate || new Date()),
             transactionType: "EMI Receipt",
@@ -259,7 +262,10 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
             customerCode: checkCustomer.id,
             createdBy: getBillingRequest?.userId || getBillingRequest?.userId?._id,
             enteredAmount: getBillingRequest.billingDetails.enteredAmount,
-            projectId: checkCustomer.projectId
+            projectId: checkCustomer.projectId,
+            adminApproved: true,
+            adminApprovedBy: user._id,
+            adminApprovedDate: new Date()
           };
 
           let getMarketer;
@@ -359,9 +365,9 @@ export const approvedBillingRequest = async (req: CustomRequest, res: Response) 
                 emiId: element?._id,
                 emiNo: element?.emiNo,
                 paymentDate: billing?.paymentDate,
-                customerCode: checkCustomer.id,
+                customerCode: checkCustomer?.id,
                 amount: am,
-                marketer: getCommission.data
+                marketer: getCommission?.data
               })
             );
 
