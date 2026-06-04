@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import httpStatus from "http-status";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { Counter } from "../models/counter.model";
 import EditRequest from "../models/editRequest.model";
 import { MarketDetail } from "../models/marketDetail.model";
@@ -811,164 +811,239 @@ export const deleteMarketDetail = async (req: CustomRequest, res: Response) => {
 }
 
 export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Response) => {
-  let err, { _id, headId } = req.body, user = req.user as IUser, head = true;
-  let field = ["_id", "headId"]
-  let inVaildFields = field.filter(x => !isNull(req.body[x]));
-  if (inVaildFields.length === 0) {
-    return ReE(res, { message: `Please enter required fields ${inVaildFields}!.` }, httpStatus.BAD_REQUEST);
-  }
-  if (!mongoose.isValidObjectId(_id)) {
-    return ReE(res, { message: `Invalid marketDetail id!` }, httpStatus.BAD_REQUEST);
-  }
+  try {
 
-  if (!mongoose.isValidObjectId(headId)) {
-    return ReE(res, { message: `Invalid head id!` }, httpStatus.BAD_REQUEST);
-  }
+    let err, { _id, headId } = req.body, user = req.user as IUser, head = true;
+    let field = ["_id", "headId"]
+    let inVaildFields = field.filter(x => !isNull(req.body[x]));
+    if (inVaildFields.length === 0) {
+      return ReE(res, { message: `Please enter required fields ${inVaildFields}!.` }, httpStatus.BAD_REQUEST);
+    }
 
-  let checkUser;
-  [err, checkUser] = await toAwait(MarketDetail.findOne({ _id: _id }));
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  if (!checkUser) {
-    return ReE(res, { message: `marketDetail not found for given id!.` }, httpStatus.NOT_FOUND)
-  }
+    if (!mongoose.isValidObjectId(_id)) {
+      return ReE(res, { message: `Invalid marketDetail id!` }, httpStatus.BAD_REQUEST);
+    }
 
-  checkUser = checkUser as IMarketDetail;
+    if (!mongoose.isValidObjectId(headId)) {
+      return ReE(res, { message: `Invalid head id!` }, httpStatus.BAD_REQUEST);
+    }
 
-  let checkChangeUser;
-  [err, checkChangeUser] = await toAwait(MarketingHead.findOne({ _id: headId }));
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  if (!checkChangeUser) {
-    [err, checkChangeUser] = await toAwait(MarketDetail.findOne({ _id: headId }));
+    let checkUser;
+    [err, checkUser] = await toAwait(MarketDetail.findOne({ _id: _id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    head = false;
+    if (!checkUser) {
+      return ReE(res, { message: `marketDetail not found for given id!.` }, httpStatus.NOT_FOUND)
+    }
+
+    checkUser = checkUser as IMarketDetail;
+
+    let checkChangeUser: any;
+    [err, checkChangeUser] = await toAwait(MarketingHead.findOne({ _id: headId }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
     if (!checkChangeUser) {
-      return ReE(res, { message: `change id is not found in marketerHead and marketDetail table!.` }, httpStatus.NOT_FOUND)
+      [err, checkChangeUser] = await toAwait(MarketDetail.findOne({ _id: headId }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      head = false;
+      if (!checkChangeUser) {
+        return ReE(res, { message: `change id is not found in marketerHead and marketDetail table!.` }, httpStatus.NOT_FOUND)
+      }
+      checkChangeUser = checkChangeUser as IMarketDetail
+      if (checkChangeUser.level >= checkUser.level) {
+        return ReE(res, { message: `change head level is ${checkChangeUser.level} change user level is ${checkUser.level} so change head level must lesser than change user level!.` }, httpStatus.BAD_REQUEST)
+      }
+      if (checkUser.headBy.toString() === headId.toString()) {
+        return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
+      }
+      // let get = checkUser.overAllHeadBy.find(i=>i.level === 1) as any
+      // let get1 = checkChangeUser.overAllHeadBy.find(i=>i.level === 1) as any
+      // if(get?.headBy?.toString() !== get1?.headBy?.toString()){
+      //   return ReE(res, { message: `Given marketer detail level 1 head must be same as the given change marketer detail level 1 head!.` }, httpStatus.BAD_REQUEST)
+      // }
     }
-    checkChangeUser = checkChangeUser as IMarketDetail
-    if (checkChangeUser.level >= checkUser.level) {
-      return ReE(res, { message: `change head level is ${checkChangeUser.level} change user level is ${checkUser.level} so change head level must lesser than change user level!.` }, httpStatus.BAD_REQUEST)
-    }
-    if (checkUser.headBy.toString() === headId.toString()) {
-      return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
-    }
-    // let get = checkUser.overAllHeadBy.find(i=>i.level === 1) as any
-    // let get1 = checkChangeUser.overAllHeadBy.find(i=>i.level === 1) as any
-    // if(get?.headBy?.toString() !== get1?.headBy?.toString()){
-    //   return ReE(res, { message: `Given marketer detail level 1 head must be same as the given change marketer detail level 1 head!.` }, httpStatus.BAD_REQUEST)
-    // }
-  }
 
-  if (head) {
-    let get = checkUser.overAllHeadBy.find(i => i.level === 1) as any
-    if (get?.headBy?.toString() === headId?.toString()) {
-      return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
+    let getHeadOfChangeUser = checkUser.overAllHeadBy.find(i => i.level === 1) as any
+    if (head) {
+      if (getHeadOfChangeUser?.headBy?.toString() === headId?.toString()) {
+        return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
+      }
     }
-  }
 
-  let bulkUpdateCustomer: any = [], changeDD = false;
-
-  if (!head) {
-    checkChangeUser = checkChangeUser as IMarketDetail
-    let get = checkUser.overAllHeadBy.find(i => i.level === 1) as any
-    let get1 = checkChangeUser.overAllHeadBy.find(i => i.level === 1) as any
-    if (get?.headBy?.toString() !== get1?.headBy?.toString()) {
-      changeDD = true
+    if(!getHeadOfChangeUser){
+      return ReE(res, { message: `Given marketer detail does not have level 1 head!.` }, httpStatus.BAD_REQUEST)
     }
-  }
 
-  if (head || changeDD) {
-    let getAllCustomerIDCed;
-    [err, getAllCustomerIDCed] = await toAwait(Customer.find({ cedId: _id }));
+    if(!getHeadOfChangeUser.headBy){
+      return ReE(res, { message: `Given marketer detail does not have level 1 head id!.` }, httpStatus.BAD_REQUEST)
+    }
+
+    let bulkUpdateCustomer: any = [], changeDD = false;
+
+    if (!head) {
+      checkChangeUser = checkChangeUser as IMarketDetail
+      let get = checkUser.overAllHeadBy.find(i => i.level === 1) as any
+      let get1 = checkChangeUser.overAllHeadBy.find((i:any) => i.level === 1) as any
+      console.log("get?.headBy?.toString()", get?.headBy?.toString(), "get1?.headBy?.toString()", get1?.headBy?.toString())
+      if (get?.headBy?.toString() !== get1?.headBy?.toString()) {
+        changeDD = true
+      }
+    }
+
+    if (head || changeDD) {    
+      let getAllCustomerIDCed;
+      // [err, getAllCustomerIDCed] = await toAwait(Customer.find({ cedId: _id }));
+      [err, getAllCustomerIDCed] = await toAwait(Customer.aggregate([
+        {
+          $match:{
+            ddId: getHeadOfChangeUser.headBy
+          }
+        },
+        {
+          $lookup: {
+            from: "marketdetails",
+            localField: "cedId",
+            foreignField: "_id",
+            as: "cedId"
+          }
+        },
+        {
+          $unwind: {
+            path: "$cedId",
+            preserveNullAndEmptyArrays: true
+          }
+        },
+        {
+          $match: { 
+            $or: [
+              { "cedId.overAllHeadBy.headBy": Types.ObjectId.createFromHexString(_id) },
+              { "cedId._id": Types.ObjectId.createFromHexString(_id) }
+            ]
+          }
+        }
+      ]));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      getAllCustomerIDCed = getAllCustomerIDCed as any[]
+      if (getAllCustomerIDCed.length !== 0) {
+        let ddId ;
+        if(head){
+          ddId = headId
+        }else{
+          let changeUserHead = checkChangeUser.overAllHeadBy.find((i:any)=> i.level === 1) as any;
+          if(changeUserHead?.headBy){
+            ddId = changeUserHead?.headBy;
+          }else{
+            return ReE(res, { message: `Given marketer detail does not have level 1 head!.` }, httpStatus.BAD_REQUEST)
+          }
+        }
+        getAllCustomerIDCed.map((customer: any) => {
+          bulkUpdateCustomer.push({
+            updateOne: {
+              filter: { _id: customer._id },
+              update: { $set: { ddId: head ? headId : ddId } }
+            }
+          })
+        })
+      }
+    }
+
+    let marketerBulkUpdate: any = [];
+
+    let getAllMarkerDetail;
+    [err, getAllMarkerDetail] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": _id }));
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    getAllCustomerIDCed = getAllCustomerIDCed as ICustomer[]
-    if (getAllCustomerIDCed.length !== 0) {
-      getAllCustomerIDCed.map((customer: any) => {
-        bulkUpdateCustomer.push({
+    getAllMarkerDetail = getAllMarkerDetail as IMarketDetail[]
+    console.log("getAllMarkerDetail", getAllMarkerDetail.length)
+    if (getAllMarkerDetail.length !== 0) {
+      getAllMarkerDetail.map((marketDetail: any) => {
+        let obj: any = {};
+        if(head){
+          obj.overAllHeadBy = [
+            {
+              headBy:headId,
+              level:1,
+              headByModel: "MarketingHead"
+            }
+          ]
+          obj.headBy = headId
+          obj.headByModel = "MarketingHead"
+        }else{
+          let checkOverAll = checkUser?.overAllHeadBy?.length;
+          let over = marketDetail.overAllHeadBy.splice(0, checkOverAll)
+          let first = checkChangeUser?.overAllHeadBy;
+          if(checkChangeUser?.overAllHeadBy){
+            if(first && first.length && !first.some((i:any)=> i.headBy.toString() === checkChangeUser._id.toString())){
+              first.push({
+                headBy: checkChangeUser._id,
+                level: checkChangeUser.level,
+                headByModel: head ? "MarketingHead" : "MarketDetail"
+              })
+            }
+          }
+          let overAllHeadBy = [...first, ...marketDetail.overAllHeadBy]
+          if(marketDetail._id.toString() === "69873a11501d2fd4dd18b133"){
+            console.log("over", overAllHeadBy, "checkUser.overAllHeadBy", checkUser.overAllHeadBy, " mass ", marketDetail.overAllHeadBy, checkOverAll, first  )
+          }
+          obj.overAllHeadBy = overAllHeadBy
+        }
+
+        marketerBulkUpdate.push({
           updateOne: {
-            filter: { _id: customer._id },
-            update: { $set: { ddId: headId } }
+            filter: { _id: marketDetail._id },
+            update: { $set: { ...obj } }
           }
         })
       })
     }
-  }
 
-  let marketerBulkUpdate: any = [];
+    // const outputDir = "./src/uploads/generated";
+    // if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-  let getAllMarkerDetail;
-  [err, getAllMarkerDetail] = await toAwait(MarketDetail.find({ "overAllHeadBy.headBy": _id }));
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  getAllMarkerDetail = getAllMarkerDetail as IMarketDetail[]
-  if (getAllMarkerDetail.length !== 0) {
-    getAllMarkerDetail.map((marketDetail: any) => {
-      let obj: any = {};
-      let overAllHeadBy = marketDetail.overAllHeadBy.filter((head: any) => head.headBy.toString() !== _id.toString())
-      if (marketDetail.headBy.toString() === _id.toString()) {
-        if (overAllHeadBy.length) {
-          let lastLevel = overAllHeadBy.length - 1;
-          let head = overAllHeadBy[lastLevel];
-          console.log("head", head, overAllHeadBy, lastLevel, marketDetail._id);
-          obj.headBy = head.headBy;
-          obj.headByModel = "MarketingHead"
+    // const jsonPath = path.join(outputDir, `marketer-${Date.now()}Housing.json`);
+    // fs.writeFileSync(jsonPath, JSON.stringify(marketerBulkUpdate, null, 2));
+
+    // return ReS(res, { message: "Customer count generated", data: { jsonPath } }, httpStatus.OK)
+
+    let obj: any = {}
+
+    if (head) {
+      obj.headBy = headId;
+      obj.overAllHeadBy = [
+        {
+          headBy: headId,
+          level: 1,
+          headByModel: "MarketingHead"
         }
-      }
-      obj.overAllHeadBy = overAllHeadBy
-      marketerBulkUpdate.push({
-        updateOne: {
-          filter: { _id: marketDetail._id },
-          update: { $set: { ...obj } }
-        }
-      })
-    })
-  }
-
-
-  // const outputDir = "./src/uploads/generated";
-  // if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-
-  // const jsonPath = path.join(outputDir, `marketer-${Date.now()}Housing.json`);
-  // fs.writeFileSync(jsonPath, JSON.stringify(marketerBulkUpdate, null, 2));
-
-  // return ReS(res, { message: "Customer count generated", data: { jsonPath } }, httpStatus.OK)
-
-  let obj: any = {}
-
-  if (head) {
-    obj.headBy = headId;
-    obj.overAllHeadBy = [
-      {
+      ]
+      obj.headByModel = "MarketingHead"
+    } else {
+      checkChangeUser = checkChangeUser as IMarketDetail
+      obj.headBy = headId;
+      obj.headByModel = "MarketDetail"
+      obj.overAllHeadBy = checkChangeUser.overAllHeadBy;
+      obj.overAllHeadBy.push({
         headBy: headId,
-        level: 1,
-        headByModel: "MarketingHead"
-      }
-    ]
-    obj.headByModel = "MarketingHead"
-  } else {
-    checkChangeUser = checkChangeUser as IMarketDetail
-    obj.headBy = headId;
-    obj.headByModel = "MarketDetail"
-    obj.overAllHeadBy = checkChangeUser.overAllHeadBy;
-    obj.overAllHeadBy.push({
-      headBy: headId,
-      level: checkChangeUser.level,
-      headByModel: "MarketDetail"
-    })
+        level: checkChangeUser.level,
+        headByModel: "MarketDetail"
+      })
+    }
+
+    try {
+      await Promise.all([
+        marketerBulkUpdate.length && processBulkWrite(MarketDetail, marketerBulkUpdate, "MarketDetail"),
+        bulkUpdateCustomer.length && processBulkWrite(Customer, bulkUpdateCustomer, "Customer")
+      ]);
+    } catch (err) {
+      return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    let updateUser;
+    [err, updateUser] = await toAwait(MarketDetail.updateOne({ _id: _id }, { $set: obj }));
+    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+
+    ReS(res, { message: "marketDetail updated" }, httpStatus.OK)
+   
+  } catch (error) {
+    return ReE(res,error,httpStatus.INTERNAL_SERVER_ERROR)
   }
-
-  try {
-    await Promise.all([
-      marketerBulkUpdate.length && processBulkWrite(MarketDetail, marketerBulkUpdate, "MarketDetail"),
-      bulkUpdateCustomer.length && processBulkWrite(Customer, bulkUpdateCustomer, "Customer")
-    ]);
-  } catch (err) {
-    return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  }
-
-  let updateUser;
-  [err, updateUser] = await toAwait(MarketDetail.updateOne({ _id: _id }, { $set: obj }));
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-
-  ReS(res, { message: "marketDetail updated" }, httpStatus.OK)
 
 }
 
