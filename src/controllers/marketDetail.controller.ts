@@ -160,250 +160,258 @@ export const createMarketDetail = async (req: CustomRequest, res: Response) => {
 };
 
 export const updateMarketDetail = async (req: CustomRequest, res: Response) => {
-  let body = req.body, user = req.user as IUser, getFrom;
-  let err: any;
-  let { _id, headBy, phone, address, status, name, percentageId } = body;
-  let fields = ["headBy", "phone", "address", "status", 'name', 'percentageId'];
-  let inVaildFields = fields.filter(x => !isNull(body[x]));
-  if (inVaildFields.length === 0) {
-    return ReE(res, { message: `Please enter any one field to update ${fields}!.` }, httpStatus.BAD_REQUEST);
-  }
-  if (!_id) {
-    return ReE(res, { message: `_id is required!` }, httpStatus.BAD_REQUEST);
-  }
+  try {
 
-  let getMarketDetail: any;
-  [err, getMarketDetail] = await toAwait(MarketDetail.findOne({ _id: _id }).populate('percentageId'));
-
-  if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-  if (!getMarketDetail) {
-    return ReE(res, { message: `marketDetail not found for given id!.` }, httpStatus.NOT_FOUND)
-  }
-
-  getMarketDetail = getMarketDetail as IMarketDetail;
-
-  const updateFields: Record<string, any> = {};
-  for (const key of fields) {
-    if (!isNull(body[key])) {
-      updateFields[key] = body[key];
+    let body = req.body, user = req.user as IUser, getFrom;
+    let err: any;
+    let { _id, headBy, phone, address, status, name, percentageId } = body;
+    let fields = ["headBy", "phone", "address", "status", 'name', 'percentageId'];
+    let inVaildFields = fields.filter(x => !isNull(body[x]));
+    if (inVaildFields.length === 0) {
+      return ReE(res, { message: `Please enter any one field to update ${fields}!.` }, httpStatus.BAD_REQUEST);
     }
-  }
-
-  if (headBy) {
-    if (getMarketDetail.headBy.toString() !== headBy.toString()) {
-      // return ReE(res, { message: `headBy field cannot be updated in this api you can use changeTeam api!.` }, httpStatus.BAD_REQUEST);
-      //====================headby update using change team api==================
-      // if (!user.isAdmin) {
-      //   return ReE(res, { message: `You are authorized to update headBy of marketDetail!` }, httpStatus.BAD_REQUEST);
-      // }
-      // if (!mongoose.isValidObjectId(headBy)) {
-      //   return ReE(res, { message: 'Invalid headBy id!' }, httpStatus.BAD_REQUEST);
-      // }
-      // let findExist;
-      // [err, findExist] = await toAwait(MarketingHead.findById({ _id: headBy }));
-      // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      // let checkMarketDetail;
-      // if (!findExist) {
-      //   [err, checkMarketDetail] = await toAwait(MarketDetail.findOne({ _id: headBy }));
-      //   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-      //   if (!checkMarketDetail) {
-      //     return ReE(res, { message: `headBy is not found inside in marketDetail and marketingHead given id: ${headBy}!.` }, httpStatus.NOT_FOUND);
-      //   } else {
-      //     getFrom = "MarketDetail";
-      //   }
-      // } else {
-      //   getFrom = "MarketingHead";
-      //   let level = getMarketDetail.overAllHeadBy.length;
-      //   if (level !== 1) {
-      //     return ReE(res, { message: `headBy already map with marketDetail table so cannot map with marketingHead given id: ${headBy}!.` }, httpStatus.NOT_FOUND);
-      //   }
-      // }
-
-      // // let findPrevHeadBy = getMarketDetail.overAllHeadBy.find(x => x.headBy.toString() === getMarketDetail.headBy.toString());
-      // // if (findPrevHeadBy) {
-      // //     findPrevHeadBy = findPrevHeadBy as { headBy: mongoose.Types.ObjectId; headByModel: string; level: Number; };
-      // //     updateFields
-      // //     updateFields.overAllHeadBy[Number(findPrevHeadBy.level) - 1].headBy = headBy;
-      // // }
-
-      // // let updatedOverAllHeadBy = [];
-      // // let find = getMarketDetail.overAllHeadBy.find(x => x.headBy.toString() === headBy.toString());
-
-      // // for (let index = 0; index < getMarketDetail.overAllHeadBy.length; index++) {
-      // //     let element = getMarketDetail.overAllHeadBy[index];
-
-      // //     if(element.headBy.toString() === getMarketDetail.headBy.toString()){
-      // //         updateFields.overAllHeadBy[index].headBy = headBy;
-      // //         updatedOverAllHeadBy.push({
-      // //             ...element,
-      // //             headBy: getMarketDetail.headBy
-      // //         });
-      // //     }else{
-      // //         updatedOverAllHeadBy.push(element);
-      // //     }
-      // // }
-      // Object.assign(getMarketDetail.overAllHeadBy.find(x => x.headBy.toString() === getMarketDetail.headBy.toString()) || {},
-      //   {
-      //     headBy: headBy
-      //   }
-      // );
-      // updateFields.overAllHeadBy = getMarketDetail.overAllHeadBy
+    if (!_id) {
+      return ReE(res, { message: `_id is required!` }, httpStatus.BAD_REQUEST);
     }
-  }
 
-  if (updateFields.percentageId) {
-    if (!mongoose.isValidObjectId(updateFields.percentageId)) {
-      return ReE(res, { message: "Invalid percentage id" }, httpStatus.BAD_REQUEST);
-    }
-    let checkPer;
-    [err, checkPer] = await toAwait(Percentage.findOne({ _id: updateFields.percentageId }));
+    let getMarketDetail: any;
+    [err, getMarketDetail] = await toAwait(MarketDetail.findOne({ _id: _id }).populate('percentageId'));
+
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (!checkPer) return ReE(res, {  message: "Percentage is not found for given id" }, httpStatus.NOT_FOUND)
-    checkPer = checkPer as IPercentage;
-    if (checkPer.name.toUpperCase() === "DIAMOND DIRECTOR" || checkPer.level === 1) {
-      return ReE(res, { message: `MarkerDetail not be a 'DIAMOND DIRECTOR'!.` }, httpStatus.BAD_REQUEST);
+    if (!getMarketDetail) {
+      return ReE(res, { message: `marketDetail not found for given id!.` }, httpStatus.NOT_FOUND)
     }
-    getMarketDetail = getMarketDetail as any
-    // console.log("checkPer.level", checkPer.level, "getMarketDetail.percentageId.level", getMarketDetail.percentageId.level,checkPer.level > getMarketDetail.percentageId.level,"mass",checkPer.level < getMarketDetail.percentageId.level)
-    if(checkPer.level !== getMarketDetail.percentageId.level){
-      if(checkPer.level > getMarketDetail.percentageId.level){
-        let getMarketDetailHead;
-        [err, getMarketDetailHead] = await toAwait(MarketDetail.find({ headBy: getMarketDetail._id }).populate("percentageId").sort({level:1}));
-        if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-        getMarketDetailHead = getMarketDetailHead as IMarketDetail[];
-        // return ReS(res, { message: ` first!.`, data: getMarketDetailHead }, httpStatus.BAD_REQUEST);
-        if(getMarketDetailHead && getMarketDetailHead.length > 0){
-          let filter = getMarketDetailHead.find((i:any)=>i.percentageId.level === checkPer.level) as any;
-          if(filter){
-            return ReE(res, { message: `Given marketDetail is head for some other marketDetail, their level is ${filter.percentageId.level} and given percentage level is ${checkPer.level}, so given percentage level selected less than this level percentage!.` }, httpStatus.BAD_REQUEST);
-          }
-          let h = getMarketDetailHead[0] as any;
-          if(checkPer.level >= (h.percentageId as unknown as  IPercentage).level){
-            return ReE(res, { message: `Given marketDetail is head for some other marketDetail, their level is ${h.percentageId.level} and given percentage level is ${checkPer.level}, so given percentage level selected less than this level percentage!.` }, httpStatus.BAD_REQUEST);
-          }
-        }
-        // console.log("getMarketDetailHead", getMarketDetailHead && getMarketDetailHead.length > 0, checkPer.level >= (getMarketDetailHead[0].percentageId as unknown as IPercentage).level, checkPer.level , (getMarketDetailHead[0].percentageId as unknown as IPercentage).level)
-      }else if (checkPer.level < getMarketDetail.percentageId.level) {
-        if(getMarketDetail.overAllHeadBy.length !== 1){
-        //   if(checkPer.level !== 2){
-            let getHead;
-            [err, getHead] = await toAwait(MarketDetail.findOne({ _id: getMarketDetail.headBy }).populate("percentageId"));
-            if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-            if (!getHead) {
-              [err, getHead] = await toAwait(MarketingHead.findOne({ _id: getMarketDetail.headBy }).populate("percentageId"));
-              if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-              if(!getHead){
-                return ReE(res, { message: `Headby not found for given marketDetail!.` }, httpStatus.NOT_FOUND);
-              }
-            }
-            if(getHead){
-              getHead = getHead as any
-              if(getHead.percentageId.level >= checkPer.level){
-                return ReE(res, { message: `The head of given marketDetail level is ${getHead.percentageId.level} and given percentage level is ${checkPer.level}, so given percentage level should be greater than head percentage level!.` }, httpStatus.BAD_REQUEST);
-              }
-            }
-            console.log("getHead.percentageId.level", getHead.percentageId.level, "checkPer.level", checkPer.level, getHead.percentageId.level >= checkPer.level)
+
+    getMarketDetail = getMarketDetail as IMarketDetail;
+
+    const updateFields: Record<string, any> = {};
+    for (const key of fields) {
+      if (!isNull(body[key])) {
+        updateFields[key] = body[key];
+      }
+    }
+
+    if (headBy) {
+      if (getMarketDetail.headBy.toString() !== headBy.toString()) {
+        // return ReE(res, { message: `headBy field cannot be updated in this api you can use changeTeam api!.` }, httpStatus.BAD_REQUEST);
+        //====================headby update using change team api==================
+        // if (!user.isAdmin) {
+        //   return ReE(res, { message: `You are authorized to update headBy of marketDetail!` }, httpStatus.BAD_REQUEST);
+        // }
+        // if (!mongoose.isValidObjectId(headBy)) {
+        //   return ReE(res, { message: 'Invalid headBy id!' }, httpStatus.BAD_REQUEST);
+        // }
+        // let findExist;
+        // [err, findExist] = await toAwait(MarketingHead.findById({ _id: headBy }));
+        // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        // let checkMarketDetail;
+        // if (!findExist) {
+        //   [err, checkMarketDetail] = await toAwait(MarketDetail.findOne({ _id: headBy }));
+        //   if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+        //   if (!checkMarketDetail) {
+        //     return ReE(res, { message: `headBy is not found inside in marketDetail and marketingHead given id: ${headBy}!.` }, httpStatus.NOT_FOUND);
+        //   } else {
+        //     getFrom = "MarketDetail";
         //   }
-        }
+        // } else {
+        //   getFrom = "MarketingHead";
+        //   let level = getMarketDetail.overAllHeadBy.length;
+        //   if (level !== 1) {
+        //     return ReE(res, { message: `headBy already map with marketDetail table so cannot map with marketingHead given id: ${headBy}!.` }, httpStatus.NOT_FOUND);
+        //   }
+        // }
+
+        // // let findPrevHeadBy = getMarketDetail.overAllHeadBy.find(x => x.headBy.toString() === getMarketDetail.headBy.toString());
+        // // if (findPrevHeadBy) {
+        // //     findPrevHeadBy = findPrevHeadBy as { headBy: mongoose.Types.ObjectId; headByModel: string; level: Number; };
+        // //     updateFields
+        // //     updateFields.overAllHeadBy[Number(findPrevHeadBy.level) - 1].headBy = headBy;
+        // // }
+
+        // // let updatedOverAllHeadBy = [];
+        // // let find = getMarketDetail.overAllHeadBy.find(x => x.headBy.toString() === headBy.toString());
+
+        // // for (let index = 0; index < getMarketDetail.overAllHeadBy.length; index++) {
+        // //     let element = getMarketDetail.overAllHeadBy[index];
+
+        // //     if(element.headBy.toString() === getMarketDetail.headBy.toString()){
+        // //         updateFields.overAllHeadBy[index].headBy = headBy;
+        // //         updatedOverAllHeadBy.push({
+        // //             ...element,
+        // //             headBy: getMarketDetail.headBy
+        // //         });
+        // //     }else{
+        // //         updatedOverAllHeadBy.push(element);
+        // //     }
+        // // }
+        // Object.assign(getMarketDetail.overAllHeadBy.find(x => x.headBy.toString() === getMarketDetail.headBy.toString()) || {},
+        //   {
+        //     headBy: headBy
+        //   }
+        // );
+        // updateFields.overAllHeadBy = getMarketDetail.overAllHeadBy
       }
-    }else{
-      // console.log("percentage level not change");
     }
 
-    updateFields.level = checkPer.level;
-    console.log("updateFields.level", updateFields.percentageId, "checkPer.level", checkPer.level);
-    if(!mongoose.isValidObjectId(updateFields.percentageId)){
-      updateFields.percentageId = checkPer._id;
-    }
-      
-  }
+    if (updateFields.percentageId) {
+      if (!mongoose.isValidObjectId(updateFields.percentageId)) {
+        return ReE(res, { message: "Invalid percentage id" }, httpStatus.BAD_REQUEST);
+      }
+      let checkPer;
+      [err, checkPer] = await toAwait(Percentage.findOne({ _id: updateFields.percentageId }));
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (!checkPer) return ReE(res, {  message: "Percentage is not found for given id" }, httpStatus.NOT_FOUND)
+      checkPer = checkPer as IPercentage;
+      if (checkPer.name.toUpperCase() === "DIAMOND DIRECTOR" || checkPer.level === 1) {
+        return ReE(res, { message: `MarkerDetail not be a 'DIAMOND DIRECTOR'!.` }, httpStatus.BAD_REQUEST);
+      }
+      getMarketDetail = getMarketDetail as any
+      // console.log("checkPer.level", checkPer.level, "getMarketDetail.percentageId.level", getMarketDetail.percentageId.level,checkPer.level > getMarketDetail.percentageId.level,"mass",checkPer.level < getMarketDetail.percentageId.level)
+      if(checkPer.level !== getMarketDetail.percentageId.level){
+        if(checkPer.level > getMarketDetail.percentageId.level){
+          let getMarketDetailHead;
+          [err, getMarketDetailHead] = await toAwait(MarketDetail.find({ headBy: getMarketDetail._id }).populate("percentageId").sort({level:1}));
+          if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+          getMarketDetailHead = getMarketDetailHead as IMarketDetail[];
+          // return ReS(res, { message: ` first!.`, data: getMarketDetailHead }, httpStatus.BAD_REQUEST);
+          if(getMarketDetailHead && getMarketDetailHead.length > 0){
+            let filter = getMarketDetailHead.find((i:any)=>i.percentageId.level === checkPer.level) as any;
+            if(filter){
+              return ReE(res, { message: `Given marketDetail is head for some other marketDetail, their level is ${filter.percentageId.level} and given percentage level is ${checkPer.level}, so given percentage level selected less than this level percentage!.` }, httpStatus.BAD_REQUEST);
+            }
+            let h = getMarketDetailHead[0] as any;
+            if(checkPer.level >= (h.percentageId as unknown as  IPercentage).level){
+              return ReE(res, { message: `Given marketDetail is head for some other marketDetail, their level is ${h.percentageId.level} and given percentage level is ${checkPer.level}, so given percentage level selected less than this level percentage!.` }, httpStatus.BAD_REQUEST);
+            }
+          }
+          // console.log("getMarketDetailHead", getMarketDetailHead && getMarketDetailHead.length > 0, checkPer.level >= (getMarketDetailHead[0].percentageId as unknown as IPercentage).level, checkPer.level , (getMarketDetailHead[0].percentageId as unknown as IPercentage).level)
+        }else if (checkPer.level < getMarketDetail.percentageId.level) {
+          if(getMarketDetail.overAllHeadBy.length !== 1){
+          //   if(checkPer.level !== 2){
+              let getHead;
+              [err, getHead] = await toAwait(MarketDetail.findOne({ _id: getMarketDetail.headBy }).populate("percentageId"));
+              if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+              if (!getHead) {
+                [err, getHead] = await toAwait(MarketingHead.findOne({ _id: getMarketDetail.headBy }).populate("percentageId"));
+                if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+                if(!getHead){
+                  return ReE(res, { message: `Headby not found for given marketDetail!.` }, httpStatus.NOT_FOUND);
+                }
+              }
+              if(getHead){
+                getHead = getHead as any
+                if(getHead.percentageId.level >= checkPer.level){
+                  return ReE(res, { message: `The head of given marketDetail level is ${getHead.percentageId.level} and given percentage level is ${checkPer.level}, so given percentage level should be greater than head percentage level!.` }, httpStatus.BAD_REQUEST);
+                }
+              }
+              console.log("getHead.percentageId.level", getHead.percentageId.level, "checkPer.level", checkPer.level, getHead.percentageId.level >= checkPer.level)
+          //   }
+          }
+        }
+      }else{
+        // console.log("percentage level not change");
+      }
 
-  if (updateFields.phone) {
-    if (!isPhone(updateFields.phone)) {
-      return ReE(res, { message: `Invalid phone number!.` }, httpStatus.BAD_REQUEST)
+      updateFields.level = checkPer.level;
+      console.log("updateFields.level", updateFields.percentageId, "checkPer.level", checkPer.level);
+      if(!mongoose.isValidObjectId(updateFields.percentageId)){
+        updateFields.percentageId = checkPer._id;
+      }
+        
     }
-    // let findPhone;
-    // [err, findPhone] = await toAwait(MarketDetail.findOne({ phone: updateFields.phone, _id: { $ne: _id } }));
-    // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    // if (findPhone) {
-    //   return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
+
+    if (updateFields.phone) {
+      if (!isPhone(updateFields.phone)) {
+        return ReE(res, { message: `Invalid phone number!.` }, httpStatus.BAD_REQUEST)
+      }
+      // let findPhone;
+      // [err, findPhone] = await toAwait(MarketDetail.findOne({ phone: updateFields.phone, _id: { $ne: _id } }));
+      // if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      // if (findPhone) {
+      //   return ReE(res, { message: `Phone already exists!.` }, httpStatus.BAD_REQUEST)
+      // }
+    }
+
+    if(typeof getMarketDetail.percentageId === "object"){
+      getMarketDetail.percentageId = getMarketDetail.percentageId?._id;
+    }
+
+    const changes: { field: string; oldValue: any; newValue: any }[] = [];
+    console.log("updateFields", fields, "getMarketDetail", getMarketDetail)
+    // let keys = 
+    // fields.forEach((key: any) => {
+    //   const newValue = body[key];
+    //   const oldValue = (getMarketDetail as any)[key];
+    //   if (isNull(newValue)) return
+    //   if (newValue.toString() !== oldValue.toString()) {
+    //     changes.push({ field: key, oldValue, newValue });
+    //   }
+    // });
+
+    // if (changes.length === 0) {
+    //   return ReE(res, { message: "No changes found to update." }, httpStatus.BAD_REQUEST);
     // }
-  }
 
-  if(typeof getMarketDetail.percentageId === "object"){
-    getMarketDetail.percentageId = getMarketDetail.percentageId?._id;
-  }
+    if (user.isAdmin === false) {
 
-  const changes: { field: string; oldValue: any; newValue: any }[] = [];
-  fields.forEach((key: any) => {
-    const newValue = body[key];
-    const oldValue = (getMarketDetail as any)[key];
-    if (isNull(newValue)) return
-    if (newValue.toString() !== oldValue.toString()) {
-      changes.push({ field: key, oldValue, newValue });
-    }
-  });
+      let checkEditRequest;
+      [err, checkEditRequest] = await toAwait(
+        EditRequest.findOne({ targetId: _id, editedBy: user._id })
+      )
 
-  if (changes.length === 0) {
-    return ReE(res, { message: "No changes found to update." }, httpStatus.BAD_REQUEST);
-  }
-
-  if (user.isAdmin === false) {
-
-    let checkEditRequest;
-    [err, checkEditRequest] = await toAwait(
-      EditRequest.findOne({ targetId: _id, editedBy: user._id })
-    )
-
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-    if (checkEditRequest) {
-      checkEditRequest = checkEditRequest as IEditRequest;
-      let get = []
-      checkEditRequest.changes.forEach((change) => {
-        if (changes.some((c) => c.field.toString() === change.field.toString())) {
-          get.push(change)
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+      if (checkEditRequest) {
+        checkEditRequest = checkEditRequest as IEditRequest;
+        let get = []
+        checkEditRequest.changes.forEach((change) => {
+          if (changes.some((c) => c.field.toString() === change.field.toString())) {
+            get.push(change)
+          }
+        })
+        if (checkEditRequest.changes.length === get.length && checkEditRequest.status === "pending") {
+          return ReE(res, { message: "You already have a pending edit request for this marketDetail." }, httpStatus.BAD_REQUEST);
         }
-      })
-      if (checkEditRequest.changes.length === get.length && checkEditRequest.status === "pending") {
-        return ReE(res, { message: "You already have a pending edit request for this marketDetail." }, httpStatus.BAD_REQUEST);
       }
+
+      let createReq;
+      [err, createReq] = await toAwait(
+        EditRequest.create({
+          targetModel: "MarketDetail",
+          targetId: _id,
+          editedBy: user._id,
+          changes,
+          status: "pending",
+        })
+      );
+
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
+
+      createReq = createReq as IEditRequest;
+
+      ReS(res, { message: "Edit request created successfully, Awaiting for approval." }, httpStatus.OK);
+
+      let send = await sendPushNotificationToSuperAdmin("Edit request for MarketDetail", `A new edit request for marketDetail has been created by ${user.name}`, createReq._id.toString())
+
+      if (!send.success) {
+        return console.log(send.message);
+      }
+
+      return console.log("Edit request push notification sent.");
+
+    } else {
+
+      let updateResult;
+
+      [err, updateResult] = await toAwait(
+        MarketDetail.updateOne({ _id }, { $set: updateFields })
+      );
+      if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
+      return ReS(res, { message: "MarketDetail updated successfully." }, httpStatus.OK);
+
     }
 
-    let createReq;
-    [err, createReq] = await toAwait(
-      EditRequest.create({
-        targetModel: "MarketDetail",
-        targetId: _id,
-        editedBy: user._id,
-        changes,
-        status: "pending",
-      })
-    );
-
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
-
-    createReq = createReq as IEditRequest;
-
-    ReS(res, { message: "Edit request created successfully, Awaiting for approval." }, httpStatus.OK);
-
-    let send = await sendPushNotificationToSuperAdmin("Edit request for MarketDetail", `A new edit request for marketDetail has been created by ${user.name}`, createReq._id.toString())
-
-    if (!send.success) {
-      return console.log(send.message);
-    }
-
-    return console.log("Edit request push notification sent.");
-
-  } else {
-
-    let updateResult;
-
-    [err, updateResult] = await toAwait(
-      MarketDetail.updateOne({ _id }, { $set: updateFields })
-    );
-    if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR)
-    return ReS(res, { message: "MarketDetail updated successfully." }, httpStatus.OK);
-
+  } catch (error) {
+    return ReE(res, error, httpStatus.INTERNAL_SERVER_ERROR);
   }
 
 };
@@ -424,6 +432,7 @@ export const getByIdMarketDetail = async (req: Request, res: Response) => {
   }
 
   ReS(res, { message: "marketDetail found", data: getMarketDetail }, httpStatus.OK)
+  
 }
 
 export const getAllMarketDetail = async (req: Request, res: Response) => {
@@ -851,6 +860,7 @@ export const changeMarketDetailToOtherTeam = async (req: CustomRequest, res: Res
       if (checkChangeUser.level >= checkUser.level) {
         return ReE(res, { message: `change head level is ${checkChangeUser.level} change user level is ${checkUser.level} so change head level must lesser than change user level!.` }, httpStatus.BAD_REQUEST)
       }
+    
       if (checkUser.headBy.toString() === headId.toString()) {
         return ReE(res, { message: `Given marketer detail head is the same as the given Head ID!.` }, httpStatus.BAD_REQUEST)
       }
@@ -1343,7 +1353,7 @@ export const getFullHierarchy = async (req: Request, res: Response) => {
       // 🔽 All MarketDetails under this MarketingHead
       const downline = await MarketDetail.find({
         "overAllHeadBy.headBy": objectId
-      }).lean();
+      }).populate("headBy").lean();
 
       // Sort strictly by level from overAllHeadBy
       const sortedDownline = downline.sort((a: any, b: any) => {
@@ -1366,7 +1376,7 @@ export const getFullHierarchy = async (req: Request, res: Response) => {
     /* ======================================================
        2️⃣ CHECK MARKET DETAIL
     ====================================================== */
-    const self = await MarketDetail.findById(objectId).lean();
+    const self = await MarketDetail.findById(objectId).populate("headBy").lean();
     if (!self) {
       return res.status(404).json({
         success: false,
@@ -1382,12 +1392,12 @@ export const getFullHierarchy = async (req: Request, res: Response) => {
 
     for (const h of self.overAllHeadBy.sort((a: any, b: any) => a.level - b.level)) {
       if (h.headByModel === "MarketingHead") {
-        const head = await MarketingHead.findById(h.headBy).lean();
+        const head = await MarketingHead.findById(h.headBy).populate("headBy").lean();
         if (head) upline.push({ ...head, level: h.level });
       }
 
       if (h.headByModel === "MarketDetail") {
-        const md = await MarketDetail.findById(h.headBy).lean();
+        const md = await MarketDetail.findById(h.headBy).populate("headBy").lean();
         if (md) upline.push({ ...md, level: h.level });
       }
     }
@@ -1398,7 +1408,7 @@ export const getFullHierarchy = async (req: Request, res: Response) => {
     ====================================================== */
     const downline = await MarketDetail.find({
       "overAllHeadBy.headBy": objectId
-    }).lean();
+    }).populate("overAllHeadBy.headBy").populate("headBy").lean();
 
     const sortedDownline = downline
       .map((d: any) => {
