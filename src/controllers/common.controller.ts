@@ -4195,6 +4195,8 @@ export const getAllBillingReport = async (
   req: CustomRequest,
   res: Response,
 ) => {
+  try {
+
   let user = req.user as IUser;
   let err;
 
@@ -4593,7 +4595,7 @@ export const getAllBillingReport = async (
   }
 
   let getBilling: any = [];
-  if (status !== "unpaid") {
+  if (status !== "unpaid" && status !== 'blocked') {
     [err, getBilling] = await toAwait(
       Billing.find(option)
       .populate({
@@ -4718,8 +4720,8 @@ export const getAllBillingReport = async (
   }
 
   let general
+  let getBlockedEmiLevel;
   if (status === "blocked") {
-    let getBlockedEmiLevel;
     [err, getBlockedEmiLevel] = await toAwait(
       Emi.aggregate([
         {
@@ -4734,39 +4736,88 @@ export const getAllBillingReport = async (
           },
         },
         {
-          $unwind: "$general",
+          $unwind: {
+            path: "$general",
+            preserveNullAndEmptyArrays: true,
+          }
         },
         {
-          $match: {
-            "general.status": "Blocked",
+          $lookup: {
+            from: "customers",
+            localField: "customer",
+            foreignField: "_id",
+            as: "customer",
           },
         },
+        {
+          $unwind:{
+            path: "$customer",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: "marketdetails",
+            localField: "customer.cedId",
+            foreignField: "_id",
+            as: "customer.cedId",
+          },
+        },
+        {
+          $unwind:{
+            path: "$customer.cedId",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: "marketingheads",
+            localField: "customer.ddId",
+            foreignField: "_id",
+            as: "customer.ddId",
+          },
+        },
+        {
+          $unwind:{
+            path: "$customer.ddId",
+            preserveNullAndEmptyArrays: true,
+          },
+        }
+        // {  
+        //   $match: {
+        //     "general.status": "Blocked",
+        //   },
+        // },
       ])
     );
-    [err,general] = await toAwait(
-      General.find(generalOption).populate("project").populate({
-        path: "customer",
-        populate: [
-          {
-            path: "ddId", // populate cedId first
-            populate: {
-              path: "percentageId", // then populate marketerId inside cedId
-            },
-          },
-          {
-            path: "cedId",
-            populate: [
-              { path: "percentageId" },
-              {
-                path: "overAllHeadBy.headBy", // populate headBy inside overAllHeadBy array
-                populate: { path: "percentageId" }, // populate headBy.percentageId
-              },
-            ],
-          },
-        ],
-      })
-    )
+    // [err,general] = await toAwait(
+    //   General.find(generalOption).populate("project").populate({
+    //     path: "customer",
+    //     populate: [
+    //       {
+    //         path: "ddId", // populate cedId first
+    //         populate: {
+    //           path: "percentageId", // then populate marketerId inside cedId
+    //         },
+    //       },
+    //       {
+    //         path: "cedId",
+    //         populate: [
+    //           { path: "percentageId" },
+    //           {
+    //             path: "overAllHeadBy.headBy", // populate headBy inside overAllHeadBy array
+    //             populate: { path: "percentageId" }, // populate headBy.percentageId
+    //           },
+    //         ],
+    //       },
+    //     ],
+    //   })
+    // )
   }
+
+  getBlockedEmiLevel = getBlockedEmiLevel as IEmi[];
+
+  console.log(getBlockedEmiLevel.length)
 
   if (err) {
     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
@@ -4799,11 +4850,15 @@ export const getAllBillingReport = async (
   }
 
   getEmi = getEmi as IEmi[];
-  general = general as IGeneral[];
+  // general = general as IGeneral[];
 
-  // console.log(emiOption, option, generalOption, getBilling.length, getEmi.length)
+  console.log(emiOption, option, generalOption, getBilling.length, getEmi, getBlockedEmiLevel.length)
 
-  return ReS(res, { billing: getBilling, emi: getEmi, general }, httpStatus.OK);
+  return ReS(res, { billing: getBilling, emi: getEmi, general, emiBlocked: getBlockedEmiLevel }, httpStatus.OK);
+
+  } catch (error) {
+    return ReE(res, error, httpStatus.INTERNAL_SERVER_ERROR);
+  }
 };
 
 export const convertCommissionToMarketer = async (
