@@ -1723,6 +1723,22 @@ export const getUplineDownline = async (req: Request, res: Response) => {
           }
         }
       },
+      //populate slef headBy
+      {
+        $lookup: {
+          from: "marketdetails",
+          localField: "self.headBy",
+          foreignField: "_id",
+          as: "self.headBy"
+        }
+      },
+      {
+        $unwind: {
+          path: "$self.headBy",
+          preserveNullAndEmptyArrays: true
+        }
+      },
+
 
       /* -------------------------------------------------- */
       /* 7️⃣ DOWNLINE */
@@ -2123,6 +2139,14 @@ export const getUplineDownline = async (req: Request, res: Response) => {
     getMarkingHead.level = 1;
     dataObj.upline?.unshift(getMarkingHead);
     // }
+
+    let downlineLength = dataObj.downline.length;
+
+    if(downlineLength === 1){
+      if(!dataObj.downline[0].overAllHeadBy) {
+        dataObj.downline = [];
+      }
+    }
 
     return res.json({
       success: true,
