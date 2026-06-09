@@ -4204,7 +4204,7 @@ export const getAllBillingReport = async (
     option: any = {},
     emiOption: any = {},
     generalOption: any = {},
-    emiBlockedOption: any = {};
+    emiBlockedOption: any = { paidDate: null};
 
   if (projectId) {
     if (!mongoose.isValidObjectId(projectId)) {
@@ -4782,8 +4782,22 @@ export const getAllBillingReport = async (
             path: "$customer.ddId",
             preserveNullAndEmptyArrays: true,
           },
+        },
+        {
+          $lookup: {
+            from: "projects",
+            localField: "general.project",
+            foreignField: "_id",
+            as: "general.project",
+          },
+        },
+        {
+          $unwind:{
+            path: "$general.project",
+            preserveNullAndEmptyArrays: true,
+          },
         }
-        // {  
+        // {
         //   $match: {
         //     "general.status": "Blocked",
         //   },
@@ -4852,7 +4866,7 @@ export const getAllBillingReport = async (
   getEmi = getEmi as IEmi[];
   // general = general as IGeneral[];
 
-  console.log(emiOption, option, generalOption, getBilling.length, getEmi, getBlockedEmiLevel.length)
+  console.log(emiOption, option, generalOption, getBilling.length, getEmi, getBlockedEmiLevel.length,emiBlockedOption)
 
   return ReS(res, { billing: getBilling, emi: getEmi, general, emiBlocked: getBlockedEmiLevel }, httpStatus.OK);
 

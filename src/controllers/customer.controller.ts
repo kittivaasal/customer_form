@@ -689,7 +689,6 @@ export const getAllCustomer = async (req: Request, res: Response) => {
   let totalPages = 1;
   let count;
   [err, count] = await toAwait(Customer.countDocuments(searchQuery));
-console.log(count,searchQuery);
   if (page && limit) {
     if (err) return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
 
