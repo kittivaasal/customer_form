@@ -688,13 +688,13 @@ cron.schedule("*/5 * * * *", async () => {
 //       };
 //     }
 
-//     if (!customer.ddId) {
-//       return {
-//         success: false,
-//         message: "Customer ddId not found",
-//         data: null,
-//       };
-//     }
+// //     if (!customer.ddId) {
+// //       return {
+// //         success: false,
+// //         message: "Customer ddId not found",
+// //         data: null,
+// //       };
+// //     }
 
 //     // =========================
 //     // DD COMMISSION
@@ -855,8 +855,8 @@ cron.schedule("*/5 * * * *", async () => {
 
 //     let getAllBill = await Billing.find({
 //       paymentDate: {
-//         $gte: new Date("2026-01-01T00:00:00.000Z"),
-//         $lte: new Date("2026-01-31T23:59:59.999Z"),
+//         $gte: new Date("2026-05-01T00:00:00.000Z"),
+//         $lte: new Date("2026-05-31T23:59:59.999Z"),
 //       },
 //       // _id:"69cca344f35f6fc381b034b6"
 //     })
@@ -980,12 +980,12 @@ cron.schedule("*/5 * * * *", async () => {
 //     //   JSON.stringify(getCommissionArr, null, 2)
 //     // );
 
-//     // let batchSize = 1000;
-//     // for (let i = 0; i < getCommissionArr.length; i += batchSize) {
-//     //   const batch = getCommissionArr.slice(i, i + batchSize);
-//     //   let inserted = await Commission.insertMany(batch, { ordered: false });
-//     //   console.log(`Inserted batch ${i + batchSize}, records: ${inserted.length}`);
-//     // }
+//     let batchSize = 1000;
+//     for (let i = 0; i < getCommissionArr.length; i += batchSize) {
+//       const batch = getCommissionArr.slice(i, i + batchSize);
+//       let inserted = await Commission.insertMany(batch, { ordered: false });
+//       console.log(`Inserted batch ${i + batchSize}, records: ${inserted.length}`);
+//     }
 
 //     console.log("Completed successfully");
 
@@ -1130,6 +1130,44 @@ cron.schedule("*/5 * * * *", async () => {
 //     res.status(500).json({
 //       success: false,
 //       message: "Internal server error",
+//     });
+//   }
+// });
+
+// app.get("/health", async(req, res) => {
+//   try {
+//     let getGen = await Emi.aggregate([
+//       {
+//         $group: {
+//           _id: { emiNo: "$emiNo", customerCode: "$customerCode", customer: "$customer" },
+//           count: { $sum: 1 },
+//           documents: { 
+//             $push: {
+//               paidDate: "$paidDate",
+//               customerCode: "$customerCode" ,
+//               emiNo: "$emiNo",
+//               date: "$date",
+//               status: "$status",
+//             }
+//           }
+//         }
+//       },
+//       {
+//         $match: {
+//           count: { $gt: 1 }
+//         }
+//       }
+//     ]);
+//     res.json({
+//       success: true,
+//       message: "Server is healthy",
+//       length: getGen.length,
+//       data: getGen.length > 0 ? getGen : "No duplicates found in EMI collection"
+//     });
+//   } catch (error) {
+//     res.json({
+//       success: false,
+//       message: "Server is unhealthy",
 //     });
 //   }
 // });
