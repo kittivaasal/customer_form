@@ -4831,8 +4831,6 @@ export const getAllBillingReport = async (
 
   getBlockedEmiLevel = getBlockedEmiLevel as IEmi[];
 
-  console.log(getBlockedEmiLevel.length)
-
   if (err) {
     return ReE(res, err, httpStatus.INTERNAL_SERVER_ERROR);
   }
@@ -4865,8 +4863,6 @@ export const getAllBillingReport = async (
 
   getEmi = getEmi as IEmi[];
   // general = general as IGeneral[];
-
-  console.log(emiOption, option, generalOption, getBilling.length, getEmi, getBlockedEmiLevel.length,emiBlockedOption)
 
   return ReS(res, { billing: getBilling, emi: getEmi, general, emiBlocked: getBlockedEmiLevel }, httpStatus.OK);
 
